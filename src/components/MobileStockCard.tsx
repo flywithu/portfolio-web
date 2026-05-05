@@ -3,6 +3,7 @@ import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { Sparkline } from "./Sparkline";
 import { Tooltip, ColorName } from "./Tooltip";
+import { AuxIndicators } from "./AuxIndicators";
 
 // 모바일 종목 카드 — 데스크톱 StockCard 의 가격 + 통계 박스만 (투자자 동향 X)
 // 폰트 모두 작게.
@@ -363,7 +364,7 @@ export function MobileStockCard({
       </Tooltip>
 
       {/* 우측 — 통계 박스 (50%) */}
-      <div className="basis-1/2 min-w-0 border border-gray-200 rounded
+      <div className="relative basis-1/2 min-w-0 border border-gray-200 rounded
                        bg-gray-50/60 px-1.5 py-1 space-y-0.5
                        flex flex-col justify-start">
         {hasPosition && (
@@ -414,6 +415,9 @@ export function MobileStockCard({
             <span className={signColor(pnl)}>)</span>
           </div>
         )}
+
+        {/* ─── 보조 지표 — 우측 하단 네모 블럭 ──── */}
+        <AuxIndicators chart={chart} isTradingDay={!!price.high} textSize="10" />
 
       </div>
       </article>

@@ -23,6 +23,7 @@ import {
   type SortKey, type SortDirection,
 } from "./lib/sortHoldings";
 import { SortSelector, makeSortHandlers } from "./components/SortSelector";
+import { AuxBatchToggle } from "./components/AuxBatchToggle";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
@@ -370,8 +371,9 @@ function Dashboard() {
           )
         ) : (
           <>
-            {/* 정렬 옵션 */}
-            <div className="flex items-center justify-end mb-2">
+            {/* 정렬 옵션 + 추가지표 일괄 토글 */}
+            <div className="flex items-center justify-end gap-2 mb-2">
+              <AuxBatchToggle />
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />

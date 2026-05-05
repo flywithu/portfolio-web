@@ -3,6 +3,7 @@ import type { Stock, Price, Investor, Consensus } from "../types";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { Sparkline } from "./Sparkline";
+import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
 
 interface Props {
@@ -793,9 +794,9 @@ export function StockCard({
         </Tooltip>
 
         {/* 통계 박스 — 매수/어제/수익 (3/10) */}
-        <div className="border border-gray-200 rounded-md bg-gray-50/60
+        <div className="relative border border-gray-200 rounded-md bg-gray-50/60
                         px-2 py-1 basis-[40%] min-w-0 space-y-0.5
-                        flex flex-col justify-center">
+                        flex flex-col justify-start">
 
         {/* 보유: 매수 + 피크 */}
         {hasPosition && (
@@ -853,6 +854,11 @@ export function StockCard({
             <span className={signColor(pnl)}>)</span>
           </div>
         )}
+
+        {/* ─── 보조 지표 (3개월 / 변동성 / 외인비율 추세) ─────
+            거래일엔 접혀있고 비거래일엔 펼쳐있음. 클릭으로 토글 */}
+        <AuxIndicators chart={chart} investorHistory={investorHistory}
+                       isTradingDay={!!price.high} />
 
         </div>
 

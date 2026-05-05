@@ -5,6 +5,7 @@ import {
   type SortKey, type SortDirection,
 } from "../lib/sortHoldings";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
+import { AuxBatchToggle } from "./AuxBatchToggle";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverInfo, fetchWarning,
   fetchYahooChart, fetchKrPriceHistory,
@@ -432,9 +433,10 @@ export function MobileSimpleView() {
       {/* ─── 그룹 컨텐츠 (US_KEY 외) ─── */}
       {activeTab !== US_KEY && (
         <>
-          {/* 정렬 옵션 */}
+          {/* 정렬 옵션 + 추가지표 일괄 토글 */}
           {groupHoldings.length > 0 && (
-            <div className="flex items-center justify-end px-2 pt-2">
+            <div className="flex items-center justify-end gap-2 px-2 pt-2">
+              <AuxBatchToggle short />
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />
