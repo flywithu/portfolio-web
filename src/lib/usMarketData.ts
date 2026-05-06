@@ -14,37 +14,37 @@ export interface Pair {
 }
 
 export const US_PAIRS: Pair[] = [
-  // Tier 0: 핵심 대시보드 (그리드 4열, 3행)
-  // 1행: 한국 지수 + 환율
-  { symbol: "^KS11",  name: "KOSPI",      desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KS200", name: "KOSPI 200",  desc: "코스피 200 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KQ11",  name: "KOSDAQ",     desc: "코스닥 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KQ100", name: "KOSDAQ 100", desc: "코스닥 100 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "KRW=X",  name: "USD/KRW",   desc: "원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
-  // 2행: 미국 지수 + 야간 선물 (현물·선물 짝)
-  { symbol: "^IXIC",  name: "나스닥",     desc: "미국 기술주 전체", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "NQ=F",   name: "나스닥 선물", desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^GSPC",  name: "S&P 500",   desc: "미국 대형주 — 글로벌 리스크 온/오프", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "ES=F",   name: "S&P 500 선물", desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
-  // 3행: 반도체
-  { symbol: "^SOX",   name: "필반",      desc: "필라델피아반도체 — 미국 반도체 30개사 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "SOX=F",  name: "필반 선물",  desc: "PHLX 반도체 선물 — 야간 흐름", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "NVDA",   name: "NVIDIA",    desc: "AI 칩 대장 — HBM 수요", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "TSM",    name: "TSMC",      desc: "파운드리 1위 — 업황 대표", tier: "T0", sector: "dashboard", direction: "direct" },
-  // 4행: 환율 + 매크로 + 외국인 투심 + 공포
-  { symbol: "JPY=X",  name: "엔/달러",   desc: "USD/JPY — 한일 수출 경쟁력 (엔 약세 = 한국 불리)", tier: "T0", sector: "dashboard", direction: "neutral" },
-  { symbol: "DX-Y.NYB", name: "달러 인덱스", desc: "DXY — 6개 통화 대비 달러 강도", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "^TNX",   name: "미국 10Y",  desc: "미 10년 국채금리 — 외국인 수급·성장주 할인율", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "EWY",    name: "EWY",       desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^VIX",   name: "VIX",       desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
-  // 원자재 + 비트코인 (위험자산 sentiment)
-  { symbol: "GC=F",   name: "금",        desc: "Gold — 안전자산 / risk-off 지표", tier: "T0", sector: "dashboard", direction: "neutral" },
-  { symbol: "SI=F",   name: "은",        desc: "Silver — 산업금속 + 안전자산 양성격", tier: "T0", sector: "dashboard", direction: "neutral" },
-  { symbol: "HG=F",   name: "구리",      desc: "Dr. Copper — 글로벌 경기 선행지표", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "CL=F",   name: "WTI 원유",  desc: "국제 유가 — 정유·에너지·인플레", tier: "T0", sector: "dashboard", direction: "neutral" },
-  { symbol: "NG=F",   name: "천연가스",   desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "neutral" },
-  { symbol: "BTC-USD",name: "비트코인",  desc: "위험자산 — 한국 IT/플랫폼 상관", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^N225",  name: "닛케이 225", desc: "일본 대형주 — 아시아 sentiment", tier: "T0", sector: "dashboard", direction: "direct" },
+  // Tier 0: 핵심 대시보드 — 데스크탑 T0_GROUPS 순서와 일치 (모바일 단일 컬럼 같은 순서로 노출)
+  // 행 1 — 환율 + 매크로 + 외국인 투심 + 공포
+  { symbol: "KRW=X",    name: "USD/KRW",     desc: "원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "DX-Y.NYB", name: "달러 인덱스",  desc: "DXY — 6개 통화 대비 달러 강도", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "JPY=X",    name: "엔/달러",     desc: "USD/JPY — 한일 수출 경쟁력 (엔 약세 = 한국 불리)", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "^TNX",     name: "미국 10Y",    desc: "미 10년 국채금리 — 외국인 수급·성장주 할인율", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "EWY",      name: "EWY",         desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^VIX",     name: "VIX",         desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
+  // 행 2 — 원자재 + 위험자산
+  { symbol: "GC=F",     name: "금",          desc: "Gold — 안전자산 / risk-off 지표", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "SI=F",     name: "은",          desc: "Silver — 산업금속 + 안전자산 양성격", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "HG=F",     name: "구리",        desc: "Dr. Copper — 글로벌 경기 선행지표", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "CL=F",     name: "WTI 원유",    desc: "국제 유가 — 정유·에너지·인플레", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "NG=F",     name: "천연가스",     desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "BTC-USD",  name: "비트코인",    desc: "위험자산 — 한국 IT/플랫폼 상관", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 행 3 — 미국 지수 + 야간 선물 + 닛케이
+  { symbol: "^IXIC",    name: "나스닥",      desc: "미국 기술주 전체", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "NQ=F",     name: "나스닥 선물",  desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^N225",    name: "닛케이 225",   desc: "일본 대형주 — 아시아 sentiment", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^GSPC",    name: "S&P 500",     desc: "미국 대형주 — 글로벌 리스크 온/오프", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "ES=F",     name: "S&P 500 선물", desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 행 4 — 반도체
+  { symbol: "^SOX",     name: "필반",        desc: "필라델피아반도체 — 미국 반도체 30개사 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "SOX=F",    name: "필반 선물",    desc: "PHLX 반도체 선물 — 야간 흐름", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "NVDA",     name: "NVIDIA",      desc: "AI 칩 대장 — HBM 수요", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "TSM",      name: "TSMC",        desc: "파운드리 1위 — 업황 대표", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 행 5 — 한국 지수 (마지막)
+  { symbol: "^KS11",    name: "KOSPI",       desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KS200",   name: "KOSPI 200",   desc: "코스피 200 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KQ11",    name: "KOSDAQ",      desc: "코스닥 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KQ100",   name: "KOSDAQ 100",  desc: "코스닥 100 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
 ];
 
 export const ETFS_BY_SECTOR: Record<string, string[]> = {};
