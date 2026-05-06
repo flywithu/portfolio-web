@@ -213,21 +213,38 @@ interface YahooChartResp {
           volume?: (number | null)[];
         }>;
       };
+      events?: {
+        dividends?: Record<string, { date: number; amount: number }>;
+      };
     }>;
   };
+}
+
+// 배당 이벤트 (배당락일 = ex-dividend date)
+export interface DividendEvent {
+  date: string;       // YYYY-MM-DD (KST)
+  amount: number;     // 주당 배당금 (원 또는 USD)
 }
 
 async function fetchPriceHistoryFor(
   symbol: string, range: string,
 ): Promise<PricePoint[]> {
+  const r = await fetchPriceHistoryWithDividendsFor(symbol, range);
+  return r.prices;
+}
+
+// 가격 + 배당 이벤트 (배당락일) 같이 반환
+async function fetchPriceHistoryWithDividendsFor(
+  symbol: string, range: string,
+): Promise<{ prices: PricePoint[]; dividends: DividendEvent[] }> {
   const target =
     `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}` +
-    `?range=${range}&interval=1d`;
+    `?range=${range}&interval=1d&events=div`;
   const resp = await fetchProxied(target);
-  if (!resp.ok) return [];
+  if (!resp.ok) return { prices: [], dividends: [] };
   const data = await resp.json() as YahooChartResp;
   const res = data.chart?.result?.[0];
-  if (!res) return [];
+  if (!res) return { prices: [], dividends: [] };
   const ts = res.timestamp ?? [];
   const q = res.indicators?.quote?.[0] ?? {};
   const closes = q.close ?? [];
@@ -238,21 +255,31 @@ async function fetchPriceHistoryFor(
   const points: PricePoint[] = [];
   for (let i = 0; i < ts.length; i++) {
     const c = closes[i];
-    if (c == null) continue;  // null = 비거래일/미체결
-    // KST 변환 — Asia/Seoul 시간대로 ts 를 변환
+    if (c == null) continue;
     const d = new Date(ts[i] * 1000);
     const kst = new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60_000);
     const date = kst.toISOString().slice(0, 10);
     points.push({
-      date,
-      close: c,
+      date, close: c,
       volume: volumes[i] ?? 0,
       open: opens[i] ?? undefined,
       high: highs[i] ?? undefined,
       low: lows[i] ?? undefined,
     });
   }
-  return points;
+  // 배당 이벤트 — KST 기준 날짜로 변환
+  const dividends: DividendEvent[] = [];
+  const divMap = res.events?.dividends ?? {};
+  for (const v of Object.values(divMap)) {
+    const d = new Date(v.date * 1000);
+    const kst = new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60_000);
+    dividends.push({
+      date: kst.toISOString().slice(0, 10),
+      amount: v.amount,
+    });
+  }
+  dividends.sort((a, b) => a.date.localeCompare(b.date));
+  return { prices: points, dividends };
 }
 
 // 한국 6자리 → KOSPI 시도 → 실패 시 KOSDAQ
@@ -263,6 +290,16 @@ export async function fetchKrPriceHistory(
   const ks = await fetchPriceHistoryFor(`${ticker}.KS`, range);
   if (ks.length > 0) return ks;
   return await fetchPriceHistoryFor(`${ticker}.KQ`, range);
+}
+
+// 한국 종목 가격 + 배당 이벤트 통합 fetch
+export async function fetchKrPriceHistoryWithDividends(
+  ticker: string, range = "1y",
+): Promise<{ prices: PricePoint[]; dividends: DividendEvent[] }> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return { prices: [], dividends: [] };
+  const ks = await fetchPriceHistoryWithDividendsFor(`${ticker}.KS`, range);
+  if (ks.prices.length > 0) return ks;
+  return await fetchPriceHistoryWithDividendsFor(`${ticker}.KQ`, range);
 }
 
 // 8시 KST 이전 + body[0] 전부 0 → body[1] 폴백 (데스크톱 v2 동일)

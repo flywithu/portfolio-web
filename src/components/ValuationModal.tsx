@@ -83,7 +83,8 @@ import {
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { signColor } from "../lib/format";
-import { fetchInvestorHistorySafe, fetchKrPriceHistory } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithDividends } from "../lib/api";
+import type { DividendEvent } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
 
@@ -615,13 +616,15 @@ function InvestorChartsSection({
   ticker: string; history: Investor[];
   targetPrice?: number; myAvgPrice?: number;
 }) {
-  // 가격 + 거래량 history (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백)
-  const { data: prices, isLoading: pricesLoading } = useQuery({
-    queryKey: ["price-history-modal", ticker],
-    queryFn: () => fetchKrPriceHistory(ticker, "1y"),
+  // 가격 + 거래량 + 배당 이벤트 (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백)
+  const { data: priceData, isLoading: pricesLoading } = useQuery({
+    queryKey: ["price-history-modal-with-dividends", ticker],
+    queryFn: () => fetchKrPriceHistoryWithDividends(ticker, "1y"),
     enabled: /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 5 * 60_000,
   });
+  const prices = priceData?.prices;
+  const dividends = priceData?.dividends ?? [];
 
   // 시간순 정렬 + 누적 합 — useMemo 로 ref 안정화 (재렌더 시 차트 재생성 방지)
   const data = useMemo(() => [...history].reverse(), [history]);
@@ -658,6 +661,7 @@ function InvestorChartsSection({
       {alignedPrices.length > 1 ? (
         <PriceVolumeChart prices={alignedPrices} investors={data}
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice}
+                          dividends={dividends}
                           onReady={registerSync} />
       ) : (
         <div className="text-xs text-gray-400 p-2 border border-gray-200 rounded">
@@ -703,10 +707,11 @@ function saveChartMode(m: ChartMode): void {
 }
 
 function PriceVolumeChart({
-  prices, investors, targetPrice, myAvgPrice, onReady,
+  prices, investors, targetPrice, myAvgPrice, dividends, onReady,
 }: {
   prices: PricePoint[]; investors: Investor[];
   targetPrice?: number; myAvgPrice?: number;
+  dividends?: DividendEvent[];
   onReady?: SyncRegistrar;
 }) {
   const [mode, setMode] = useState<ChartMode>(loadChartMode);
@@ -797,6 +802,7 @@ function PriceVolumeChart({
       }>
         <CandleChartLight prices={prices} investors={investors} mode={mode}
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice}
+                          dividends={dividends}
                           onReady={onReady} />
       </Suspense>
     </div>

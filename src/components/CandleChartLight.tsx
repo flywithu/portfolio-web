@@ -18,7 +18,7 @@ import {
   type LogicalRange,
   type MouseEventParams,
 } from "lightweight-charts";
-import type { PricePoint } from "../lib/api";
+import type { PricePoint, DividendEvent } from "../lib/api";
 import type { Investor } from "../types";
 
 const UP_COLOR    = "#dc2626";  // 양봉 빨강
@@ -42,6 +42,7 @@ interface Props {
   investors: Investor[];
   targetPrice?: number;
   myAvgPrice?: number;
+  dividends?: DividendEvent[];
   mode: "line" | "candle";
   onReady?: (
     chart: IChartApi,
@@ -50,11 +51,14 @@ interface Props {
   ) => (() => void) | void;
 }
 
+const DIV_COLOR = "#0d9488";  // 배당락 marker — teal-600 (목표/평단과 색 구분)
+
 export function CandleChartLight({
-  prices, investors, targetPrice, myAvgPrice, mode, onReady,
+  prices, investors, targetPrice, myAvgPrice, dividends, mode, onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<HTMLDivElement>(null);
   // 재생성 시 줌 상태 복원용 — 마지막 visible logical range
   const visibleRangeRef = useRef<LogicalRange | null>(null);
 
@@ -229,6 +233,64 @@ export function CandleChartLight({
       });
     }
 
+    // ─── 배당락 마커 (HTML overlay: 가는 1px 세로선 + 작은 화살촉 + 라벨) ──
+    // Yahoo dividend.date = ex-dividend date (배당락일) — 가격 시계열 범위 내만 표시
+    const divMap = new Map<string, number>();
+    if (dividends && dividends.length > 0) {
+      const priceDateSet = new Set(prices.map(p => p.date));
+      for (const d of dividends) {
+        if (priceDateSet.has(d.date)) divMap.set(d.date, d.amount);
+      }
+    }
+
+    const renderDividendMarkers = () => {
+      const layer = markersRef.current;
+      if (!layer) return;
+      layer.innerHTML = "";
+      if (divMap.size === 0) return;
+      for (const [date, amount] of divMap) {
+        const p = priceMap.get(date);
+        if (!p) continue;
+        const x = chart.timeScale().timeToCoordinate(date as Time);
+        if (x == null) continue;
+        const lowY = priceSeries.priceToCoordinate(p.low ?? p.close);
+        if (lowY == null) continue;
+
+        const wrap = document.createElement("div");
+        wrap.style.cssText =
+          "position:absolute;left:" + x + "px;top:" + (lowY + 4) + "px;" +
+          "transform:translateX(-50%);pointer-events:none;z-index:4;" +
+          "display:flex;flex-direction:column;align-items:center;";
+
+        // 화살촉 (위 방향, 캔들 쪽을 가리킴)
+        const head = document.createElement("div");
+        head.style.cssText =
+          "width:0;height:0;" +
+          "border-left:3px solid transparent;border-right:3px solid transparent;" +
+          "border-bottom:5px solid " + DIV_COLOR + ";";
+        wrap.appendChild(head);
+
+        // 가는 세로선 (1px × 22px)
+        const line = document.createElement("div");
+        line.style.cssText =
+          "width:1px;height:22px;background:" + DIV_COLOR + ";";
+        wrap.appendChild(line);
+
+        // 라벨
+        const label = document.createElement("div");
+        label.style.cssText =
+          "background:#ffffff;border:1px solid " + DIV_COLOR + ";" +
+          "color:" + DIV_COLOR + ";" +
+          "border-radius:3px;padding:0 4px;font-size:9px;font-weight:600;" +
+          "white-space:nowrap;line-height:1.4;margin-top:1px;";
+        label.textContent = "배당락 " + Math.round(amount).toLocaleString() + "원";
+        wrap.appendChild(label);
+
+        layer.appendChild(wrap);
+      }
+    };
+    const initMarkerTimer = window.setTimeout(renderDividendMarkers, 0);
+
     // ─── 줌 상태 복원/저장 ──────────────────────────────────
     if (visibleRangeRef.current) {
       chart.timeScale().setVisibleLogicalRange(visibleRangeRef.current);
@@ -237,8 +299,12 @@ export function CandleChartLight({
     }
     const rangeHandler = (range: LogicalRange | null) => {
       if (range) visibleRangeRef.current = range;
+      renderDividendMarkers();   // 줌/스크롤 시 위치 갱신
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(rangeHandler);
+
+    const resizeObs = new ResizeObserver(() => renderDividendMarkers());
+    if (containerRef.current) resizeObs.observe(containerRef.current);
 
     // ─── 데이터 lookup map (hover/sync 공용) ──────────────────
     const priceMap = new Map<string, PricePoint>();
@@ -294,6 +360,10 @@ export function CandleChartLight({
       if (r !== undefined) {
         content += `<div><span class="text-gray-500">외인지분 </span><span style="color:${RATIO_COLOR}">${r.toFixed(2)}%</span></div>`;
       }
+      const div = divMap.get(String(time));
+      if (div !== undefined) {
+        content += `<div><span class="text-gray-500">배당락 </span><span style="color:${DIV_COLOR}" class="font-bold">${Math.round(div).toLocaleString()}원</span></div>`;
+      }
       tooltip.innerHTML = content;
       tooltip.style.display = "block";
 
@@ -336,17 +406,21 @@ export function CandleChartLight({
     const cleanupSync = onReady?.(chart, priceSeries, onSyncedHover);
 
     return () => {
+      window.clearTimeout(initMarkerTimer);
+      resizeObs.disconnect();
       if (typeof cleanupSync === "function") cleanupSync();
       try { chart.unsubscribeCrosshairMove(tooltipHandler); } catch { /* noop */ }
       try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(rangeHandler); }
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [prices, investors, mode, targetPrice, myAvgPrice, onReady]);
+  }, [prices, investors, mode, targetPrice, myAvgPrice, dividends, onReady]);
 
   return (
     <div className="relative">
       <div ref={containerRef} className="w-full h-[220px] lg:h-[360px]" />
+      <div ref={markersRef}
+           className="absolute inset-0 pointer-events-none overflow-hidden" />
       <div ref={tooltipRef}
            className="absolute pointer-events-none bg-white/95 border border-gray-200 rounded shadow-md
                       px-2 py-1 text-xs text-gray-700 tabular-nums z-10 leading-snug"
