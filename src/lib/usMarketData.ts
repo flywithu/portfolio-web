@@ -14,74 +14,42 @@ export interface Pair {
 }
 
 export const US_PAIRS: Pair[] = [
-  // Tier 0: 핵심 대시보드
-  { symbol: "EWY",    name: "EWY",       desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
+  // Tier 0: 핵심 대시보드 (그리드 4열, 3행)
+  // 1행: 한국 지수 + 환율
+  { symbol: "^KS11",  name: "KOSPI",     desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KS200", name: "KOSPI 200", desc: "코스피 200 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KQ11",  name: "KOSDAQ",    desc: "코스닥 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "KRW=X",  name: "USD/KRW",   desc: "원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "^VIX",   name: "VIX",       desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
+  // 2행: 미국 지수 + 야간 선물 (현물·선물 짝)
+  { symbol: "^IXIC",  name: "나스닥",     desc: "미국 기술주 전체", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "NQ=F",   name: "나스닥 선물", desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^GSPC",  name: "S&P 500",   desc: "미국 대형주 — 글로벌 리스크 온/오프", tier: "T0", sector: "dashboard", direction: "direct" },
-
-  // Tier 1: 내 섹터
-  // 🔧 반도체
-  { symbol: "^SOX",   name: "필라델피아반도체", desc: "미국 반도체 30개사 지수", future: "SOX=F", tier: "T1", sector: "반도체", direction: "direct" },
-  { symbol: "NVDA",   name: "NVIDIA",    desc: "AI 칩 대장 — HBM 수요", tier: "T1", sector: "반도체", direction: "direct" },
-  { symbol: "TSM",    name: "TSMC",      desc: "파운드리 1위 — 업황 대표", tier: "T1", sector: "반도체", direction: "direct" },
-  // 🛡️ 방산
-  { symbol: "LMT",    name: "Lockheed Martin", desc: "방산 대장 — 글로벌 방산 경기", tier: "T1", sector: "방산", direction: "direct" },
-  // 🚢 중공업/조선
-  { symbol: "CAT",    name: "Caterpillar", desc: "중장비 — 경기 사이클 선행", tier: "T1", sector: "중공업", direction: "direct" },
-  { symbol: "HG=F",   name: "구리",      desc: "Dr. Copper — 글로벌 경기 선행지표", tier: "T1", sector: "중공업", direction: "direct" },
-  // 🏢 리츠
-  { symbol: "^TNX",   name: "미국 10Y",  desc: "10년물 국채금리 — 리츠·성장주 할인율", future: "ZN=F", tier: "T1", sector: "리츠", direction: "inverse" },
-  { symbol: "VNQ",    name: "Vanguard REIT", desc: "미국 리츠 ETF — 부동산 투심", tier: "T1", sector: "리츠", direction: "direct" },
-  // ⚡ 에너지
-  { symbol: "CL=F",   name: "WTI 원유",  desc: "국제 유가 — 정유·에너지 직결", tier: "T1", sector: "에너지", direction: "neutral" },
-  { symbol: "NG=F",   name: "천연가스",  desc: "헨리허브 — LNG·발전·난방", tier: "T1", sector: "에너지", direction: "neutral" },
-
-  // Tier 2: 관심 섹터
-  { symbol: "TSLA",   name: "Tesla",     desc: "EV 대장 — 자동차·2차전지 선행", tier: "T2", sector: "자동차", direction: "direct" },
-  { symbol: "DHI",    name: "D.R. Horton", desc: "미국 최대 주택건설사", tier: "T2", sector: "건설", direction: "direct" },
-  { symbol: "JPM",    name: "JPMorgan",  desc: "미국 금융 대장 — 은행주 투심", tier: "T2", sector: "금융", direction: "direct" },
-  { symbol: "^IXIC",  name: "나스닥",    desc: "미국 기술주 전체", future: "NQ=F", tier: "T2", sector: "플랫폼", direction: "direct" },
-  { symbol: "META",   name: "Meta",      desc: "플랫폼 대장 — 광고·AI", tier: "T2", sector: "플랫폼", direction: "direct" },
-  { symbol: "XBI",    name: "SPDR Biotech", desc: "미국 바이오 ETF", tier: "T2", sector: "바이오", direction: "direct" },
-  { symbol: "BOTZ",   name: "BOTZ",      desc: "Global X 로봇·AI ETF — 로봇 섹터 대표", tier: "T2", sector: "로봇", direction: "direct" },
-  { symbol: "^N225",  name: "닛케이 225", desc: "일본 대형주 — 아시아 센티멘트", future: "NKD=F", tier: "T2", sector: "한국지수", direction: "direct" },
-  { symbol: "^KS200", name: "KOSPI 200", desc: "코스피 200 지수", tier: "T2", sector: "한국지수", direction: "direct" },
-  { symbol: "^KQ11",  name: "KOSDAQ",    desc: "코스닥 지수", tier: "T2", sector: "한국지수", direction: "direct" },
-  { symbol: "ES=F",   name: "S&P 500 선물", desc: "미장 외 흐름 — 다음 한국장 영향", tier: "T2", sector: "한국지수", direction: "direct" },
+  { symbol: "ES=F",   name: "S&P 500 선물", desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 3행: 반도체
+  { symbol: "^SOX",   name: "필반",      desc: "필라델피아반도체 — 미국 반도체 30개사 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "SOX=F",  name: "필반 선물",  desc: "PHLX 반도체 선물 — 야간 흐름", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "NVDA",   name: "NVIDIA",    desc: "AI 칩 대장 — HBM 수요", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "TSM",    name: "TSMC",      desc: "파운드리 1위 — 업황 대표", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 4행: 환율 + 매크로 + 외국인 투심 + 공포
+  { symbol: "JPY=X",  name: "엔/달러",   desc: "USD/JPY — 한일 수출 경쟁력 (엔 약세 = 한국 불리)", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "DX-Y.NYB", name: "달러 인덱스", desc: "DXY — 6개 통화 대비 달러 강도", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "^TNX",   name: "미국 10Y",  desc: "미 10년 국채금리 — 외국인 수급·성장주 할인율", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "EWY",    name: "EWY",       desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^VIX",   name: "VIX",       desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
+  // 원자재 + 비트코인 (위험자산 sentiment)
+  { symbol: "GC=F",   name: "금",        desc: "Gold — 안전자산 / risk-off 지표", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "SI=F",   name: "은",        desc: "Silver — 산업금속 + 안전자산 양성격", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "HG=F",   name: "구리",      desc: "Dr. Copper — 글로벌 경기 선행지표", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "CL=F",   name: "WTI 원유",  desc: "국제 유가 — 정유·에너지·인플레", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "NG=F",   name: "천연가스",   desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "BTC-USD",name: "비트코인",  desc: "위험자산 — 한국 IT/플랫폼 상관", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^N225",  name: "닛케이 225", desc: "일본 대형주 — 아시아 sentiment", tier: "T0", sector: "dashboard", direction: "direct" },
 ];
 
-export const ETFS_BY_SECTOR: Record<string, string[]> = {
-  반도체:   ["091160", "091230"],
-  방산:     ["449450"],
-  중공업:   ["446770"],
-  리츠:     ["329200"],
-  에너지:   [],
-  자동차:   ["091180"],
-  건설:     ["117700"],
-  금융:     ["091170"],
-  플랫폼:   ["365040"],
-  바이오:   ["143860"],
-  로봇:     ["445290"],
-  한국지수: ["122630"],   // KODEX 레버리지만 (코스닥150 → S&P 500 선물 자리)
-};
+export const ETFS_BY_SECTOR: Record<string, string[]> = {};
 
-// KR ETF 이름 — Toss API 가 name 을 반환 안 해 하드코딩 (12개)
-export const ETF_NAMES: Record<string, string> = {
-  "091160": "KODEX 반도체",
-  "091230": "TIGER 반도체",
-  "449450": "TIGER 방산",
-  "446770": "KODEX 조선해양",
-  "329200": "TIGER 리츠부동산인프라",
-  "091180": "KODEX 자동차",
-  "117700": "KODEX 건설",
-  "091170": "KODEX 은행",
-  "365040": "TIGER Fn메타버스",
-  "143860": "TIGER 바이오테크",
-  "445290": "KODEX K-로봇액티브",
-  "122630": "KODEX 레버리지",
-  "229200": "KODEX 코스닥150",
-};
+// KR ETF 이름 — Toss API 가 name 을 반환 안 해 하드코딩
+export const ETF_NAMES: Record<string, string> = {};
 
 export const SECTOR_EMOJI: Record<string, string> = {
   반도체: "🔧", 방산: "🛡️", 중공업: "🚢", 리츠: "🏢",
@@ -89,11 +57,8 @@ export const SECTOR_EMOJI: Record<string, string> = {
   플랫폼: "📱", 바이오: "🧬", 로봇: "🤖", 한국지수: "🇰🇷",
 };
 
-// 섹터 표시 순서 (T1 먼저, 그 다음 T2)
-export const SECTOR_ORDER: string[] = [
-  "반도체", "방산", "중공업", "리츠", "에너지",          // T1
-  "자동차", "건설", "금융", "플랫폼", "바이오", "로봇", "한국지수",  // T2
-];
+// 섹터 표시 순서 (전체 통합 — 모두 T0 대시보드로)
+export const SECTOR_ORDER: string[] = [];
 
 // 모든 Yahoo 심볼 한 번에 fetch 하기 위한 평탄화 (현물 + 선물)
 export function allYahooSymbols(): { symbol: string; name: string }[] {

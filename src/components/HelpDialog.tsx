@@ -111,7 +111,7 @@ const MOBILE_STEPS: Step[] = [
         상단의 <b>🔍</b> 으로 종목 검색, <b>❓</b> 로 이 가이드, <b>⚙️</b> 로 설정.
         <br />
         <span className="text-gray-500 text-xs">
-          기본은 미국 증시 탭. 본인 종목을 추가해보세요.
+          기본은 주요 지수 탭. 본인 종목을 추가해보세요.
         </span>
       </>
     ),
@@ -153,7 +153,7 @@ const MOBILE_STEPS: Step[] = [
         그룹 탭을 <b>0.5초 길게 누르면</b> 바텀시트가 올라와요.
         <br />
         <span className="text-gray-500 text-xs">
-          ✏️ 이름 변경 / 🗑 그룹 삭제. 미국 증시 탭은 보호 (편집 불가).
+          ✏️ 이름 변경 / 🗑 그룹 삭제. 주요 지수 탭은 보호 (편집 불가).
         </span>
       </>
     ),

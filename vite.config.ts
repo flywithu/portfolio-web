@@ -27,7 +27,7 @@ export default defineConfig({
         display: "standalone",
         start_url: "/portfolio-web/",
         scope: "/portfolio-web/",
-        orientation: "any",
+        orientation: "portrait",
         lang: "ko",
         icons: [
           { src: "icon.svg", sizes: "any", type: "image/svg+xml" },

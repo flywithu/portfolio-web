@@ -64,6 +64,14 @@ export function UsMarketTab() {
 
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
+  // T0 그룹 — 비슷한 지수끼리 묶어서 줄별로 표시
+  const T0_GROUPS: string[][] = [
+    ["KRW=X", "DX-Y.NYB", "JPY=X", "^TNX", "EWY", "^VIX"],     // 환율 + 매크로 + 외국인 투심 + 공포
+    ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],        // 원자재 (금/은/구리/원유/천연가스) + 비트코인
+    ["^IXIC", "NQ=F", "^N225", "^GSPC", "ES=F"],                // 미국 지수 + 야간 선물 + 닛케이
+    ["^SOX", "SOX=F", "NVDA", "TSM"],                            // 반도체
+    ["^KS11", "^KS200", "^KQ11"],                                // 한국 지수 (마지막)
+  ];
 
   // T0 + 모든 섹터 현물·선물 Yahoo 심볼 통합 — 동일 캐시
   const allYahooForCharts: string[] = [];
@@ -149,8 +157,8 @@ export function UsMarketTab() {
   }
 
   // 좌우 분배 — 사용자 시각 균형 맞춤 (좌우 종목 수 비슷)
-  const LEFT_SECTORS = ["반도체", "방산", "로봇", "중공업", "리츠", "에너지"];
-  const RIGHT_SECTORS = ["한국지수", "자동차", "건설", "금융", "플랫폼", "바이오"];
+  const LEFT_SECTORS: string[] = [];
+  const RIGHT_SECTORS: string[] = [];
   const t1Sectors = LEFT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
   const t2Sectors = RIGHT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
 
@@ -158,57 +166,63 @@ export function UsMarketTab() {
 
   return (
     <div className="space-y-3">
-      {/* ─── Tier 0 (4개 카드) — +/- 색칠 ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        {tier0.map(p => {
-          const q = usMap?.get(p.symbol);
-          const sleeping = isSymbolSleeping(p.symbol);
-          // 장마감 기준 — 비거래일에도 마지막 거래의 실제 변화로 색 결정
-          const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
-          const bg =
-            cdiff > 0 ? "bg-rose-50 border-rose-200"
-            : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
-            : "bg-white border-gray-200";
-          const sign =
-            cdiff > 0 ? "text-rose-600"
-            : cdiff < 0 ? "text-blue-600"
-            : "text-gray-900";
-          return (
-            <a key={p.symbol}
-               href={quoteUrl(p.symbol)}
-               target="_blank" rel="noopener noreferrer"
-               title={`${p.name} — Yahoo Finance 보기`}
-               className={`relative overflow-hidden flex flex-col gap-0.5
-                            rounded-lg border px-3 py-1.5
-                            hover:brightness-95 transition cursor-pointer
-                            ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
-              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 차트 자체 추세 */}
-              <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
-                         width={400} height={80}
-                         className="absolute inset-0 w-full h-full opacity-50
-                                    pointer-events-none" />
-              <div className="relative z-10 flex items-baseline gap-1.5">
-                {sleeping && (
-                  <span className="text-[11px] text-gray-400">zZ</span>
-                )}
-                <span className="text-base font-bold text-gray-900">{p.name}</span>
-              </div>
-              <div className="relative z-10 text-[11px] text-gray-500 truncate">
-                {p.desc}
-              </div>
-              <div className="relative z-10 flex items-baseline mt-1">
-                <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
-                  {q ? fmtPrice(p.symbol, q.price) : "—"}
-                </span>
-                <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
-                  {q && Math.abs(q.pct) >= 0.005
-                    ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%`
-                    : ""}
-                </span>
-              </div>
-            </a>
-          );
-        })}
+      {/* ─── Tier 0 — 비슷한 지수끼리 그룹별 줄 분리 ─── */}
+      <div className="space-y-2">
+        {T0_GROUPS.map((group, gi) => (
+          <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            {group.map(symbol => {
+              const p = tier0.find(x => x.symbol === symbol);
+              if (!p) return null;
+              const q = usMap?.get(p.symbol);
+              const sleeping = isSymbolSleeping(p.symbol);
+              const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
+              const isFuture = p.symbol.endsWith("=F");
+              const bg =
+                cdiff > 0 ? "bg-rose-50 border-rose-200"
+                : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
+                : "bg-white border-gray-200";
+              const sign =
+                cdiff > 0 ? "text-rose-600"
+                : cdiff < 0 ? "text-blue-600"
+                : "text-gray-900";
+              const nameColor = isFuture ? "text-amber-700" : "text-gray-900";
+              return (
+                <a key={p.symbol}
+                   href={quoteUrl(p.symbol)}
+                   target="_blank" rel="noopener noreferrer"
+                   title={`${p.name} — Yahoo Finance 보기`}
+                   className={`relative overflow-hidden flex flex-col gap-0.5
+                                rounded-lg border px-3 py-1.5
+                                hover:brightness-95 transition cursor-pointer
+                                ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
+                  <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
+                             width={400} height={80}
+                             className="absolute inset-0 w-full h-full opacity-50
+                                        pointer-events-none" />
+                  <div className="relative z-10 flex items-baseline gap-1.5">
+                    {sleeping && (
+                      <span className="text-[11px] text-gray-400">zZ</span>
+                    )}
+                    <span className={`text-base font-bold ${nameColor}`}>{p.name}</span>
+                  </div>
+                  <div className="relative z-10 text-[11px] text-gray-500 truncate">
+                    {p.desc}
+                  </div>
+                  <div className="relative z-10 flex items-baseline mt-1">
+                    <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
+                      {q ? fmtPrice(p.symbol, q.price) : "—"}
+                    </span>
+                    <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
+                      {q && Math.abs(q.pct) >= 0.005
+                        ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%`
+                        : ""}
+                    </span>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* ─── 섹터 표 — lg 이상 좌우 2 column (T1 좌측 / T2 우측) ─── */}

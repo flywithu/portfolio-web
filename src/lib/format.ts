@@ -53,7 +53,10 @@ export function marketOfSymbol(symbol: string): Market {
   if (!symbol) return "OTHER";
   // 6자리 숫자 (한국 주식/ETF)
   if (/^[\dA-Za-z]{6}$/.test(symbol)) return "KR";
-  if (symbol.endsWith(".KS") || symbol === "^KS200" || symbol === "^KQ11") return "KR";
+  if (symbol.endsWith(".KS")
+      || symbol === "^KS11"
+      || symbol === "^KS200"
+      || symbol === "^KQ11") return "KR";
   if (symbol === "^N225") return "JP";
   // 환율/선물/암호화폐/지수 — 24h
   if (symbol.includes("=") || symbol === "DX-Y.NYB" || symbol.includes("-")) return "OTHER";
