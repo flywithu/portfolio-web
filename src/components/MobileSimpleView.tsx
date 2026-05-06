@@ -33,7 +33,6 @@ import { SearchDialog } from "./SearchDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog";
 import { Sparkline } from "./Sparkline";
-import { TALLY_URL, isFeedbackEnabled } from "../lib/feedbackConfig";
 import { ValuationModal } from "./ValuationModal";
 import {
   getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
@@ -377,13 +376,12 @@ export function MobileSimpleView() {
                 className="p-1.5 rounded hover:bg-gray-100 transition">
           ❓
         </button>
-        {isFeedbackEnabled() && (
-          <a href={TALLY_URL} target="_blank" rel="noopener noreferrer"
-             title="피드백 보내기"
-             className="p-1.5 rounded hover:bg-gray-100 transition shrink-0">
-            💬
-          </a>
-        )}
+        <a href="https://github.com/hanjungwoo3/portfolio-web/discussions"
+           target="_blank" rel="noopener noreferrer"
+           title="기능 요청 / 의견 (GitHub Discussions)"
+           className="p-1.5 rounded hover:bg-gray-100 transition shrink-0">
+          💡
+        </a>
         <a href={KAKAOPAY_URL} target="_blank" rel="noopener noreferrer"
            title="개발자 후원하기 (카카오페이)"
            className="p-1.5 rounded hover:bg-gray-100 transition shrink-0">

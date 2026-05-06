@@ -29,7 +29,6 @@ import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./components/HelpDialog";
-import { TALLY_URL, isFeedbackEnabled } from "./lib/feedbackConfig";
 import {
   scheduleAutoSync, checkConflict, downloadFromDrive, uploadToDrive,
   tryRestoreSession,
@@ -307,14 +306,13 @@ function Dashboard() {
                          text-gray-700 rounded text-sm">
               ❓ 사용법
             </button>
-            {isFeedbackEnabled() && (
-              <a href={TALLY_URL} target="_blank" rel="noopener noreferrer"
-                 title="피드백 보내기 (버그/제안/질문)"
-                 className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100
-                            text-emerald-700 rounded text-sm border border-emerald-200">
-                💬 피드백
-              </a>
-            )}
+            <a href="https://github.com/hanjungwoo3/portfolio-web/discussions"
+               target="_blank" rel="noopener noreferrer"
+               title="기능 요청 / 버그 신고 / 의견 (GitHub Discussions — 가입 필요)"
+               className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100
+                          text-emerald-700 rounded text-sm border border-emerald-200">
+              💡 기능 요청
+            </a>
             <button
               onClick={() => setDonateOpen(true)}
               title="개발자 후원하기 (카카오페이)"
