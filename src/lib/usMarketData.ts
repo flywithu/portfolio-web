@@ -40,11 +40,20 @@ export const US_PAIRS: Pair[] = [
   { symbol: "SOX=F",    name: "필반 선물",    desc: "PHLX 반도체 선물 — 야간 흐름", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NVDA",     name: "NVIDIA",      desc: "AI 칩 대장 — HBM 수요", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "TSM",      name: "TSMC",        desc: "파운드리 1위 — 업황 대표", tier: "T0", sector: "dashboard", direction: "direct" },
-  // 행 5 — 한국 지수 (마지막)
+  // 행 5 — 한국 지수
   { symbol: "^KS11",    name: "KOSPI",       desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KS200",   name: "KOSPI 200",   desc: "코스피 200 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KQ11",    name: "KOSDAQ",      desc: "코스닥 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KQ100",   name: "KOSDAQ 100",  desc: "코스닥 100 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 행 6 — 한국 섹터 KODEX ETF (대표 1개씩, .KS suffix → Yahoo 통해 일관 fetch)
+  { symbol: "091160.KS", name: "KODEX 반도체",     desc: "한국 반도체 ETF — 삼성·하이닉스 대표", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "091180.KS", name: "KODEX 자동차",     desc: "현대·기아 자동차 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "305720.KS", name: "KODEX 2차전지",    desc: "2차전지 산업 ETF — LG·SK", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "244580.KS", name: "KODEX 바이오",     desc: "한국 바이오 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "091170.KS", name: "KODEX 은행",       desc: "한국 은행주 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "117700.KS", name: "KODEX 건설",       desc: "한국 건설주 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "266420.KS", name: "KODEX 헬스케어",    desc: "한국 헬스케어 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "445290.KS", name: "KODEX 로봇",       desc: "K-로봇액티브 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
 ];
 
 export const ETFS_BY_SECTOR: Record<string, string[]> = {};
