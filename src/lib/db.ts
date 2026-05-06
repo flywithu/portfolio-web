@@ -119,6 +119,103 @@ export async function syncAllRowsForTicker(
   return { updated };
 }
 
+// ─── 그룹별 독립 보유 모드 — 충돌 감지 / 해결 ─────────────────
+// 같은 ticker 의 그룹별 row 들이 다른 값을 가질 때 = 충돌
+export interface TickerConflict {
+  ticker: string;
+  name: string;
+  rows: Array<{
+    account: string;
+    shares: number;
+    avg_price: number;
+    buy_date?: string;
+  }>;
+}
+
+export async function findTickerConflicts(): Promise<TickerConflict[]> {
+  const all = await db.holdings.toArray();
+  const byTicker = new Map<string, Stock[]>();
+  for (const s of all) {
+    const arr = byTicker.get(s.ticker) ?? [];
+    arr.push(s);
+    byTicker.set(s.ticker, arr);
+  }
+  const conflicts: TickerConflict[] = [];
+  for (const [ticker, rows] of byTicker) {
+    if (rows.length < 2) continue;
+    const ref = rows[0];
+    const sameValues = rows.every(r =>
+      r.shares === ref.shares
+      && r.avg_price === ref.avg_price
+      && (r.buy_date ?? "") === (ref.buy_date ?? "")
+    );
+    if (!sameValues) {
+      conflicts.push({
+        ticker,
+        name: ref.name,
+        rows: rows.map(r => ({
+          account: r.account ?? "",
+          shares: r.shares,
+          avg_price: r.avg_price,
+          buy_date: r.buy_date,
+        })),
+      });
+    }
+  }
+  return conflicts;
+}
+
+// 충돌 해결 — 특정 그룹의 값으로 모든 그룹 통일
+export async function resolveConflictUseGroup(
+  ticker: string, sourceAccount: string,
+): Promise<void> {
+  await db.transaction("rw", db.holdings, async () => {
+    const sourceRow = await db.holdings.get(holdingId({ ticker, account: sourceAccount } as Stock));
+    if (!sourceRow) return;
+    const rows = await db.holdings.where("ticker").equals(ticker).toArray();
+    const invested = Math.round(sourceRow.shares * sourceRow.avg_price);
+    for (const r of rows) {
+      const next: Stock = {
+        ...r,
+        shares: sourceRow.shares,
+        avg_price: sourceRow.avg_price,
+        invested,
+        buy_date: sourceRow.buy_date,
+      };
+      await db.holdings.put({ ...next, id: holdingId(next) } as Stock & { id: string });
+    }
+  });
+}
+
+// 충돌 해결 — 합산 (모든 그룹 수량 더하기, 평단 가중평균)
+export async function resolveConflictMerge(ticker: string): Promise<void> {
+  await db.transaction("rw", db.holdings, async () => {
+    const rows = await db.holdings.where("ticker").equals(ticker).toArray();
+    let totalShares = 0;
+    let totalCost = 0;
+    let earliestBuyDate = "";
+    for (const r of rows) {
+      totalShares += r.shares;
+      totalCost += r.shares * r.avg_price;
+      if (r.buy_date && (!earliestBuyDate || r.buy_date < earliestBuyDate)) {
+        earliestBuyDate = r.buy_date;
+      }
+    }
+    const avgPrice = totalShares > 0 ? totalCost / totalShares : 0;
+    const invested = Math.round(totalCost);
+    for (const r of rows) {
+      const next: Stock = {
+        ...r,
+        shares: totalShares,
+        avg_price: avgPrice,
+        invested,
+        buy_date: earliestBuyDate || r.buy_date,
+      };
+      await db.holdings.put({ ...next, id: holdingId(next) } as Stock & { id: string });
+    }
+  });
+}
+
 // 모든 그룹의 같은 ticker row 일괄 삭제 (전량 매도 / 수량 0 직접수정 시).
 export async function deleteAllRowsForTicker(ticker: string): Promise<number> {
   return await db.holdings.where("ticker").equals(ticker).delete();
@@ -153,11 +250,15 @@ export async function updateHolding(s: Stock): Promise<void> {
   await db.holdings.put({ ...s, id: holdingId(s) } as Stock & { id: string });
 }
 
-// 전체 내보내기 — desktop v2 holdings.json 호환 형식 (holdings + peaks 통합)
+// 전체 내보내기 — desktop v2 holdings.json 호환 형식 (holdings + peaks + 설정 통합)
 export interface ExportPayload {
   holdings: Stock[];
   peaks: Record<string, number>;
   exported_at: string;
+  // 다기기 동기화가 필요한 설정 (로컬-only 설정은 제외)
+  settings?: {
+    independentGroups?: boolean;
+  };
 }
 export async function exportAll(): Promise<ExportPayload> {
   const [stocks, peaks] = await Promise.all([loadHoldings(), loadPeaks()]);
@@ -171,11 +272,32 @@ export async function exportAll(): Promise<ExportPayload> {
     });
   const peaksObj: Record<string, number> = {};
   peaks.forEach((v, k) => { peaksObj[k] = v; });
+  // settings — 다기기 동기화 대상 (independent groups mode)
+  let independentGroups: boolean | undefined;
+  try {
+    independentGroups = localStorage.getItem("portfolio_independent_groups") === "1";
+  } catch { /* noop */ }
   return {
     holdings: cleanHoldings,
     peaks: peaksObj,
     exported_at: new Date().toISOString(),
+    settings: {
+      independentGroups,
+    },
   };
+}
+
+// 설정 적용 — Drive 다운로드 후 호출
+export function applyImportedSettings(settings?: ExportPayload["settings"]): void {
+  if (!settings) return;
+  if (typeof settings.independentGroups === "boolean") {
+    try {
+      localStorage.setItem(
+        "portfolio_independent_groups",
+        settings.independentGroups ? "1" : "0",
+      );
+    } catch { /* noop */ }
+  }
 }
 
 // 그룹 일괄 삭제 — 해당 그룹의 모든 holdings 삭제 (반환: 삭제 건수)

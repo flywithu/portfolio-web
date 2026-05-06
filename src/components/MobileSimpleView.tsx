@@ -20,11 +20,12 @@ import {
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { getIndependentGroupsMode } from "../lib/groupMode";
 import { RefreshIndicator } from "./RefreshIndicator";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks,
-  deleteAllRowsForTicker, renameGroup, deleteGroup,
+  deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import { MobileStockCard } from "./MobileStockCard";
@@ -470,11 +471,16 @@ export function MobileSimpleView() {
                                onOpenValuation={setValuationTicker}
                                onEdit={st => guardedAction(() => setEditing(st))}
                                onDelete={async st => {
-                                 if (!confirm(
-                                   `"${st.name}" 을(를) 삭제할까요?\n`
-                                   + `(모든 그룹에서 제거됩니다)`
-                                 )) return;
-                                 await deleteAllRowsForTicker(st.ticker);
+                                 const indep = getIndependentGroupsMode();
+                                 const msg = indep
+                                   ? `"${st.name}" 을(를) "${st.account || "보유"}" 그룹에서 삭제할까요?`
+                                   : `"${st.name}" 을(를) 삭제할까요?\n(모든 그룹에서 제거됩니다)`;
+                                 if (!confirm(msg)) return;
+                                 if (indep) {
+                                   await removeHolding(st.ticker, st.account || "");
+                                 } else {
+                                   await deleteAllRowsForTicker(st.ticker);
+                                 }
                                  void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
                                  void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });

@@ -5,7 +5,7 @@
 //   "on"      → 자동 sync 활성
 //   "off"     → 일시 중지 (수동 ↑↓ 만)
 
-import { exportAll, replaceAllHoldings, replaceAllPeaks } from "./db";
+import { exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings } from "./db";
 import type { ExportPayload } from "./db";
 import { isSignedIn, signIn, signOut, wasSignedIn, getAccessToken } from "./googleAuth";
 import { downloadFile, uploadFile, getFileMeta, deleteFile } from "./googleDrive";
@@ -111,6 +111,7 @@ export async function downloadFromDrive(): Promise<boolean> {
   const { data, modifiedTime } = result;
   if (data.holdings) await replaceAllHoldings(data.holdings);
   if (data.peaks) await replaceAllPeaks(data.peaks);
+  applyImportedSettings(data.settings);   // 독립 모드 등 동기화 대상 설정
   setLastSynced(modifiedTime);
   suppressNextAutoSync = true;
   return true;

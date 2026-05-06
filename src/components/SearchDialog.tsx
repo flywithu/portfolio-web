@@ -9,6 +9,7 @@ import {
   upsertHoldingToGroup, syncAllRowsForTicker,
 } from "../lib/db";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { Stock, Price } from "../types";
 import { signColor } from "../lib/format";
 
@@ -272,12 +273,15 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
           groupResults.set(g, cur);
         }
 
-        // 1-c) 모든 기존 그룹 row 일괄 sync (보유 + 마킹 외 다른 그룹들도 동일 값)
-        const sync = await syncAllRowsForTicker(r.ticker, {
-          shares: sh, avg_price: ap, buy_date: buyDate,
-          market: r.market, name: r.name,
-        });
-        syncedTotal += sync.updated;
+        // 1-c) sync 모드 — 모든 기존 그룹 row 일괄 sync
+        // 독립 모드 — 마킹된 그룹들만 위에서 upsert 했으므로 추가 sync 불필요
+        if (!getIndependentGroupsMode()) {
+          const sync = await syncAllRowsForTicker(r.ticker, {
+            shares: sh, avg_price: ap, buy_date: buyDate,
+            market: r.market, name: r.name,
+          });
+          syncedTotal += sync.updated;
+        }
       } else {
         // 2) 수량 미입력 — 마킹된 그룹들에 watchlist 추가 (보유는 추가 X)
         if (markedGroups.size === 0) { invalid += 1; continue; }

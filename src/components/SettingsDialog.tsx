@@ -9,6 +9,9 @@ import {
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { resetProxyStats } from "../lib/proxyStatus";
+import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
+import { findTickerConflicts, type TickerConflict } from "../lib/db";
+import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import {
   getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
@@ -32,6 +35,28 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const [syncState, setSyncState] = useState(getSyncState());
   const [syncBusy, setSyncBusy] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
+  const [independentMode, setIndependent] = useState(getIndependentGroupsMode());
+  const [conflicts, setConflicts] = useState<TickerConflict[] | null>(null);
+
+  const handleIndependentToggle = async (next: boolean) => {
+    if (next) {
+      // ON 으로 토글 — 단순 적용
+      setIndependentGroupsMode(true);
+      setIndependent(true);
+      setStatusMsg("✅ 그룹별 독립 보유 모드 ON");
+    } else {
+      // OFF 로 토글 — 충돌 검사 후 모달 (있으면)
+      const list = await findTickerConflicts();
+      if (list.length === 0) {
+        setIndependentGroupsMode(false);
+        setIndependent(false);
+        setStatusMsg("✅ 그룹별 동기화 모드 (충돌 없음)");
+      } else {
+        // 모달 띄워 사용자에게 해결 방법 묻기 — 모달 닫힌 후 모드 전환
+        setConflicts(list);
+      }
+    }
+  };
 
   // 다이얼로그 열릴 때마다 현재 데이터 로드
   useEffect(() => {
@@ -40,6 +65,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     setPollMs(getPersonalPollMs());
     setSyncState(getSyncState());
     setLastSyncedAt(getLastSyncedAt());
+    setIndependent(getIndependentGroupsMode());
     // 다이얼로그 열 때 — sync 모드 ON 이면 토큰 silent refresh 시도 (배경)
     void tryRestoreSession();
     void (async () => {
@@ -170,7 +196,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
       onChanged();
       onClose();
     } catch (e) {
-      setStatusMsg(`❌ 저장 실패: ${e instanceof Error ? e.message : ""}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`❌ 저장 실패\n\n${msg}`);
+      setStatusMsg("❌ 저장 실패");
     } finally {
       setBusy(false);
     }
@@ -223,7 +251,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                     }
                     setLastSyncedAt(getLastSyncedAt());
                   } catch (e) {
-                    setStatusMsg(`⚠️ ${(e as Error).message}`);
+                    const msg = (e as Error).message;
+                    alert(`❌ Google 로그인 / 동기화 실패\n\n${msg}`);
+                    setStatusMsg(`⚠️ ${msg}`);
                   } finally {
                     setSyncBusy(false);
                   }
@@ -265,7 +295,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                         setLastSyncedAt(getLastSyncedAt());
                         setStatusMsg("✅ Drive 에 업로드");
                       } catch (e) {
-                        setStatusMsg(`⚠️ ${(e as Error).message}`);
+                        const msg = (e as Error).message;
+                        alert(`❌ Drive 업로드 실패\n\n${msg}\n\n로그인 만료 또는 네트워크 문제일 수 있습니다.`);
+                        setStatusMsg(`⚠️ ${msg}`);
                       } finally { setSyncBusy(false); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
@@ -282,10 +314,13 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                           setLastSyncedAt(getLastSyncedAt());
                           setStatusMsg("✅ Drive 에서 가져옴");
                         } else {
+                          alert("⚠️ Drive 에 저장된 데이터가 없습니다.\n\n먼저 [↑ 업로드] 로 현재 기기 데이터를 Drive 에 저장하세요.");
                           setStatusMsg("⚠️ Drive 에 데이터 없음");
                         }
                       } catch (e) {
-                        setStatusMsg(`⚠️ ${(e as Error).message}`);
+                        const msg = (e as Error).message;
+                        alert(`❌ Drive 다운로드 실패\n\n${msg}\n\n로그인 만료된 경우, 로그아웃 후 다시 로그인하세요.`);
+                        setStatusMsg(`⚠️ ${msg}`);
                       } finally { setSyncBusy(false); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
@@ -380,6 +415,22 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                 </span>
               </span>
             </label>
+
+            {/* 그룹별 독립 보유 모드 — 다중 계좌 시나리오 */}
+            <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
+              <input type="checkbox" checked={independentMode}
+                     onChange={e => handleIndependentToggle(e.target.checked)}
+                     className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+              <span className="flex-1">
+                <span className="text-[11px] text-gray-700 font-medium block">
+                  그룹별 독립 보유 (다중 계좌)
+                </span>
+                <span className="text-[10px] text-gray-500">
+                  ON: 같은 종목을 그룹별 다른 평단/수량으로 관리 (예: A 증권사 vs B 증권사 계좌).<br/>
+                  OFF (기본): 같은 종목은 모든 그룹에서 동일 값 (한 종목을 보유·관심 동시 노출).
+                </span>
+              </span>
+            </label>
           </div>
 
           <div className="text-sm text-gray-600">
@@ -444,6 +495,18 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
           </div>
         </footer>
       </div>
+      {conflicts && (
+        <GroupConflictDialog
+          conflicts={conflicts}
+          onResolved={() => {
+            // 충돌 해결 후 — 독립 모드 OFF 적용
+            setIndependentGroupsMode(false);
+            setIndependent(false);
+            setStatusMsg("✅ 그룹 동기화 모드로 전환됨");
+            onChanged();
+          }}
+          onClose={() => setConflicts(null)} />
+      )}
     </div>
   );
 }

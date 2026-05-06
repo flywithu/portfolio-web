@@ -3,7 +3,39 @@ import type { Stock } from "../types";
 import {
   syncAllRowsForTicker, deleteAllRowsForTicker,
   getUserGroups, upsertHoldingToGroup, removeHolding, loadHoldings,
+  updateHolding,
 } from "../lib/db";
+import { getIndependentGroupsMode } from "../lib/groupMode";
+
+// 모드별 적용 — sync OFF 면 단건만, ON 이면 모든 그룹 sync
+async function applyTickerUpdate(
+  stock: Stock,
+  values: { shares: number; avg_price: number; buy_date?: string; market?: string; name?: string },
+): Promise<void> {
+  if (getIndependentGroupsMode()) {
+    // 독립 모드 — 해당 (ticker, account) 단건만 update
+    await updateHolding({
+      ...stock,
+      shares: values.shares,
+      avg_price: values.avg_price,
+      invested: Math.round(values.shares * values.avg_price),
+      buy_date: values.buy_date ?? stock.buy_date,
+      market: values.market ?? stock.market,
+      name: values.name ?? stock.name,
+    });
+  } else {
+    // sync 모드 — 모든 그룹 동일 값
+    await syncAllRowsForTicker(stock.ticker, values);
+  }
+}
+
+async function applyTickerDelete(stock: Stock): Promise<void> {
+  if (getIndependentGroupsMode()) {
+    await removeHolding(stock.ticker, stock.account || "");
+  } else {
+    await deleteAllRowsForTicker(stock.ticker);
+  }
+}
 
 interface Props {
   isOpen: boolean;
@@ -104,7 +136,7 @@ export function EditHoldingDialog({
       const newInvested = curInvested + Math.round(sh * pr);
       const newAvg = newInvested / newShares;
       modeAction = async () => {
-        await syncAllRowsForTicker(stock.ticker, {
+        await applyTickerUpdate(stock, {
           shares: newShares, avg_price: newAvg,
           buy_date: stock.buy_date || todayKstStr(),
           market: stock.market, name: stock.name,
@@ -117,9 +149,9 @@ export function EditHoldingDialog({
       const newShares = curShares - sh;
       modeAction = async () => {
         if (newShares === 0) {
-          await deleteAllRowsForTicker(stock.ticker);
+          await applyTickerDelete(stock);
         } else {
-          await syncAllRowsForTicker(stock.ticker, {
+          await applyTickerUpdate(stock, {
             shares: newShares, avg_price: curAvg,
             buy_date: stock.buy_date,
             market: stock.market, name: stock.name,
@@ -133,9 +165,9 @@ export function EditHoldingDialog({
       if (!Number.isFinite(ap) || ap <= 0) return setErr("매수가 오류");
       modeAction = async () => {
         if (sh === 0) {
-          await deleteAllRowsForTicker(stock.ticker);
+          await applyTickerDelete(stock);
         } else {
-          await syncAllRowsForTicker(stock.ticker, {
+          await applyTickerUpdate(stock, {
             shares: sh, avg_price: ap,
             buy_date: stock.buy_date || todayKstStr(),
             market: stock.market, name: stock.name,
