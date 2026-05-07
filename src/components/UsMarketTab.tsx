@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory } from "../lib/api";
-import type { UsIndex } from "../lib/api";
+import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
@@ -12,6 +12,7 @@ import {
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { Sparkline } from "./Sparkline";
+import { MarketFlowModal } from "./MarketFlowModal";
 
 const BASE_REFRESH_MS = 10_000;
 
@@ -24,6 +25,9 @@ function fmtPrice(symbol: string, price: number): string {
 
 function quoteUrl(symbol: string): string {
   if (/^[\dA-Za-z]{6}$/.test(symbol)) return `https://tossinvest.com/stocks/A${symbol}`;
+  // KOSPI/KOSDAQ 지수 — 토스 indices 페이지 (매매동향 데이터 출처와 일치)
+  if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
+  if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 
@@ -175,6 +179,7 @@ export function UsMarketTab() {
   const t2Sectors = RIGHT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
 
   const dimEnabled = getDimSleepingEnabled();
+  const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
 
   return (
     <div className="space-y-3">
@@ -199,15 +204,15 @@ export function UsMarketTab() {
                 : cdiff < 0 ? "text-blue-600"
                 : "text-gray-900";
               const nameColor = isFuture ? "text-amber-700" : "text-gray-900";
+              const isKospi  = p.symbol === "^KS11";
+              const isKosdaq = p.symbol === "^KQ11";
+              const hasFlow  = isKospi || isKosdaq;
+              const indexKey = isKospi ? "KOSPI" : isKosdaq ? "KOSDAQ" : null;
               return (
-                <a key={p.symbol}
-                   href={quoteUrl(p.symbol)}
-                   target="_blank" rel="noopener noreferrer"
-                   title={`${p.name} — Yahoo Finance 보기`}
-                   className={`relative overflow-hidden flex flex-col gap-0.5
-                                rounded-lg border px-3 py-1.5
-                                hover:brightness-95 transition cursor-pointer
-                                ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
+                <div key={p.symbol}
+                     className={`relative overflow-hidden flex flex-col gap-0.5
+                                  rounded-lg border px-3 py-1.5
+                                  ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={400} height={80}
                              color={sleeping && dimEnabled ? "#94a3b8" : undefined}
@@ -217,7 +222,22 @@ export function UsMarketTab() {
                     {sleeping && (
                       <span className="text-[11px] text-gray-400">zZ</span>
                     )}
-                    <span className={`text-base font-bold ${nameColor}`}>{p.name}</span>
+                    {/* 종목명 자체가 외부 링크 (Toss/Yahoo) */}
+                    <a href={quoteUrl(p.symbol)}
+                       target="_blank" rel="noopener noreferrer"
+                       title={`${p.name} 자세히 보기`}
+                       className={`text-base font-bold ${nameColor} hover:underline`}>
+                      {p.name}
+                    </a>
+                    {/* 매매동향 모달 버튼 — KOSPI/KOSDAQ 만 */}
+                    {hasFlow && indexKey && (
+                      <button onClick={() => setMarketFlowFor(indexKey)}
+                              title={`${p.name} 투자자별 매매동향`}
+                              className="ml-1 px-1 py-0.5 rounded text-[10px] text-gray-500
+                                         bg-white/60 hover:bg-white border border-gray-200">
+                        📊
+                      </button>
+                    )}
                   </div>
                   <div className="relative z-10 text-[11px] text-gray-500 truncate">
                     {p.desc}
@@ -232,7 +252,7 @@ export function UsMarketTab() {
                         : ""}
                     </span>
                   </div>
-                </a>
+                </div>
               );
             })}
           </div>
@@ -244,6 +264,15 @@ export function UsMarketTab() {
         <SectorTable sectors={t1Sectors} buildRows={buildRowsForSector} />
         <SectorTable sectors={t2Sectors} buildRows={buildRowsForSector} />
       </div>
+
+      {/* 시장 매매동향 모달 — KOSPI/KOSDAQ 카드 📊 클릭 시 */}
+      {marketFlowFor && (
+        <MarketFlowModal
+          isOpen={true}
+          indexKey={marketFlowFor}
+          onClose={() => setMarketFlowFor(null)}
+        />
+      )}
     </div>
   );
 }

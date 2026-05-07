@@ -1,82 +1,12 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type {
-  IChartApi, ISeriesApi, SeriesType, MouseEventParams, LogicalRange,
-} from "lightweight-charts";
+import { useCrosshairSync } from "../lib/useCrosshairSync";
+import type { SyncRegistrar } from "../lib/useCrosshairSync";
 
 // 무거운 차트 라이브러리는 lazy — 모달 열릴 때만 로드 (~50KB gzip)
 const CandleChartLight = lazy(() => import("./CandleChartLight"));
 const InvestorChartLight = lazy(() => import("./InvestorChartLight"));
 const ShortSellingChart = lazy(() => import("./ShortSellingChart"));
-
-// 4개 차트 동기화 — crosshair (hover) + 줌/팬 (visible range)
-// 각 차트가 onSyncedHover 콜백 등록 → 다른 차트 hover 시 자체 데이터로 crosshair + 툴팁 갱신
-import type { Time } from "lightweight-charts";
-
-type SyncRegistrar = (
-  chart: IChartApi,
-  anchor: ISeriesApi<SeriesType>,
-  onSyncedHover?: (time: Time | null) => void,
-) => () => void;
-
-function useCrosshairSync(): SyncRegistrar {
-  const entriesRef = useRef<Array<{
-    chart: IChartApi;
-    anchor: ISeriesApi<SeriesType>;
-    onSyncedHover?: (time: Time | null) => void;
-  }>>([]);
-  const isSyncingRangeRef = useRef(false);
-
-  return useCallback((chart, anchor, onSyncedHover) => {
-    const entry = { chart, anchor, onSyncedHover };
-    entriesRef.current.push(entry);
-
-    // ─── 1) Crosshair sync (hover) ────────────────────────────
-    const moveHandler = (param: MouseEventParams) => {
-      const time = param.time ?? null;
-      for (const other of entriesRef.current) {
-        if (other.chart === chart) continue;
-        try {
-          if (other.onSyncedHover) {
-            // 차트가 자체 처리 (cross + 툴팁)
-            other.onSyncedHover(time);
-          } else {
-            // fallback — vertical line 만
-            if (time != null) {
-              other.chart.setCrosshairPosition(NaN, time, other.anchor);
-            } else {
-              other.chart.clearCrosshairPosition();
-            }
-          }
-        } catch { /* 차트 제거됨 — 무시 */ }
-      }
-    };
-    chart.subscribeCrosshairMove(moveHandler);
-
-    // ─── 2) Time scale sync (줌/팬) ───────────────────────────
-    const rangeHandler = (range: LogicalRange | null) => {
-      if (isSyncingRangeRef.current || !range) return;
-      isSyncingRangeRef.current = true;
-      try {
-        for (const other of entriesRef.current) {
-          if (other.chart === chart) continue;
-          try { other.chart.timeScale().setVisibleLogicalRange(range); }
-          catch { /* 차트 제거됨 */ }
-        }
-      } finally {
-        isSyncingRangeRef.current = false;
-      }
-    };
-    chart.timeScale().subscribeVisibleLogicalRangeChange(rangeHandler);
-
-    return () => {
-      entriesRef.current = entriesRef.current.filter(e => e !== entry);
-      try { chart.unsubscribeCrosshairMove(moveHandler); } catch { /* noop */ }
-      try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(rangeHandler); }
-      catch { /* noop */ }
-    };
-  }, []);
-}
 import {
   fetchFullValuation, matchBrokerToShareholder,
   INDICATOR_SECTIONS, INDICATOR_LABELS, INDICATOR_DESCRIPTIONS,

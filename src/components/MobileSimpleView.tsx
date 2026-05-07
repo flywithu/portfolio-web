@@ -22,6 +22,16 @@ import {
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { normalizeAccount } from "../lib/account";
+import type { MarketIndexKey } from "../lib/api";
+import { MarketFlowModal } from "./MarketFlowModal";
+
+// Toss / Yahoo 외부 링크 (UsMarketTab 와 동일 규칙)
+function quoteUrl(symbol: string): string {
+  if (/^[\dA-Za-z]{6}$/.test(symbol)) return `https://tossinvest.com/stocks/A${symbol}`;
+  if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
+  if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
+  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+}
 import { RefreshIndicator } from "./RefreshIndicator";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
@@ -352,6 +362,9 @@ export function MobileSimpleView() {
   // 장 마감 시 흐리게 표시 여부 (설정값)
   const dimEnabled = getDimSleepingEnabled();
 
+  // 시장 매매동향 모달
+  const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
+
   return (
     <div className="min-h-screen bg-gray-50"
          onTouchStart={handleTouchStart}
@@ -537,9 +550,23 @@ export function MobileSimpleView() {
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
                 )}
-                <span className={`text-base font-bold ${nameColor}`}>
+                {/* 종목명 자체가 외부 링크 */}
+                <a href={quoteUrl(p.symbol)}
+                   target="_blank" rel="noopener noreferrer"
+                   title={`${p.name} 자세히 보기`}
+                   className={`text-base font-bold ${nameColor} active:underline`}>
                   {p.name}
-                </span>
+                </a>
+                {/* 매매동향 모달 — KOSPI/KOSDAQ 만 */}
+                {(p.symbol === "^KS11" || p.symbol === "^KQ11") && (
+                  <button onClick={() =>
+                            setMarketFlowFor(p.symbol === "^KS11" ? "KOSPI" : "KOSDAQ")}
+                          title={`${p.name} 매매동향`}
+                          className="ml-1 px-1 py-0.5 rounded text-[10px] text-gray-500
+                                     bg-white/60 active:bg-white border border-gray-200">
+                    📊
+                  </button>
+                )}
               </div>
               <div className="relative text-[11px] text-gray-500 truncate">
                 {p.desc}
@@ -668,6 +695,15 @@ export function MobileSimpleView() {
 
       {/* 첫 접속 안내 팝업 — 전용 프록시 미설정 시 자동 표시 */}
       <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
+
+      {/* 시장 매매동향 모달 — KOSPI/KOSDAQ 카드 📊 클릭 시 */}
+      {marketFlowFor && (
+        <MarketFlowModal
+          isOpen={true}
+          indexKey={marketFlowFor}
+          onClose={() => setMarketFlowFor(null)}
+        />
+      )}
 
       <HelpDialog
         isOpen={helpOpen}

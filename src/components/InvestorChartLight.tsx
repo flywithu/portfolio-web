@@ -23,6 +23,9 @@ interface Props {
   dates: string[];
   barColor: string;
   cumColor: string;
+  unit?: string;          // 단위 라벨 (기본 "주", 시장 매매동향은 "원" 등)
+  dailyMaxAbs?: number;   // 일별 막대 좌측 축의 ±max — 4 차트 통일용
+  cumMaxAbs?: number;     // 누적 라인 우측 축의 ±max — 4 차트 통일용
   onReady?: (
     chart: IChartApi,
     anchor: ISeriesApi<SeriesType>,
@@ -41,7 +44,8 @@ function fmtVol(v: number): string {
 }
 
 export function InvestorChartLight({
-  label, daily, cumulative, dates, barColor, cumColor, onReady,
+  label, daily, cumulative, dates, barColor, cumColor,
+  unit = "주", dailyMaxAbs, cumMaxAbs, onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -93,7 +97,7 @@ export function InvestorChartLight({
       autoSize: true,
     });
 
-    // 일별 막대 (좌측 축, 0 기준 양/음)
+    // 일별 막대 (좌측 축, 0 을 항상 중앙에 — 양/음 대칭 ±max)
     const histSeries = chart.addSeries(HistogramSeries, {
       priceScaleId: "left",
       priceFormat: { type: "volume" },
@@ -101,6 +105,18 @@ export function InvestorChartLight({
       color: barColor,
       priceLineVisible: false,    // 현재값 가로 점선 숨김
       lastValueVisible: false,    // 우측/좌측 axis 현재값 라벨 숨김
+      autoscaleInfoProvider: (original: () => { priceRange: { minValue: number; maxValue: number }; margins?: unknown } | null) => {
+        const auto = original();
+        if (!auto) return null;
+        const max = dailyMaxAbs ?? Math.max(
+          Math.abs(auto.priceRange.minValue),
+          Math.abs(auto.priceRange.maxValue),
+        );
+        return {
+          priceRange: { minValue: -max, maxValue: max },
+          margins: auto.margins,
+        };
+      },
     });
     // 일별 막대 — 양수(매수): 빨강, 음수(매도): 파랑 (한국식)
     const histData = daily.map((v, i) => ({
@@ -110,7 +126,7 @@ export function InvestorChartLight({
     }));
     histSeries.setData(histData);
 
-    // 누적 라인 (우측 축)
+    // 누적 라인 (우측 축, 0 중앙 — 4 차트 통일 시 cumMaxAbs 공통 적용)
     const cumSeries = chart.addSeries(LineSeries, {
       priceScaleId: "right",
       color: cumColor,
@@ -118,6 +134,18 @@ export function InvestorChartLight({
       priceFormat: { type: "volume" },
       priceLineVisible: false,    // 현재값 가로 점선 숨김
       lastValueVisible: false,    // 우측/좌측 axis 현재값 라벨 숨김
+      autoscaleInfoProvider: (original: () => { priceRange: { minValue: number; maxValue: number }; margins?: unknown } | null) => {
+        const auto = original();
+        if (!auto) return null;
+        const max = cumMaxAbs ?? Math.max(
+          Math.abs(auto.priceRange.minValue),
+          Math.abs(auto.priceRange.maxValue),
+        );
+        return {
+          priceRange: { minValue: -max, maxValue: max },
+          margins: auto.margins,
+        };
+      },
     });
     const cumData = cumulative.map((v, i) => ({
       time: dates[i] as Time,
@@ -162,9 +190,9 @@ export function InvestorChartLight({
       if (dailyV !== undefined) {
         const sign = dailyV >= 0 ? "+" : "";
         const dailyColor = dailyV >= 0 ? "#dc2626" : "#2563eb";  // 매수 빨강 / 매도 파랑
-        content += `<div><span class="text-gray-500">일별 </span><span style="color:${dailyColor}">${sign}${fmtVol(dailyV)}주</span></div>`;
+        content += `<div><span class="text-gray-500">일별 </span><span style="color:${dailyColor}">${sign}${fmtVol(dailyV)}${unit}</span></div>`;
       }
-      content += `<div><span class="text-gray-500">누적 </span><span style="color:${cumColor}" class="font-bold">${fmtVol(cumV)}주</span></div>`;
+      content += `<div><span class="text-gray-500">누적 </span><span style="color:${cumColor}" class="font-bold">${fmtVol(cumV)}${unit}</span></div>`;
       tooltip.innerHTML = content;
       tooltip.style.display = "block";
 
@@ -211,14 +239,14 @@ export function InvestorChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [daily, cumulative, dates, barColor, cumColor, onReady]);
+  }, [daily, cumulative, dates, barColor, cumColor, unit, dailyMaxAbs, cumMaxAbs, onReady]);
 
   return (
     <div className="border border-gray-200 rounded p-2 bg-white">
       <div className="flex items-baseline gap-2 text-xs mb-1 flex-wrap">
         <span className="font-bold" style={{ color: cumColor }}>{label}</span>
         <span className="tabular-nums font-bold" style={{ color: cumColor }}>
-          {fmtVol(last)}주
+          {fmtVol(last)}{unit}
         </span>
         <span className="text-gray-400 text-[10px] ml-auto">일별 + 누적</span>
       </div>

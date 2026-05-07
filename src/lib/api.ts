@@ -257,6 +257,28 @@ export interface ShortSellingPoint {
   amountRatio: number;   // 거래대금 대비 공매도 비율 (%)
 }
 
+// 시장 매매동향 (토스 index/net-buying API) — KOSPI/KOSDAQ 일별 투자자별 순매수
+//   금액 단위: 원 (1억 = 100,000,000) → UI 에서 억원으로 변환 필요
+export interface MarketFlowPoint {
+  date: string;
+  individuals: number;        // 개인
+  foreigners: number;         // 외국인
+  institutions: number;       // 기관계
+  // 기관 상세 (큰 단위 → 작은 단위 순)
+  financialInvestment: number; // 금융투자
+  pensionFund: number;         // 연기금등
+  trust: number;               // 투신
+  privateEquity: number;       // 사모펀드
+  insurance: number;           // 보험
+  bank: number;                // 은행
+  otherFinancial: number;      // 기타금융
+}
+export const MARKET_INDEX_CODES = {
+  KOSPI:  "KGG01P",
+  KOSDAQ: "QGG01P",
+} as const;
+export type MarketIndexKey = keyof typeof MARKET_INDEX_CODES;
+
 async function fetchPriceHistoryFor(
   symbol: string, range: string,
 ): Promise<PricePoint[]> {
@@ -336,6 +358,13 @@ export async function fetchKrPriceHistory(
   const ks = await fetchPriceHistoryFor(`${ticker}.KS`, range);
   if (ks.length > 0) return ks;
   return await fetchPriceHistoryFor(`${ticker}.KQ`, range);
+}
+
+// Yahoo 임의 심볼 가격 history (^KS11, ^KQ11 등 인덱스 포함)
+export async function fetchYahooPriceHistory(
+  symbol: string, range = "1y",
+): Promise<PricePoint[]> {
+  return await fetchPriceHistoryFor(symbol, range);
 }
 
 // 한국 종목 가격 + 배당 + 액면분할 이벤트 통합 fetch
@@ -423,6 +452,71 @@ export async function fetchKrShortSelling(
 
   out.sort((a, b) => a.date.localeCompare(b.date));
   return out;
+}
+
+// 시장 매매동향 fetch — 토스 indices net-buying daily API (인증 X)
+//   KOSPI: KGG01P  / KOSDAQ: QGG01P
+//   API 동작: from 은 "응답의 최신 날짜" (해당 일자부터 과거로 count 일치 반환)
+//   count max 100 → desiredDays > 100 면 nextDate 로 페이지네이션
+//   응답 단위: 원 (UI 에서 /1억 변환)
+export async function fetchKrMarketFlow(
+  indexKey: MarketIndexKey,
+  desiredDays = 250,
+): Promise<MarketFlowPoint[]> {
+  const code = MARKET_INDEX_CODES[indexKey];
+  const out: MarketFlowPoint[] = [];
+  // 시작 from = 오늘 (KST) — 응답이 오늘부터 과거 100일치
+  let nextFrom: string | null = new Date(Date.now() + 9 * 3600_000)
+    .toISOString().slice(0, 10);
+  const seen = new Set<string>();
+  // 100일 페이지 × 최대 4회 → 400거래일 (~1.5년) 안전 상한
+  for (let i = 0; i < 4 && out.length < desiredDays && nextFrom; i++) {
+    const url = `https://wts-info-api.tossinvest.com/api/v1/stock-infos/index/net-buying/daily`
+              + `?code=${code}&count=100&from=${nextFrom}`;
+    let resp: Response;
+    try { resp = await fetchProxied(url); }
+    catch { break; }
+    if (!resp.ok) break;
+    const data = await resp.json() as {
+      result?: {
+        nextDate?: string | null;
+        investorActivityAmounts?: Array<{
+          dt: string;
+          individualsNetBuying?: number;
+          foreignersNetBuying?: number;
+          institutionsNetBuying?: number;
+          financialInvestmentNetBuying?: number;
+          pensionFundNetBuying?: number;
+          trustNetBuying?: number;
+          privateEquityFundNetBuying?: number;
+          insuranceNetBuying?: number;
+          bankNetBuying?: number;
+          otherFinancialNetBuying?: number;
+        }>;
+      };
+    };
+    const items = data.result?.investorActivityAmounts ?? [];
+    if (items.length === 0) break;
+    for (const r of items) {
+      if (seen.has(r.dt)) continue;
+      seen.add(r.dt);
+      out.push({
+        date: r.dt,
+        individuals:         r.individualsNetBuying ?? 0,
+        foreigners:          r.foreignersNetBuying ?? 0,
+        institutions:        r.institutionsNetBuying ?? 0,
+        financialInvestment: r.financialInvestmentNetBuying ?? 0,
+        pensionFund:         r.pensionFundNetBuying ?? 0,
+        trust:               r.trustNetBuying ?? 0,
+        privateEquity:       r.privateEquityFundNetBuying ?? 0,
+        insurance:           r.insuranceNetBuying ?? 0,
+        bank:                r.bankNetBuying ?? 0,
+        otherFinancial:      r.otherFinancialNetBuying ?? 0,
+      });
+    }
+    nextFrom = data.result?.nextDate ?? null;
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export async function fetchKrDisclosures(
