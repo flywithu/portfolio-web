@@ -696,7 +696,7 @@ function InvestorChartsSection({
         <PriceVolumeChart prices={alignedPrices} investors={data}
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice}
                           dividends={dividends} splits={splits}
-                          disclosures={disclosures}
+                          disclosures={disclosures} ticker={ticker}
                           onReady={registerSync} />
       ) : (
         <div className="text-xs text-gray-400 p-2 border border-gray-200 rounded">
@@ -751,13 +751,14 @@ function saveDiscToggle(on: boolean): void {
 }
 
 function PriceVolumeChart({
-  prices, investors, targetPrice, myAvgPrice, dividends, splits, disclosures, onReady,
+  prices, investors, targetPrice, myAvgPrice, dividends, splits, disclosures, ticker, onReady,
 }: {
   prices: PricePoint[]; investors: Investor[];
   targetPrice?: number; myAvgPrice?: number;
   dividends?: DividendEvent[];
   splits?: SplitEvent[];
   disclosures?: DartDisclosure[];
+  ticker?: string;
   onReady?: SyncRegistrar;
 }) {
   const [mode, setMode] = useState<ChartMode>(loadChartMode);
@@ -864,6 +865,7 @@ function PriceVolumeChart({
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice}
                           dividends={dividends} splits={splits}
                           disclosures={showDisc ? disclosures : []}
+                          ticker={ticker}
                           onReady={onReady} />
       </Suspense>
     </div>

@@ -3,7 +3,7 @@
 // — 재렌더 시 줌 상태 보존 (visibleLogicalRange ref 저장/복원)
 // — onReady 콜백으로 chart + anchor series 노출 → 다중 차트 crosshair sync 가능
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
@@ -45,6 +45,7 @@ interface Props {
   dividends?: DividendEvent[];
   splits?: SplitEvent[];
   disclosures?: DartDisclosure[];
+  ticker?: string;
   mode: "line" | "candle";
   onReady?: (
     chart: IChartApi,
@@ -59,12 +60,12 @@ const DART_COLOR = "#ea580c";  // DART 공시 marker — orange-600
 
 // 공시 제목에서 차트 라벨용 짧은 키워드 추출 (우선순위 순)
 //   매칭 안 되면 null → 호출자가 "N건" 카운트로 폴백
+// 분할/병합 키워드는 Yahoo splits 마커가 이미 표시하므로 여기선 제외 (중복 회피).
+// 배당도 마찬가지 — 배당락 마커가 별도 — 단 "배당 결정" 공시는 결정일 ≠ 배당락일이라 유지.
 function pickImportantKeyword(titles: string[]): string | null {
   for (const t of titles) {
     if (t.includes("잠정실적") || t.includes("영업(잠정)")) return "잠정실적";
     if (t.includes("합병")) return "합병";
-    if (t.includes("주식분할") || t.includes("액면분할")) return "액면분할";
-    if (t.includes("주식병합") || t.includes("액면병합")) return "액면병합";
     if (t.includes("유상증자")) return "유상증자";
     if (t.includes("무상증자")) return "무상증자";
     if (t.includes("감자")) return "감자";
@@ -81,11 +82,13 @@ function pickImportantKeyword(titles: string[]): string | null {
 }
 
 export function CandleChartLight({
-  prices, investors, targetPrice, myAvgPrice, dividends, splits, disclosures, mode, onReady,
+  prices, investors, targetPrice, myAvgPrice, dividends, splits, disclosures, ticker, mode, onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<HTMLDivElement>(null);
+  // 공시 팝업 — 마커 클릭 시 활성, 닫기 전까지 유지
+  const [discPopup, setDiscPopup] = useState<{ date: string; x: number; y: number } | null>(null);
   // 재생성 시 줌 상태 복원용 — 마지막 visible logical range
   const visibleRangeRef = useRef<LogicalRange | null>(null);
 
@@ -271,12 +274,35 @@ export function CandleChartLight({
       if (priceDateSet.has(s.date)) splitMap.set(s.date, s.ratio);
     }
     // DART 공시 — 일자별 그룹, 중요 공시는 키워드 라벨로 요약
+    // Yahoo split 일자 ±3일 내 분할/병합/변경상장 공시는 제외 (Yahoo 마커와 중복)
+    const splitDates = new Set(splitMap.keys());
+    const isNearSplit = (date: string): boolean => {
+      const t = new Date(date).getTime();
+      for (const sd of splitDates) {
+        if (Math.abs(t - new Date(sd).getTime()) <= 3 * 86400_000) return true;
+      }
+      return false;
+    };
+    const isSplitTopic = (title: string): boolean =>
+      /(주식분할|액면분할|주식병합|액면병합|변경상장.*분할|변경상장.*소각)/.test(title);
+
     const dartMap = new Map<string, { count: number; titles: string[] }>();
     if (disclosures) for (const d of disclosures) {
       if (!priceDateSet.has(d.date)) continue;
+      if (isSplitTopic(d.title) && isNearSplit(d.date)) continue;
       const cur = dartMap.get(d.date);
       if (cur) { cur.count++; cur.titles.push(d.title); }
       else dartMap.set(d.date, { count: 1, titles: [d.title] });
+    }
+
+    // 분할 일자에 정확히 같은 날 Naver 분할 관련 공시가 있을 때만 URL 매칭
+    // — 추정 매칭은 오용 위험이라 제외, 매칭 없으면 클릭 비활성
+    const splitDiscUrlMap = new Map<string, string>();
+    if (disclosures && splitMap.size > 0) {
+      for (const [splitDate] of splitMap) {
+        const match = disclosures.find(d => d.date === splitDate && isSplitTopic(d.title));
+        if (match) splitDiscUrlMap.set(splitDate, match.url);
+      }
     }
 
     // ─── 마커 렌더 (HTML overlay: 가는 세로선 + 화살촉 + 라벨) ──
@@ -315,7 +341,11 @@ export function CandleChartLight({
         layer.appendChild(wrap);
       };
 
-      const renderAbove = (date: string, color: string, text: string, slot = 0) => {
+      const renderAbove = (
+        date: string, color: string, text: string,
+        slot = 0,
+        onClick?: (px: number, py: number) => void,
+      ) => {
         const p = priceMap.get(date);
         if (!p) return;
         const x = chart.timeScale().timeToCoordinate(date as Time);
@@ -323,11 +353,21 @@ export function CandleChartLight({
         const baseY = priceSeries.priceToCoordinate(p.high ?? p.close);
         if (baseY == null) return;
         const totalH = 18 + 5 + 18;  // line + arrow + label
+        const topY = baseY - 4 - totalH - slot * 32;
         const wrap = document.createElement("div");
+        const interactive = !!onClick;
         wrap.style.cssText =
-          `position:absolute;left:${x}px;top:${baseY - 4 - totalH - slot * 32}px;` +
-          `transform:translateX(-50%);pointer-events:none;z-index:4;` +
+          `position:absolute;left:${x}px;top:${topY}px;` +
+          `transform:translateX(-50%);z-index:4;` +
+          `pointer-events:${interactive ? "auto" : "none"};` +
+          `cursor:${interactive ? "pointer" : "default"};` +
           `display:flex;flex-direction:column;align-items:center;`;
+        if (onClick) {
+          wrap.addEventListener("click", e => {
+            e.stopPropagation();
+            onClick(x, topY);
+          });
+        }
         const label = document.createElement("div");
         label.style.cssText =
           `background:#ffffff;border:1px solid ${color};color:${color};` +
@@ -350,18 +390,24 @@ export function CandleChartLight({
       for (const [date, amount] of divMap) {
         renderBelow(date, DIV_COLOR, `배당락 ${Math.round(amount).toLocaleString()}원`);
       }
-      // 액면분할 (위) — 같은 날 배당락과 겹쳐도 위/아래라 분리됨
+      // 액면분할 (위) — 정확히 같은 날 Naver 분할 공시 있을 때만 클릭 가능
       for (const [date, ratio] of splitMap) {
-        renderAbove(date, SPLIT_COLOR, `분할 ${ratio}`);
+        const url = splitDiscUrlMap.get(date);
+        renderAbove(
+          date, SPLIT_COLOR, `분할 ${ratio}`, 0,
+          url ? () => window.open(url, "_blank", "noopener,noreferrer") : undefined,
+        );
       }
-      // 공시 (위) — 중요 공시는 키워드 라벨 ("배당", "잠정실적" 등), 그 외는 카운트
+      // 공시 (위) — 클릭 가능, 클릭 시 useState 로 팝업 활성화 (닫기 전까지 유지)
       for (const [date, info] of dartMap) {
         const slot = splitMap.has(date) ? 1 : 0;
         const keyword = pickImportantKeyword(info.titles);
         const text = keyword
           ? keyword + (info.count > 1 ? ` +${info.count - 1}` : "")
           : `${info.count}건`;
-        renderAbove(date, DART_COLOR, text, slot);
+        renderAbove(date, DART_COLOR, text, slot, (px, py) => {
+          setDiscPopup({ date, x: px, y: py });
+        });
       }
     };
     const initMarkerTimer = window.setTimeout(renderEventMarkers, 0);
@@ -443,18 +489,7 @@ export function CandleChartLight({
       if (sp !== undefined) {
         content += `<div><span class="text-gray-500">분할 </span><span style="color:${SPLIT_COLOR}" class="font-bold">${sp}</span></div>`;
       }
-      const dart = dartMap.get(String(time));
-      if (dart !== undefined) {
-        const titles = (disclosures ?? [])
-          .filter(x => x.date === String(time))
-          .slice(0, 5)
-          .map(x => `<div style="color:${DART_COLOR}">📋 ${x.title}</div>`)
-          .join("");
-        content += titles;
-        if (dart.count > 5) {
-          content += `<div class="text-gray-400">… +${dart.count - 5}건</div>`;
-        }
-      }
+      // 공시는 hover 툴팁에 넣지 않음 (마커 클릭 시 별도 팝업으로 표시)
       tooltip.innerHTML = content;
       tooltip.style.display = "block";
 
@@ -505,7 +540,29 @@ export function CandleChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [prices, investors, mode, targetPrice, myAvgPrice, dividends, splits, disclosures, onReady]);
+  }, [prices, investors, mode, targetPrice, myAvgPrice, dividends, splits, disclosures, ticker, onReady]);
+
+  // 팝업 dismiss — 외부 클릭 / Esc
+  useEffect(() => {
+    if (!discPopup) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setDiscPopup(null); };
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-disc-popup]")) setDiscPopup(null);
+    };
+    window.addEventListener("keydown", onKey);
+    // setTimeout 으로 등록 — 마커 클릭 자체가 즉시 닫히는 것 방지
+    const t = window.setTimeout(() => window.addEventListener("click", onClick), 0);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("click", onClick);
+      window.clearTimeout(t);
+    };
+  }, [discPopup]);
+
+  const popupItems = discPopup
+    ? (disclosures ?? []).filter(d => d.date === discPopup.date)
+    : [];
 
   return (
     <div className="relative">
@@ -516,6 +573,36 @@ export function CandleChartLight({
            className="absolute pointer-events-none bg-white/95 border border-gray-200 rounded shadow-md
                       px-2 py-1 text-xs text-gray-700 tabular-nums z-10 leading-snug"
            style={{ display: "none" }} />
+      {discPopup && popupItems.length > 0 && (
+        <div data-disc-popup
+             className="absolute z-30 bg-white border border-orange-300 rounded-lg shadow-xl
+                        text-xs leading-snug"
+             style={{
+               left: discPopup.x,
+               top: Math.max(4, discPopup.y - 8),
+               transform: "translate(-50%, -100%)",
+               minWidth: 220,
+               maxWidth: 360,
+             }}>
+          <div className="flex items-center justify-between px-2 py-1 border-b border-gray-100 bg-orange-50 rounded-t-lg">
+            <span className="text-[11px] text-gray-600 font-medium">
+              {discPopup.date} 공시 {popupItems.length}건
+            </span>
+            <button onClick={() => setDiscPopup(null)}
+                    className="text-gray-400 hover:text-gray-700 text-sm leading-none ml-2">
+              ✕
+            </button>
+          </div>
+          <div className="px-2 py-1.5 space-y-1 max-h-60 overflow-y-auto">
+            {popupItems.map((d, i) => (
+              <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
+                 className="block text-orange-700 hover:underline">
+                📋 {d.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

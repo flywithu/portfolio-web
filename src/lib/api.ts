@@ -396,7 +396,7 @@ export async function fetchKrDisclosures(
       out.push({
         date: dateOnly,
         title: cleaned,
-        url: `https://m.stock.naver.com/domestic/stock/${ticker}/disclosure`,
+        url: `https://m.stock.naver.com/domestic/stock/${ticker}/notice/${it.disclosureId}`,
         reportNm: title,
       });
     }
