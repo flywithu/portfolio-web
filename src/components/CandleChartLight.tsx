@@ -222,6 +222,7 @@ export function CandleChartLight({
       ratioSeries.setData(ratioData);
     }
 
+
     // ─── 가격 스케일에 목표가/평단가 포함 (autoscale 확장) ─────
     // priceLine 만으로는 가격 범위 밖이면 안 보임 → autoscaleInfoProvider 로 강제 포함
     priceSeries.applyOptions({

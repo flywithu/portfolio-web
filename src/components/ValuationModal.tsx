@@ -7,6 +7,7 @@ import type {
 // 무거운 차트 라이브러리는 lazy — 모달 열릴 때만 로드 (~50KB gzip)
 const CandleChartLight = lazy(() => import("./CandleChartLight"));
 const InvestorChartLight = lazy(() => import("./InvestorChartLight"));
+const ShortSellingChart = lazy(() => import("./ShortSellingChart"));
 
 // 4개 차트 동기화 — crosshair (hover) + 줌/팬 (visible range)
 // 각 차트가 onSyncedHover 콜백 등록 → 다른 차트 hover 시 자체 데이터로 crosshair + 툴팁 갱신
@@ -83,7 +84,7 @@ import {
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { signColor } from "../lib/format";
-import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
@@ -660,6 +661,14 @@ function InvestorChartsSection({
     staleTime: 30 * 60_000,    // 30분 — 공시 변동 빈도 적음
   });
 
+  // 공매도 (토스 API, 인증 불필요) — 일별 평단가 + 비중
+  const { data: shortSelling } = useQuery({
+    queryKey: ["short-selling-modal", ticker],
+    queryFn: () => fetchKrShortSelling(ticker, 12),
+    enabled: /^\d{6}$/.test(ticker),
+    staleTime: 30 * 60_000,
+  });
+
   // 시간순 정렬 + 누적 합 — useMemo 로 ref 안정화 (재렌더 시 차트 재생성 방지)
   const data = useMemo(() => [...history].reverse(), [history]);
   const dates = useMemo(() => data.map(d => d.date ?? ""), [data]);
@@ -703,8 +712,8 @@ function InvestorChartsSection({
           {pricesLoading ? "주가 로딩 중..." : "주가 데이터 없음 (Yahoo 미수록)"}
         </div>
       )}
-      {/* 2~4. 수급 3개 — 한 줄 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      {/* 2~5. 수급 3개 + 공매도 — 한 줄 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
         <Suspense fallback={<div className="h-[220px]" />}>
           <InvestorChartLight
             label="외국인"
@@ -724,6 +733,14 @@ function InvestorChartsSection({
             barColor="#fed7aa" cumColor="#c2410c"
             onReady={registerSync}
           />
+          {shortSelling && shortSelling.length > 0 && (
+            <ShortSellingChart
+              shortSelling={shortSelling}
+              prices={alignedPrices}
+              dates={dates}
+              onReady={registerSync}
+            />
+          )}
         </Suspense>
       </div>
     </div>
@@ -749,6 +766,7 @@ function loadDiscToggle(): boolean {
 function saveDiscToggle(on: boolean): void {
   try { localStorage.setItem(DISC_TOGGLE_KEY, on ? "on" : "off"); } catch { /* noop */ }
 }
+
 
 function PriceVolumeChart({
   prices, investors, targetPrice, myAvgPrice, dividends, splits, disclosures, ticker, onReady,
@@ -776,17 +794,6 @@ function PriceVolumeChart({
   const lastRatio = [...investors]
     .reverse()
     .find(inv => inv.외국인비율 > 0)?.외국인비율;
-
-  const togglePill = (m: ChartMode, label: string) => (
-    <button onClick={() => setModePersist(m)}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-              mode === m
-                ? "bg-amber-400 text-amber-950 shadow-[0_0_6px_rgba(251,191,36,0.5)]"
-                : "text-gray-500 hover:bg-gray-100"
-            }`}>
-      {label}
-    </button>
-  );
 
   return (
     <div className="border border-gray-200 rounded p-2 bg-white">
@@ -850,10 +857,16 @@ function PriceVolumeChart({
                   }`}>
             📋 공시 {showDisc ? "ON" : "OFF"}
           </button>
-          <span className="inline-flex items-center gap-0.5 rounded border border-gray-200 p-0.5">
-            {togglePill("line",   "📈 라인")}
-            {togglePill("candle", "🕯 캔들")}
-          </span>
+          {/* 캔들 모드 토글 — OFF=라인, ON=캔들 */}
+          <button onClick={() => setModePersist(mode === "candle" ? "line" : "candle")}
+                  title={mode === "candle" ? "라인 차트로" : "캔들 차트로"}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                    mode === "candle"
+                      ? "bg-amber-100 text-amber-700 border-amber-300"
+                      : "text-gray-400 border-gray-200 hover:bg-gray-100"
+                  }`}>
+            🕯 캔들 {mode === "candle" ? "ON" : "OFF"}
+          </button>
         </span>
       </div>
       <Suspense fallback={

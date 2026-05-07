@@ -248,6 +248,15 @@ export interface DartDisclosure {
   reportNm: string;    // 원본 보고서명 (filter 용)
 }
 
+// 일별 공매도 (토스 short-selling-trend API)
+export interface ShortSellingPoint {
+  date: string;          // YYYY-MM-DD
+  avgPrice: number;      // 공매도 평균가
+  shortVolume: number;   // 공매도 수량 (주)
+  ratio: number;         // 거래량 대비 공매도 비율 (%)
+  amountRatio: number;   // 거래대금 대비 공매도 비율 (%)
+}
+
 async function fetchPriceHistoryFor(
   symbol: string, range: string,
 ): Promise<PricePoint[]> {
@@ -358,6 +367,63 @@ const DISCLOSURE_NOISE_PATTERNS = [
   "(첨부정정)",
   "(기재정정)",
 ];
+
+// 공매도 fetch — 토스 wts-info-api (인증 불필요, 워커 화이트리스트 이미 등록)
+//   max size 100 / 페이지당 → 1년치 위해 4페이지 순차 fetch
+export async function fetchKrShortSelling(
+  ticker: string, months = 12,
+): Promise<ShortSellingPoint[]> {
+  if (!/^\d{6}$/.test(ticker)) return [];
+
+  const since = new Date();
+  since.setMonth(since.getMonth() - months);
+
+  const out: ShortSellingPoint[] = [];
+  let key: string | null = null;
+
+  for (let i = 0; i < 4; i++) {
+    let url = `https://wts-info-api.tossinvest.com/api/v1/mds/info/short-selling-trend?stockCode=A${ticker}&size=100`;
+    if (key) url += `&key=${encodeURIComponent(key)}`;
+    let resp: Response;
+    try { resp = await fetchProxied(url); }
+    catch { break; }
+    if (!resp.ok) break;
+    const data = await resp.json() as {
+      result?: {
+        body?: Array<{
+          baseDate?: string;
+          shortSellingAveragePrice?: number;
+          shortSellingAveragePriceLong?: number;
+          shortTradingVolume?: number;
+          shortSellingRatio?: number;
+          shortSellingTradingAmountRatio?: number;
+        }>;
+        pagingParam?: { key?: string | null };
+      };
+    };
+    const body = data.result?.body;
+    if (!Array.isArray(body) || body.length === 0) break;
+
+    let stop = false;
+    for (const r of body) {
+      if (!r.baseDate) continue;
+      if (new Date(r.baseDate) < since) { stop = true; continue; }
+      out.push({
+        date: r.baseDate,
+        avgPrice: r.shortSellingAveragePriceLong ?? Math.round(r.shortSellingAveragePrice ?? 0),
+        shortVolume: r.shortTradingVolume ?? 0,
+        ratio: r.shortSellingRatio ?? 0,
+        amountRatio: r.shortSellingTradingAmountRatio ?? 0,
+      });
+    }
+    if (stop) break;
+    key = data.result?.pagingParam?.key ?? null;
+    if (!key) break;
+  }
+
+  out.sort((a, b) => a.date.localeCompare(b.date));
+  return out;
+}
 
 export async function fetchKrDisclosures(
   ticker: string, months = 12,

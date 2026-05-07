@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-05-07T00:32:37.949Z",
+  "lastUpdated": "2026-05-07T02:11:10.957Z",
   "activeFeatures": [
     "portfolio-web"
   ],
@@ -15,9 +15,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-01T03:35:27.330Z",
-        "lastUpdated": "2026-05-07T00:32:37.949Z"
+        "lastUpdated": "2026-05-07T02:11:10.957Z"
       },
-      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/components/CandleChartLight.tsx"
+      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/components/ShortSellingChart.tsx"
     }
   },
   "pipeline": {
@@ -28,7 +28,7 @@
   "session": {
     "startedAt": "2026-05-01T03:34:12.578Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-05-07T00:32:37.949Z"
+    "lastActivity": "2026-05-07T02:11:10.957Z"
   },
   "history": [
     {
@@ -4965,6 +4965,336 @@
     },
     {
       "timestamp": "2026-05-07T00:32:37.949Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:42:37.024Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:42:50.549Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:42:56.824Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:43:09.597Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:43:16.575Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:43:31.871Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:43:46.356Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:43:55.493Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:44:02.308Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:44:09.417Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:44:18.174Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:44:25.143Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:44:35.457Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:44:44.539Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:44:51.039Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:45:01.377Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:45:09.609Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:46:55.613Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:47:03.792Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:52:51.288Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:52:57.601Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:53:09.275Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:53:17.198Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:53:27.795Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:53:38.174Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:53:44.267Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:53:49.917Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:53:56.928Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:01.569Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:06.440Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:13.185Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:21.095Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:27.152Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:33.216Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:38.521Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:44.911Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:54:55.403Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T01:58:34.447Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:00:05.827Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:00:11.922Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:00:21.935Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:00:50.817Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:01:07.194Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:01:21.434Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:02:20.554Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:03:41.312Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:03:49.832Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:04:02.254Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:04:08.125Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:05:49.883Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:05:59.803Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:06:08.572Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:06:16.163Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:06:23.383Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-07T02:11:10.957Z",
       "feature": "portfolio-web",
       "phase": "do",
       "action": "updated"
