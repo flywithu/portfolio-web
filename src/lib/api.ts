@@ -715,10 +715,11 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
     // 색상용 prevClose 보존 — 비거래일 보정 전 원래 값
     const prevClose = prev;
 
-    // 비거래일 보정 (KR fetchTossPrices 와 동일 로직) —
-    // CLOSED 상태에서 마지막 정규장 거래의 KST 날짜가 오늘과 다르면 어제대비 0.
-    // PRE/POST 는 활성 세션 (preMarket vs 마지막 정규장 종가) 의미 있어 보존.
-    if (state === "CLOSED" && tradeDate) {
+    // 비거래일 보정 — KR(.KS/.KQ/^KS*/^KQ*) 만 적용.
+    // 미국/글로벌 ETF 는 저유동성 시 regularMarketTime 이 어제 마지막 체결시간이라
+    // tradeDate 가 todayKst 와 자주 어긋남 → prev=price 로 0% 가리는 오작동 방지.
+    const isKr = /\.K[SQ]$|^\^K[SQ]/.test(symbol);
+    if (isKr && state === "CLOSED" && tradeDate) {
       const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
       if (tradeDate !== todayKst) {
         prev = price;  // 비거래일 → 어제대비 0
