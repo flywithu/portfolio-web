@@ -1,9 +1,33 @@
+import { useState } from "react";
 import type { Stock, Price, Consensus, Investor } from "../types";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { pickTodayInvestor } from "../lib/api";
 import { Sparkline } from "./Sparkline";
 import { Tooltip, ColorName } from "./Tooltip";
 import { AuxIndicators } from "./AuxIndicators";
+
+// 투자자별 매매동향 — PC StockCard 와 동일 정의 (모바일 레이어 표시용)
+const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
+  { label: "외국인보유", key: "외국인비율" },
+  { label: "개인", key: "개인" },
+  { label: "외국인", key: "외국인" },
+  { label: "기관", key: "기관" },
+  { label: "연기금", key: "연기금" },
+  { label: "금융투자", key: "금융투자" },
+  { label: "투신", key: "투신" },
+  { label: "사모", key: "사모" },
+  { label: "보험", key: "보험" },
+  { label: "은행", key: "은행" },
+  { label: "기타금융", key: "기타금융" },
+  { label: "기타법인", key: "기타법인" },
+];
+const HIGHLIGHT_LABELS = new Set(["외국인", "기관", "연기금"]);
+function highlightStyles(value: number): { bg: string; color: string } {
+  if (value > 0) return { bg: "bg-rose-50", color: "text-rose-700" };
+  if (value < 0) return { bg: "bg-blue-50", color: "text-blue-800" };
+  return { bg: "", color: "text-gray-500" };
+}
 
 // 모바일 종목 카드 — 데스크톱 StockCard 의 가격 + 통계 박스만 (투자자 동향 X)
 // 폰트 모두 작게.
@@ -73,6 +97,10 @@ function openTossStock(ticker: string) {
 export function MobileStockCard({
   stock, price, peak, sector, warning, chart, investorHistory, consensus, onOpenValuation, onEdit, onDelete,
 }: Props) {
+  // 투자자 매매동향 레이어 토글 (👥 버튼)
+  const [showFlow, setShowFlow] = useState(false);
+  const investor = investorHistory ? pickTodayInvestor(investorHistory) : null;
+
   if (!price) {
     return (
       <article className="rounded-lg bg-white border border-gray-200 p-2 animate-pulse">
@@ -388,6 +416,17 @@ export function MobileStockCard({
       <div className="relative basis-1/2 min-w-0 border border-gray-200 rounded
                        bg-gray-50/60 px-1.5 py-1 space-y-0.5
                        flex flex-col justify-start">
+        {/* 👥 투자자 매매동향 토글 버튼 — 우상단 */}
+        {investor && (
+          <button onClick={() => setShowFlow(v => !v)}
+                  title={showFlow ? "투자자 매매동향 닫기" : "투자자 매매동향 보기"}
+                  className="absolute top-0.5 right-0.5 z-30 px-1 py-0 rounded
+                             text-[9px] text-gray-500 bg-white/80
+                             border border-gray-200 hover:bg-white">
+            {showFlow ? "✕" : "👥"}
+          </button>
+        )}
+
         {/* 피크 (보유만, 피크 > 현재가) — 보유 총액 기준 */}
         {hasPosition && peak && peak > price.price && (
           <div className="text-[10px]">
@@ -456,6 +495,55 @@ export function MobileStockCard({
         <AuxIndicators chart={chart} investorHistory={investorHistory}
                        isTradingDay={!!price.high} textSize="10"
                        defaultOpen={!hasPosition} />
+
+        {/* ─── 투자자 매매동향 레이어 (👥 클릭 시) ─── */}
+        {showFlow && investor && (
+          <div className="absolute inset-0 z-20 bg-white border border-gray-300 rounded
+                          px-1.5 py-1 grid grid-cols-2 gap-x-1.5 gap-y-0
+                          text-[10px] overflow-y-auto">
+            {FLOW_FIELDS.map(({ label, key }) => {
+              const raw = investor[key];
+              const isRatio = key === "외국인비율";
+              const numVal = typeof raw === "number" ? raw : 0;
+              const isHighlight = HIGHLIGHT_LABELS.has(label);
+
+              if (isRatio && (raw === null || raw === undefined || numVal === 0)) {
+                return <div key={label} />;
+              }
+
+              let value: string;
+              if (raw === null || raw === undefined) value = "-";
+              else if (isRatio) value = `${(raw as number).toFixed(2)}%`;
+              else value = formatSigned(raw as number);
+
+              let labelColor: string, valueColor: string, rowBg: string;
+              if (isHighlight) {
+                const hs = highlightStyles(numVal);
+                labelColor = hs.color;
+                valueColor = hs.color;
+                rowBg = hs.bg;
+              } else {
+                labelColor = "text-gray-600";
+                valueColor =
+                  raw === null || raw === undefined ? "text-gray-400"
+                  : isRatio ? "text-gray-800"
+                  : signColor(raw as number);
+                rowBg = "";
+              }
+
+              const sizeCls = isHighlight ? "font-bold" : "";
+
+              return (
+                <div key={label}
+                     className={`flex items-center justify-between gap-1 px-1 py-px rounded
+                                 ${rowBg} ${sizeCls}`}>
+                  <span className={`whitespace-nowrap shrink-0 ${labelColor}`}>{label}</span>
+                  <span className={`tabular-nums whitespace-nowrap ${valueColor}`}>{value}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
       </div>
       </article>
