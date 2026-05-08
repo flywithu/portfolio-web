@@ -11,16 +11,10 @@ async function fetchLatestCommit(): Promise<string | null> {
     // 캐시 버스터 — SW/HTTP 캐시 우회
     const url = `${import.meta.env.BASE_URL}version.json?cb=${Date.now()}`;
     const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) {
-      console.warn("[new-version] fetch failed:", res.status, url);
-      return null;
-    }
+    if (!res.ok) return null;
     const json = await res.json() as { commit?: string };
-    const latest = typeof json.commit === "string" ? json.commit : null;
-    console.debug("[new-version] check:", { current: __COMMIT_HASH__, latest });
-    return latest;
-  } catch (e) {
-    console.warn("[new-version] fetch error:", e);
+    return typeof json.commit === "string" ? json.commit : null;
+  } catch {
     return null;
   }
 }
@@ -47,23 +41,15 @@ export function NewVersionToast() {
   const [latestCommit, setLatestCommit] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log("[new-version] mount, current hash:", __COMMIT_HASH__);
     let stop = false;
     const check = async () => {
       const latest = await fetchLatestCommit();
       if (stop) return;
-      if (latest && latest !== __COMMIT_HASH__) {
-        console.log("[new-version] DIFF detected — toast will show:",
-                    { current: __COMMIT_HASH__, latest });
-        setLatestCommit(latest);
-      }
+      if (latest && latest !== __COMMIT_HASH__) setLatestCommit(latest);
     };
     void check();
     const id = setInterval(check, POLL_MS);
-    const onFocus = () => {
-      console.log("[new-version] focus/visibility — re-check");
-      void check();
-    };
+    const onFocus = () => void check();
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
     return () => {
