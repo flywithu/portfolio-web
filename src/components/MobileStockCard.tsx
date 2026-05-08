@@ -324,7 +324,7 @@ export function MobileStockCard({
                 </span>
               </div>
               <div className={`flex items-baseline gap-1 pl-2 font-bold ${signColor(dayDiff)}`}>
-                <span className="text-lg leading-tight">
+                <span className="text-lg leading-tight bg-yellow-100 rounded px-1">
                   {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
                 </span>
                 <span className="text-xs font-normal">({formatSigned(dayDiff)}원)</span>
@@ -443,7 +443,7 @@ export function MobileStockCard({
         {hasPosition && (
           <div className="text-[10px]">
             <span className="text-[9px] text-gray-500">오늘 </span>
-            <span className={`font-bold ${signColor(dayDiff)}`}>
+            <span className={`font-bold bg-yellow-100 rounded px-1 ${signColor(dayDiff)}`}>
               {formatSigned(dayDiff * stock.shares)}원
             </span>{" "}
             <span className={`font-bold ${signColor(dayDiff)}`}>
