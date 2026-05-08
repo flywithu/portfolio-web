@@ -685,6 +685,27 @@ export function StockCard({
             )}
           </>
         } className="basis-[30%] min-w-0">
+        <div className="relative w-full h-full">
+        {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}
+        {(stock.shares > 0 || price.volume > 0) && (
+          <div className="absolute -top-2 right-1 z-30 bg-white/70 border border-gray-200
+                          rounded px-1.5 py-0.5 text-[10px] leading-tight
+                          flex items-baseline gap-1">
+            {stock.shares > 0 && (
+              <span className="font-bold text-gray-900">
+                {stock.shares.toLocaleString()}주
+              </span>
+            )}
+            {stock.shares > 0 && price.volume > 0 && (
+              <span className="text-gray-300">·</span>
+            )}
+            {price.volume > 0 && (
+              <span className="text-gray-900">
+                {formatVolume(price.volume)}
+              </span>
+            )}
+          </div>
+        )}
         <div className="relative overflow-hidden border border-gray-200 rounded-md
                         bg-gray-50/60 px-2 py-1 space-y-0.5 w-full h-full
                         flex flex-col justify-center">
@@ -696,22 +717,6 @@ export function StockCard({
                        className="absolute inset-0 w-full h-full opacity-10
                                   pointer-events-none" />
           )}
-          {/* 보유주수 + 거래량 — 우상단 박스 (값만, 라벨 X, 배경 투명) */}
-          {(stock.shares > 0 || price.volume > 0) && (
-            <div className="absolute top-1 right-1 z-20 border border-gray-200
-                            rounded px-1.5 py-0.5 text-[10px] leading-tight">
-              {stock.shares > 0 && (
-                <div className="font-bold text-gray-900">
-                  {stock.shares.toLocaleString()}주
-                </div>
-              )}
-              {price.volume > 0 && (
-                <div className="text-gray-900">
-                  {formatVolume(price.volume)}
-                </div>
-              )}
-            </div>
-          )}
           {(() => {
             // 가격 행들을 배열로 만들고 목표를 가격 비교에 따라 적절한 위치에 삽입
             const rowHigh = price.high && price.high > 0 ? (() => {
@@ -722,9 +727,9 @@ export function StockCard({
               return (
                 <div key="high" className="text-xs text-gray-700">
                   <span className="text-gray-500">고 </span>
-                  {hi.toLocaleString()}
+                  {hi.toLocaleString()}원
                   <span className={`ml-1 text-[10px] ${signColor(hiDiff)}`}>
-                    ({formatSigned(hiDiff)}, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
+                    ({formatSigned(hiDiff)}원, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
                   </span>
                 </div>
               );
@@ -733,20 +738,24 @@ export function StockCard({
             const rowCur = (
               <div key="cur" className="relative z-10">
                 <div className="flex items-baseline gap-2">
-                  {tick.arrow && (
-                    <span className={`text-xl font-bold leading-tight
-                                      ${tick.dir === "up" ? "text-rose-600"
-                                        : tick.dir === "down" ? "text-blue-600"
-                                        : "text-gray-400"}`}>
-                      {tick.arrow.trim()}
-                    </span>
-                  )}
+                  <span className={`text-xl font-bold leading-tight ${
+                    tick.arrow
+                      ? tick.dir === "up" ? "text-rose-600"
+                        : tick.dir === "down" ? "text-blue-600"
+                        : "text-gray-400"
+                      : "invisible"
+                  }`}>
+                    {tick.arrow ? tick.arrow.trim() : "▲"}
+                  </span>
                   <span className={`text-xl font-bold leading-tight ${priceColorCls}`}>
                     {price.price.toLocaleString()}원
                   </span>
                 </div>
-                <div className={`text-xs font-bold pl-6 ${signColor(dayDiff)}`}>
-                  {formatSigned(dayDiff)} ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
+                <div className={`flex items-baseline gap-1 pl-6 font-bold ${signColor(dayDiff)}`}>
+                  <span className="text-lg leading-tight">
+                    {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
+                  </span>
+                  <span className="text-xs font-normal">({formatSigned(dayDiff)}원)</span>
                 </div>
               </div>
             );
@@ -758,9 +767,9 @@ export function StockCard({
               return (
                 <div key="low" className="text-xs text-gray-700">
                   <span className="text-gray-500">저 </span>
-                  {lo.toLocaleString()}
+                  {lo.toLocaleString()}원
                   <span className={`ml-1 text-[10px] ${signColor(loDiff)}`}>
-                    ({formatSigned(loDiff)}, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
+                    ({formatSigned(loDiff)}원, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
                   </span>
                 </div>
               );
@@ -772,10 +781,10 @@ export function StockCard({
               const tPct = price.price > 0 ? (tDiff / price.price) * 100 : 0;
               return (
                 <div key="target" className="text-xs text-gray-700">
-                  <span className="text-amber-600 font-medium">목표 </span>
-                  {t.toLocaleString()}
+                  <span className="text-amber-600 font-medium">목 </span>
+                  {t.toLocaleString()}원
                   <span className={`ml-1 text-[10px] ${signColor(tDiff)}`}>
-                    ({formatSigned(tDiff)}, {tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%
+                    ({formatSigned(tDiff)}원, {tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%
                     {typeof consensus.score === "number" ? `, ${consensus.score.toFixed(2)}` : ""})
                   </span>
                 </div>
@@ -800,6 +809,7 @@ export function StockCard({
             }
             return <>{order.filter(Boolean)}</>;
           })()}
+        </div>
         </div>
         </Tooltip>
 
@@ -847,7 +857,7 @@ export function StockCard({
           <div className="text-xs">
             <span className="text-gray-500">전체 </span>
             <span className={`text-base font-bold ${signColor(pnl)}`}>
-              {formatSigned(pnl)}
+              {formatSigned(pnl)}원
             </span>{" "}
             <span className={signColor(pnl)}>(</span>
             <span className={`font-bold rounded px-0.5
@@ -864,7 +874,7 @@ export function StockCard({
           <div className="text-xs">
             <span className="text-gray-500">오늘 </span>
             <span className={`font-bold ${signColor(dayDiff)}`}>
-              {formatSigned(dayDiff * stock.shares)}
+              {formatSigned(dayDiff * stock.shares)}원
             </span>{" "}
             <span className={`font-bold ${signColor(dayDiff)}`}>
               ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)

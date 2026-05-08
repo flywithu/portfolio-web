@@ -267,6 +267,27 @@ export function MobileStockCard({
           )}
         </>
       } className="basis-1/2 min-w-0">
+      <div className="relative w-full h-full">
+      {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}
+      {(stock.shares > 0 || price.volume > 0) && (
+        <div className="absolute -top-2 right-1 z-30 bg-white/70 border border-gray-200
+                        rounded px-1.5 py-0.5 text-[10px] leading-tight
+                        flex items-baseline gap-1">
+          {stock.shares > 0 && (
+            <span className="font-bold text-gray-900">
+              {stock.shares.toLocaleString()}주
+            </span>
+          )}
+          {stock.shares > 0 && price.volume > 0 && (
+            <span className="text-gray-300">·</span>
+          )}
+          {price.volume > 0 && (
+            <span className="text-gray-900">
+              {formatVolume(price.volume)}
+            </span>
+          )}
+        </div>
+      )}
       <div className="relative overflow-hidden border border-gray-200
                       rounded bg-gray-50/60 px-2 py-1.5 w-full h-full
                       flex flex-col justify-center space-y-0.5">
@@ -278,22 +299,6 @@ export function MobileStockCard({
                      className="absolute inset-0 w-full h-full opacity-10
                                 pointer-events-none" />
         )}
-        {/* 보유주수 + 거래량 — 우상단 박스 (값만, 라벨 X, 배경 투명) */}
-        {(stock.shares > 0 || price.volume > 0) && (
-          <div className="absolute top-1 right-1 z-20 border border-gray-200
-                          rounded px-1.5 py-0.5 text-[10px] leading-tight">
-            {stock.shares > 0 && (
-              <div className="font-bold text-gray-900">
-                {stock.shares.toLocaleString()}주
-              </div>
-            )}
-            {price.volume > 0 && (
-              <div className="text-gray-900">
-                {formatVolume(price.volume)}
-              </div>
-            )}
-          </div>
-        )}
         {(() => {
           // 가격 행 + 목표 가격 비교 위치 동적 삽입 (PC 동일)
           const rowHigh = price.high && price.high > 0 ? (() => {
@@ -303,9 +308,9 @@ export function MobileStockCard({
             return (
               <div key="high" className="text-xs text-gray-700">
                 <span className="text-gray-500">고 </span>
-                {hi.toLocaleString()}
-                <span className={`ml-0.5 text-xs ${signColor(hiDiff)}`}>
-                  ({hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
+                {hi.toLocaleString()}원
+                <span className={`ml-0.5 text-[10px] ${signColor(hiDiff)}`}>
+                  ({formatSigned(hiDiff)}원, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
                 </span>
               </div>
             );
@@ -318,8 +323,11 @@ export function MobileStockCard({
                   {price.price.toLocaleString()}원
                 </span>
               </div>
-              <div className={`text-[10px] font-bold pl-2 ${signColor(dayDiff)}`}>
-                {formatSigned(dayDiff)} ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
+              <div className={`flex items-baseline gap-1 pl-2 font-bold ${signColor(dayDiff)}`}>
+                <span className="text-lg leading-tight">
+                  {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
+                </span>
+                <span className="text-xs font-normal">({formatSigned(dayDiff)}원)</span>
               </div>
             </div>
           );
@@ -331,9 +339,9 @@ export function MobileStockCard({
             return (
               <div key="low" className="text-xs text-gray-700">
                 <span className="text-gray-500">저 </span>
-                {lo.toLocaleString()}
-                <span className={`ml-0.5 text-xs ${signColor(loDiff)}`}>
-                  ({loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
+                {lo.toLocaleString()}원
+                <span className={`ml-0.5 text-[10px] ${signColor(loDiff)}`}>
+                  ({formatSigned(loDiff)}원, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
                 </span>
               </div>
             );
@@ -345,10 +353,10 @@ export function MobileStockCard({
             const tPct = price.price > 0 ? (tDiff / price.price) * 100 : 0;
             return (
               <div key="target" className="text-xs text-gray-700">
-                <span className="text-amber-600 font-medium">목표 </span>
-                {t.toLocaleString()}
-                <span className={`ml-0.5 text-xs ${signColor(tDiff)}`}>
-                  ({tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%)
+                <span className="text-amber-600 font-medium">목 </span>
+                {t.toLocaleString()}원
+                <span className={`ml-0.5 text-[10px] ${signColor(tDiff)}`}>
+                  ({formatSigned(tDiff)}원, {tPct >= 0 ? "+" : ""}{tPct.toFixed(2)}%)
                 </span>
               </div>
             );
@@ -372,6 +380,7 @@ export function MobileStockCard({
           }
           return <>{order.filter(Boolean)}</>;
         })()}
+      </div>
       </div>
       </Tooltip>
 
@@ -418,7 +427,7 @@ export function MobileStockCard({
           <div className="text-[10px]">
             <span className="text-gray-500">전체 </span>
             <span className={`text-sm font-bold ${signColor(pnl)}`}>
-              {formatSigned(pnl)}
+              {formatSigned(pnl)}원
             </span>{" "}
             <span className={signColor(pnl)}>(</span>
             <span className={`font-bold rounded px-0.5
@@ -435,7 +444,7 @@ export function MobileStockCard({
           <div className="text-[10px]">
             <span className="text-gray-500">오늘 </span>
             <span className={`font-bold ${signColor(dayDiff)}`}>
-              {formatSigned(dayDiff * stock.shares)}
+              {formatSigned(dayDiff * stock.shares)}원
             </span>{" "}
             <span className={`font-bold ${signColor(dayDiff)}`}>
               ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
