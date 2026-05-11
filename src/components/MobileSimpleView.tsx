@@ -27,7 +27,9 @@ import { MarketFlowModal } from "./MarketFlowModal";
 
 // Toss / Yahoo 외부 링크 (UsMarketTab 와 동일 규칙)
 function quoteUrl(symbol: string): string {
-  if (/^[\dA-Za-z]{6}$/.test(symbol)) return `https://tossinvest.com/stocks/A${symbol}`;
+  // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
+  const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
+  if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
   if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
   if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
