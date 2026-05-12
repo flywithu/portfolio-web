@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { Stock, Price } from "../types";
 import { formatSigned } from "../lib/format";
 
@@ -7,8 +8,22 @@ interface Props {
 }
 
 // 오늘 손익(보유 수량 가중) 종목 리스트 — 수익팀/손해팀 2테이블.
-// TotalRow 오른쪽에 같은 줄로 붙는 sticky 박스. holdings 가 없거나 모두 0 이면 null.
+// 기본은 닫혀 있고, 토글 버튼 클릭 시 위로 펼쳐짐. holdings 없거나 모두 0 이면 null.
 export function TodayPnLTable({ holdings, prices }: Props) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // 바깥 클릭으로 닫기
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
   type Row = { ticker: string; name: string; amount: number };
   const winners: Row[] = [];
   const losers: Row[] = [];
@@ -26,28 +41,48 @@ export function TodayPnLTable({ holdings, prices }: Props) {
 
   if (winners.length === 0 && losers.length === 0) return null;
 
-  winners.sort((a, b) => b.amount - a.amount);  // 많이 번 순
-  losers.sort((a, b) => a.amount - b.amount);   // 많이 까먹은 순
+  winners.sort((a, b) => b.amount - a.amount);
+  losers.sort((a, b) => a.amount - b.amount);
 
   const winSum = winners.reduce((acc, r) => acc + r.amount, 0);
   const loseSum = losers.reduce((acc, r) => acc + r.amount, 0);
 
   return (
-    <div className="flex gap-2 text-xs">
-      <MiniTable
-        title="오늘 수익"
-        rows={winners}
-        total={winSum}
-        colorClass="text-rose-600"
-        headerBg="bg-rose-50"
-      />
-      <MiniTable
-        title="오늘 손해"
-        rows={losers}
-        total={loseSum}
-        colorClass="text-blue-600"
-        headerBg="bg-blue-50"
-      />
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        title="오늘 수익/손해 종목 보기"
+        className="bg-white border border-gray-300 rounded-lg shadow-md
+                   px-3 py-2 text-xs flex items-center gap-2
+                   hover:bg-gray-50 cursor-pointer tabular-nums">
+        <span className="text-gray-500">오늘</span>
+        <span className="font-bold text-rose-600">{formatSigned(winSum)}</span>
+        <span className="text-gray-300">/</span>
+        <span className="font-bold text-blue-600">{formatSigned(loseSum)}</span>
+        <span className="text-gray-400 text-[10px] leading-none">
+          {open ? "▼" : "▲"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full mb-1 right-0 flex gap-2 text-xs">
+          <MiniTable
+            title="오늘 수익"
+            rows={winners}
+            total={winSum}
+            colorClass="text-rose-600"
+            headerBg="bg-rose-50"
+          />
+          <MiniTable
+            title="오늘 손해"
+            rows={losers}
+            total={loseSum}
+            colorClass="text-blue-600"
+            headerBg="bg-blue-50"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -71,7 +106,7 @@ function MiniTable({ title, rows, total, colorClass, headerBg }: MiniProps) {
       {rows.length === 0 ? (
         <div className="px-2 py-2 text-gray-400 text-[11px]">없음</div>
       ) : (
-        <div className="max-h-[140px] overflow-y-auto">
+        <div className="max-h-[200px] overflow-y-auto">
           <table className="w-full tabular-nums">
             <tbody>
               {rows.map(r => (
@@ -88,8 +123,8 @@ function MiniTable({ title, rows, total, colorClass, headerBg }: MiniProps) {
           </table>
         </div>
       )}
-      <div className={`px-2 py-1 border-t border-gray-300 bg-gray-50
-                        flex justify-between items-baseline`}>
+      <div className="px-2 py-1 border-t border-gray-300 bg-gray-50
+                      flex justify-between items-baseline">
         <span className="text-gray-500 text-[11px]">총액</span>
         <span className={`font-bold ${colorClass} tabular-nums`}>
           {formatSigned(total)}원
