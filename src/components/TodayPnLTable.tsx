@@ -131,7 +131,7 @@ function MiniTable({
         rows.length === 0 ? (
           <div className="px-2 py-2 text-gray-400 text-[11px]">없음</div>
         ) : (
-          <div className="max-h-[200px] overflow-y-auto overflow-x-hidden">
+          <div className="max-h-[125px] overflow-y-auto overflow-x-hidden">
             {rows.map(r => (
               <div key={r.ticker}
                    className="border-b border-gray-100 last:border-0
@@ -208,7 +208,7 @@ function MobileSection({
       {rows.length === 0 ? (
         <div className="px-2 py-2 text-gray-400 text-xs">없음</div>
       ) : (
-        <div className="max-h-[28vh] overflow-y-auto overflow-x-hidden text-xs">
+        <div className="max-h-[145px] overflow-y-auto overflow-x-hidden text-xs">
           {rows.map(r => (
             <div key={r.ticker}
                  className="border-b border-gray-100 last:border-0
