@@ -385,8 +385,8 @@ export function IndexLineChart({
         <div ref={markersRef}
              className="absolute inset-0 pointer-events-none overflow-hidden" />
         <div ref={tooltipRef}
-             className="absolute pointer-events-none bg-white/95 border border-gray-200 rounded shadow-md
-                        px-2 py-1 text-xs text-gray-700 tabular-nums z-10 leading-snug"
+             className="absolute pointer-events-none bg-white border border-gray-200 rounded shadow-md
+                        px-2 py-1 text-xs text-gray-700 tabular-nums z-50 leading-snug"
              style={{ display: "none" }} />
       </div>
     </div>

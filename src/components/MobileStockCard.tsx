@@ -496,14 +496,14 @@ export function MobileStockCard({
       <div className="relative basis-1/2 min-w-0 border border-gray-200 rounded
                        bg-gray-50/60 px-1.5 py-1 space-y-0.5
                        flex flex-col justify-start">
-        {/* 👥 투자자 매매동향 토글 버튼 — 우상단 */}
-        {investor && (
-          <button onClick={() => setShowFlow(v => !v)}
-                  title={showFlow ? "투자자 매매동향 닫기" : "투자자 매매동향 보기"}
+        {/* 👥 투자자 매매동향 열기 버튼 — 우상단 (닫기는 레이어 클릭) */}
+        {investor && !showFlow && (
+          <button onClick={() => setShowFlow(true)}
+                  title="투자자 매매동향 보기"
                   className="absolute top-0.5 right-0.5 z-30 px-1 py-0 rounded
                              text-[9px] text-gray-500 bg-white/80
                              border border-gray-200 hover:bg-white">
-            {showFlow ? "✕" : "👥"}
+            👥
           </button>
         )}
 
@@ -578,9 +578,10 @@ export function MobileStockCard({
 
         {/* ─── 투자자 매매동향 레이어 (👥 클릭 시) ─── */}
         {showFlow && investor && (
-          <div className="absolute inset-0 z-20 bg-white border border-gray-300 rounded
+          <div onClick={() => setShowFlow(false)}
+               className="absolute inset-0 z-20 bg-white border border-gray-300 rounded
                           px-1.5 py-1 grid grid-cols-2 gap-x-1.5 gap-y-0
-                          text-[10px] overflow-y-auto">
+                          text-[10px] overflow-y-auto cursor-pointer">
             {FLOW_FIELDS.map(({ label, key }) => {
               const raw = investor[key];
               const isRatio = key === "외국인비율";

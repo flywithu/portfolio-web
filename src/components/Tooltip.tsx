@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 
 // 호버 툴팁 — 마우스 좌표를 따라가는 floating layer.
@@ -49,7 +50,7 @@ export function Tooltip({ content, children, className = "" }: Props) {
       onMouseLeave={() => setPos(null)}
       className={`relative ${className}`}>
       {children}
-      {adjusted && content && (
+      {adjusted && content && typeof document !== "undefined" && createPortal(
         <span
           role="tooltip"
           style={{ position: "fixed", left: adjusted.x, top: adjusted.y, zIndex: 1000 }}
@@ -59,7 +60,8 @@ export function Tooltip({ content, children, className = "" }: Props) {
                      w-max max-w-[560px]
                      pointer-events-none whitespace-normal text-left">
           {content}
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   );

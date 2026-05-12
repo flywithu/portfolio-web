@@ -134,7 +134,6 @@ export function AuxIndicators({
              title="클릭해 접기"
              className="border border-gray-300 rounded bg-white/95 px-1.5 py-0.5
                         shadow-sm cursor-pointer hover:bg-gray-50">
-          <div className="text-right text-[8px] text-gray-400 leading-none">▼</div>
           <div className="space-y-0">
             {lines}
           </div>
