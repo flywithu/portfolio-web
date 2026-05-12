@@ -10,6 +10,7 @@ import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
+import { TodayPnLTable } from "./components/TodayPnLTable";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
@@ -416,7 +417,10 @@ function Dashboard() {
                 />
               ))}
             </div>
-            <TotalRow holdings={visible} prices={priceMap} />
+            <div className="sticky bottom-0 z-30 mt-3 flex flex-wrap items-end gap-2">
+              <TotalRow holdings={visible} prices={priceMap} />
+              <TodayPnLTable holdings={visible} prices={priceMap} />
+            </div>
           </>
         )}
       </main>
