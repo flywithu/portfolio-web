@@ -147,7 +147,10 @@ function requestSilentRefresh(): Promise<string | null> {
         return;
       }
       try {
-        client.requestAccessToken({ prompt: "" });
+        // prompt: "none" — 완전 silent. 사용자 동의 / 계정 선택 등 UI 없음.
+        //   필요한 경우 error_callback 으로 실패 (popup 안 뜸).
+        // 빈 문자열 "" 은 "처음만 안 묻고 그 외엔 popup 가능" 이라 토큰 만료 시 팝업 노출됨.
+        client.requestAccessToken({ prompt: "none" });
       } catch {
         resolveSilent(null);
       }

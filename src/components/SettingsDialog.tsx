@@ -17,7 +17,7 @@ import {
   getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
 } from "../lib/syncManager";
-import { isSignedIn, getAccessToken, wasSignedIn, signIn } from "../lib/googleAuth";
+import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 
 interface Props {
   isOpen: boolean;
@@ -333,9 +333,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                         setStatusMsg("✅ Drive 에 업로드");
                       } catch (e) {
                         const msg = (e as Error).message;
-                        // 토큰 만료 / 미로그인 — 알림 없이 자동 로그인 redirect
-                        if (/Not signed in|401|invalid.?token|로그인/i.test(msg)) {
-                          signIn();
+                        // 토큰 만료 / 미로그인 — 자동 redirect 없이 로그아웃 상태로 전환
+                        if (/Not signed in|401|invalid.?token/i.test(msg)) {
+                          await disableSync();
+                          setSyncState("unconfigured");
+                          setLastSyncedAt(null);
+                          setStatusMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
                           return;
                         }
                         alert(`❌ Drive 업로드 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
@@ -362,9 +365,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                         }
                       } catch (e) {
                         const msg = (e as Error).message;
-                        // 토큰 만료 / 미로그인 — 알림 없이 자동 로그인 redirect
-                        if (/Not signed in|401|invalid.?token|로그인/i.test(msg)) {
-                          signIn();
+                        // 토큰 만료 / 미로그인 — 자동 redirect 없이 로그아웃 상태로 전환
+                        if (/Not signed in|401|invalid.?token/i.test(msg)) {
+                          await disableSync();
+                          setSyncState("unconfigured");
+                          setLastSyncedAt(null);
+                          setStatusMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
                           return;
                         }
                         alert(`❌ Drive 다운로드 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);

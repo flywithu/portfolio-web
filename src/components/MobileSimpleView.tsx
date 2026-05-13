@@ -57,7 +57,7 @@ import {
   uploadToDrive, downloadFromDrive, scheduleAutoSync, checkConflict,
   tryRestoreSession,
 } from "../lib/syncManager";
-import { isSignedIn, getAccessToken, wasSignedIn, signIn } from "../lib/googleAuth";
+import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { ConflictResult } from "../lib/syncManager";
 import { ConflictDialog } from "./ConflictDialog";
 import type { Stock } from "../types";
@@ -1020,9 +1020,12 @@ function SettingsModal({
                       try { await uploadToDrive(); setLastSyncedAtLocal(getLastSyncedAt()); setDataMsg("✅ 업로드"); }
                       catch (e) {
                         const msg = (e as Error).message;
-                        // 토큰 만료 / 미로그인 — 자동 로그인 redirect
-                        if (/Not signed in|401|invalid.?token|로그인/i.test(msg)) {
-                          signIn();
+                        // 토큰 만료 / 미로그인 — 자동 redirect 없이 로그아웃 상태로
+                        if (/Not signed in|401|invalid.?token/i.test(msg)) {
+                          await disableSync();
+                          setSyncStateLocal("unconfigured");
+                          setLastSyncedAtLocal(null);
+                          setDataMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
                           return;
                         }
                         setDataMsg(`⚠️ ${msg}`);
@@ -1047,8 +1050,11 @@ function SettingsModal({
                         } else { setDataMsg("⚠️ Drive 데이터 없음"); }
                       } catch (e) {
                         const msg = (e as Error).message;
-                        if (/Not signed in|401|invalid.?token|로그인/i.test(msg)) {
-                          signIn();
+                        if (/Not signed in|401|invalid.?token/i.test(msg)) {
+                          await disableSync();
+                          setSyncStateLocal("unconfigured");
+                          setLastSyncedAtLocal(null);
+                          setDataMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
                           return;
                         }
                         setDataMsg(`⚠️ ${msg}`);
