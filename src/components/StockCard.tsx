@@ -787,7 +787,7 @@ export function StockCard({
           );
         })()}
         <div className="font-bold text-gray-900 mb-1">투자자별 매수/매도</div>
-        <table className="text-[10px] border border-gray-300 rounded overflow-hidden whitespace-nowrap">
+        <table className="w-full text-[10px] border border-gray-300 rounded overflow-hidden whitespace-nowrap">
           <thead className="bg-gray-100">
             <tr>
               <th className="border-b border-r border-gray-300 px-1.5 py-0.5 text-left font-medium text-gray-700">
@@ -1143,7 +1143,7 @@ export function StockCard({
                     targetPrice={consensus?.target && consensus.target > 0 ? consensus.target : undefined}
                     foreignRatio={ratioMap.size > 0 ? ratioMap : undefined}
                     width={620}
-                    height={150}
+                    height={240}
                   />
                 </div>
               );
