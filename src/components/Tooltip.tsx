@@ -21,7 +21,7 @@ export function Tooltip({ content, children, className = "" }: Props) {
   const adjusted = (() => {
     if (!pos) return null;
     const PAD = 12;
-    const W = 580;  // tooltip 최대 폭 추정 (max-w-[560px] + padding)
+    const W = 780;  // tooltip 최대 폭 추정 (max-w-[760px] + padding)
     const H = 280;  // 높이 여유
     let x = pos.x + 14;  // 마우스 우측
     let y = pos.y + 14;  // 마우스 아래
@@ -57,7 +57,7 @@ export function Tooltip({ content, children, className = "" }: Props) {
           className="px-3 py-2 rounded-md shadow-xl
                      bg-white text-gray-800 text-[11px] leading-relaxed
                      border border-gray-200
-                     w-max max-w-[560px]
+                     w-max max-w-[760px]
                      pointer-events-none whitespace-normal text-left">
           {content}
         </span>,

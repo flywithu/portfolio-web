@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
+import type { PricePoint } from "../lib/api";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
@@ -19,6 +20,7 @@ interface Props {
   warning?: string;
   loading?: boolean;
   chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열 (3개월)
+  priceHistory?: PricePoint[];  // OHLC 포함 — 가격 박스 hover tooltip 의 1개월 캔들차트용
   longHistory?: Investor[] | null;  // 200일 long history — 그리드 행 tooltip 의 5/20/60/120/200일 누적용
   memo?: Memo;                                       // 종목별 메모 (있으면)
   onOpenValuation?: (ticker: string) => void;
@@ -170,6 +172,172 @@ const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
 // 강조 행 (외국인/기관/연기금) — 라벨/배경/값 색은 부호에 따라 동적 결정
 const HIGHLIGHT_LABELS = new Set(["외국인", "기관", "연기금"]);
 
+// 호버 툴팁용 미니 캔들차트 — 1개월 OHLC. lightweight-charts 대신 SVG.
+// 양봉=빨강 / 음봉=파랑 (한국식). 평단가/목표가 점선 가로 기준선 옵션.
+function MiniCandleChart({
+  prices, avgPrice, targetPrice,
+  width = 360, height = 130,
+}: {
+  prices: PricePoint[];
+  avgPrice?: number;
+  targetPrice?: number;
+  width?: number;
+  height?: number;
+}) {
+  if (prices.length < 2) {
+    return <div style={{ width, height }} className="text-[10px] text-gray-400 flex items-center justify-center">차트 데이터 없음</div>;
+  }
+  const padX = 4, padTop = 4, padBottom = 4;
+  const innerW = width - padX * 2;
+  const innerH = height - padTop - padBottom;
+  // Y 범위 계산 — 모든 OHLC + 가로 기준선 포함
+  const vals: number[] = [];
+  for (const p of prices) {
+    if (p.high  != null) vals.push(p.high);
+    if (p.low   != null) vals.push(p.low);
+    if (p.close != null) vals.push(p.close);
+    if (p.open  != null) vals.push(p.open);
+  }
+  if (avgPrice && avgPrice > 0)       vals.push(avgPrice);
+  if (targetPrice && targetPrice > 0) vals.push(targetPrice);
+  if (vals.length < 2) {
+    return <div style={{ width, height }} className="text-[10px] text-gray-400 flex items-center justify-center">OHLC 데이터 없음</div>;
+  }
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const yFor = (v: number) => padTop + innerH - ((v - min) / range) * innerH;
+  const slot = innerW / prices.length;
+  const bodyW = Math.max(slot * 0.65, 1);
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}
+         role="img" aria-label="1개월 캔들차트">
+      {/* 목표가 — amber 점선 */}
+      {targetPrice && targetPrice > 0 && (() => {
+        const y = yFor(targetPrice);
+        return (
+          <g>
+            <line x1={padX} x2={width - padX} y1={y} y2={y}
+                  stroke="#f59e0b" strokeWidth="0.8" strokeDasharray="3 2" />
+            <text x={width - padX - 2} y={y - 2} fontSize="9" fill="#b45309" textAnchor="end">
+              목표 {targetPrice.toLocaleString()}
+            </text>
+          </g>
+        );
+      })()}
+      {/* 평단가 — emerald 점선 */}
+      {avgPrice && avgPrice > 0 && (() => {
+        const y = yFor(avgPrice);
+        return (
+          <g>
+            <line x1={padX} x2={width - padX} y1={y} y2={y}
+                  stroke="#10b981" strokeWidth="0.8" strokeDasharray="3 2" />
+            <text x={padX + 2} y={y - 2} fontSize="9" fill="#047857">
+              내 {avgPrice.toLocaleString()}
+            </text>
+          </g>
+        );
+      })()}
+      {/* 캔들 */}
+      {prices.map((p, i) => {
+        if (p.open == null || p.high == null || p.low == null || p.close == null) return null;
+        const xCenter = padX + slot * i + slot / 2;
+        const wickHi = yFor(p.high);
+        const wickLo = yFor(p.low);
+        const bodyTop = yFor(Math.max(p.open, p.close));
+        const bodyBot = yFor(Math.min(p.open, p.close));
+        const isUp = p.close >= p.open;
+        const c = isUp ? "#dc2626" : "#2563eb";
+        return (
+          <g key={p.date}>
+            <line x1={xCenter} x2={xCenter} y1={wickHi} y2={wickLo}
+                  stroke={c} strokeWidth="0.8" />
+            <rect x={xCenter - bodyW / 2} y={bodyTop}
+                  width={bodyW} height={Math.max(bodyBot - bodyTop, 0.5)}
+                  fill={c} stroke={c} strokeWidth="0.4" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// 호버 툴팁용 미니 수급 차트 — 일별 막대 (중앙 0 대칭) + 누적 라인 오버레이.
+// SVG 만 사용 — lightweight-charts 는 hover tooltip 의 mount/unmount 빈도에 부적합.
+// 좌측 = 과거, 우측 = 오늘. data 는 시간순(과거→현재) 으로 들어옴.
+function compactShares(n: number): string {
+  if (n === 0) return "0";
+  const abs = Math.abs(n);
+  const sign = n > 0 ? "+" : "-";
+  if (abs >= 100_000_000) return `${sign}${(abs / 100_000_000).toFixed(1)}억`;
+  if (abs >= 10_000)      return `${sign}${(abs / 10_000).toFixed(1)}만`;
+  return `${sign}${abs.toLocaleString()}`;
+}
+function MiniFlowChart({
+  label, daily, cumulative,
+  barUpColor = "#fecaca", barDnColor = "#bfdbfe",
+  lineColor,
+  width = 230, height = 100,
+}: {
+  label: string;
+  daily: number[];
+  cumulative: number[];
+  barUpColor?: string;
+  barDnColor?: string;
+  lineColor: string;
+  width?: number;
+  height?: number;
+}) {
+  if (daily.length < 2) return <div style={{ width, height }} />;
+  const padX = 2, padY = 4;
+  const innerW = width - padX * 2;
+  const innerH = height - padY * 2;
+  const cy = padY + innerH / 2;
+  // 좌측(일별) ±max — 1 이상으로 보호 (모두 0 일 때 0 division 방지)
+  const dMax = Math.max(...daily.map(v => Math.abs(v)), 1);
+  // 우측(누적) ±max — 부호 보존 위해 절댓값 최대
+  const cMax = Math.max(...cumulative.map(v => Math.abs(v)), 1);
+  const dScale = (innerH / 2) / dMax;
+  const cScale = (innerH / 2) / cMax;
+  const barW = innerW / daily.length;
+  const last = cumulative[cumulative.length - 1] ?? 0;
+  const lineD = cumulative.map((v, i) => {
+    const x = padX + i * barW + barW / 2;
+    const y = cy - v * cScale;
+    return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+  }).join(" ");
+  return (
+    <div className="border border-gray-200 rounded px-1.5 py-1 bg-white">
+      <div className="flex items-baseline gap-1.5 text-[10px] mb-0.5">
+        <span className="font-bold" style={{ color: lineColor }}>{label}</span>
+        <span className="tabular-nums font-bold" style={{ color: lineColor }}>
+          {compactShares(last)}주
+        </span>
+        <span className="text-gray-400 ml-auto text-[9px]">일별 + 누적</span>
+      </div>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}
+           preserveAspectRatio="none" role="img" aria-label={`${label} 수급 추세`}>
+        {/* 0 기준선 */}
+        <line x1={padX} x2={width - padX} y1={cy} y2={cy}
+              stroke="#e5e7eb" strokeWidth="0.5" />
+        {/* 일별 막대 */}
+        {daily.map((v, i) => {
+          const x = padX + i * barW;
+          const h = Math.abs(v) * dScale;
+          const y = v >= 0 ? cy - h : cy;
+          const c = v >= 0 ? barUpColor : barDnColor;
+          return <rect key={i} x={x} y={y}
+                       width={Math.max(barW - 0.2, 0.3)} height={h}
+                       fill={c} />;
+        })}
+        {/* 누적 라인 */}
+        <path d={lineD} fill="none" stroke={lineColor} strokeWidth="1.2"
+              strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
 // 강조 행 폰트 사이즈
 const HIGHLIGHT_SIZE: Record<string, string> = {
   외국인: "text-xs font-bold",
@@ -204,7 +372,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, investor, investorHistory, consensus, sector, peak, warning, loading, chart, longHistory,
+  stock, price, investor, investorHistory, consensus, sector, peak, warning, loading, chart, priceHistory, longHistory,
   memo, onOpenValuation, onEdit, onDelete, onOpenMemo,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -440,21 +608,181 @@ export function StockCard({
     );
   };
 
-  // 단일 투자자용 (그리드 행 tooltip) — 매수/매도일 + 누적
-  const cumulativeTable = (key: keyof Investor, title: string, withDays = false) =>
-    unifiedTable(
-      [
-        {
-          cols: withDays
-            ? [
-                { type: "days", key, header: "매수/매도" },
-                { type: "sum", key, header: "누적" },
-              ]
-            : [{ type: "sum", key, header: "누적" }],
-        },
-      ],
-      title,
+  // 전체 투자자 매트릭스 (그리드 행 tooltip) — 누적(기간) + 일별(최근 1주일)을 한 표로.
+  // 컬럼: 일자/기간 | 개인 외국인 기관 금융투자 연기금 투신 사모 보험 은행 기타금융 기타법인 | 외인비율(%)
+  // 누적 행: 외인비율 = today 와 N일 전의 차이 (%p). 일별 행: 그 날의 실제 외국인비율 (%).
+  // highlightKey 있으면 해당 컬럼을 노랑으로 강조 (어느 행에서 호버했는지 표시).
+  const allInvestorsTable = (highlightKey?: keyof Investor) => {
+    if (!longHistory || longHistory.length === 0) return null;
+    const periods: { lbl: string; n: number }[] = [
+      { lbl: "5일",             n: 5   },
+      { lbl: "20일 (1개월)",    n: 20  },
+      { lbl: "60일 (3개월)",    n: 60  },
+      { lbl: "120일 (6개월)",   n: 120 },
+      { lbl: "200일 (~10개월)", n: 200 },
+    ];
+    const investors: { label: string; key: keyof Investor }[] = [
+      { label: "개인",     key: "개인" },
+      { label: "외국인",   key: "외국인" },
+      { label: "기관",     key: "기관" },
+      { label: "금융투자", key: "금융투자" },
+      { label: "연기금",   key: "연기금" },
+      { label: "투신",     key: "투신" },
+      { label: "사모",     key: "사모" },
+      { label: "보험",     key: "보험" },
+      { label: "은행",     key: "은행" },
+      { label: "기타금융", key: "기타금융" },
+      { label: "기타법인", key: "기타법인" },
+    ];
+    // 만 단위 압축 — "+27.2만" / "-1.5만" 식. 만 미만은 그대로.
+    const compact = (n: number): string => {
+      if (n === 0) return "0";
+      const abs = Math.abs(n);
+      const sign = n > 0 ? "+" : "-";
+      if (abs >= 100_000_000) return `${sign}${(abs / 100_000_000).toFixed(1)}억`;
+      if (abs >= 10_000)      return `${sign}${(abs / 10_000).toFixed(1)}만`;
+      return `${sign}${abs.toLocaleString()}`;
+    };
+    const today = longHistory[0]?.외국인비율 ?? 0;
+    const recentDays = longHistory.slice(0, Math.min(7, longHistory.length));
+    const totalCols = investors.length + 2;  // 일자 + 투자자 + 외인비율
+    const rateHl = highlightKey === "외국인비율";
+    return (
+      <div className="mt-1.5 pt-1.5 border-t border-gray-200">
+        {/* 미니 수급 차트 — 외국인 / 기관 / 연기금 (전체 longHistory 기준, 시간순) */}
+        {(() => {
+          const chronological = [...longHistory].reverse();
+          const foreignDaily = chronological.map(d => d.외국인 ?? 0);
+          const instDaily    = chronological.map(d => d.기관 ?? 0);
+          const pensionDaily = chronological.map(d => d.연기금 ?? 0);
+          const cum = (xs: number[]): number[] => {
+            let s = 0; return xs.map(v => (s += v));
+          };
+          return (
+            <div className="grid grid-cols-3 gap-1.5 mb-2">
+              <MiniFlowChart label="외국인" daily={foreignDaily} cumulative={cum(foreignDaily)}
+                             lineColor="#6d28d9" />
+              <MiniFlowChart label="기관계" daily={instDaily}    cumulative={cum(instDaily)}
+                             lineColor="#047857" />
+              <MiniFlowChart label="연기금" daily={pensionDaily} cumulative={cum(pensionDaily)}
+                             lineColor="#c2410c" />
+            </div>
+          );
+        })()}
+        <div className="font-bold text-gray-900 mb-1">투자자별 매수/매도</div>
+        <table className="text-[10px] border border-gray-300 rounded overflow-hidden whitespace-nowrap">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="border-b border-r border-gray-300 px-1.5 py-0.5 text-left font-medium text-gray-700">
+                일자 / 기간
+              </th>
+              {investors.map(inv => {
+                const hl = highlightKey === inv.key;
+                return (
+                  <th key={inv.key as string}
+                      className={`border-b border-r border-gray-300 px-1.5 py-0.5 text-right font-medium
+                                  ${hl ? "bg-amber-100 text-gray-900" : "text-gray-700"}`}>
+                    {inv.label}
+                  </th>
+                );
+              })}
+              <th className={`border-b border-gray-300 px-1.5 py-0.5 text-right font-medium
+                              ${rateHl ? "bg-amber-100 text-gray-900" : "text-gray-700"}`}>
+                외인비율(%)
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* 누적 (기간) — 외인비율은 today - past delta (%p) */}
+            {periods.map(p => {
+              const slice = longHistory.slice(0, Math.min(p.n, longHistory.length));
+              const days = slice.length;
+              const idx = Math.min(p.n - 1, longHistory.length - 1);
+              const past = longHistory[idx]?.외국인비율 ?? today;
+              const delta = today - past;
+              const deltaColor = delta > 0 ? "text-rose-600"
+                               : delta < 0 ? "text-blue-600"
+                               : "text-gray-400";
+              return (
+                <tr key={p.lbl}>
+                  <td className="px-1.5 py-0.5 border-b border-r border-gray-300 text-left text-gray-800 whitespace-nowrap">
+                    {p.lbl}
+                    {days < p.n && (
+                      <span className="text-[9px] text-gray-400 ml-0.5">({days})</span>
+                    )}
+                  </td>
+                  {investors.map(inv => {
+                    const sum = slice.reduce((a, d) => a + ((d[inv.key] as number) ?? 0), 0);
+                    const color = sum > 0 ? "text-rose-600"
+                                : sum < 0 ? "text-blue-600"
+                                : "text-gray-400";
+                    const hl = highlightKey === inv.key;
+                    return (
+                      <td key={inv.key as string}
+                          className={`px-1.5 py-0.5 border-b border-r border-gray-300 text-right tabular-nums font-medium
+                                      ${color}
+                                      ${hl ? "bg-amber-50" : ""}`}>
+                        {sum === 0 ? "—" : compact(sum)}
+                      </td>
+                    );
+                  })}
+                  <td className={`px-1.5 py-0.5 border-b border-gray-300 text-right tabular-nums font-medium
+                                  ${deltaColor}
+                                  ${rateHl ? "bg-amber-50" : ""}`}>
+                    {delta === 0 ? "0.00%p" : `${delta > 0 ? "+" : ""}${delta.toFixed(2)}%p`}
+                  </td>
+                </tr>
+              );
+            })}
+            {/* 일별 상세 구분선 */}
+            <tr>
+              <td colSpan={totalCols}
+                  className="px-1.5 py-0.5 border-b border-gray-300 text-left text-gray-600 bg-gray-50">
+                ▼ 일별 상세
+              </td>
+            </tr>
+            {/* 일별 — 외인비율은 그 날의 실제 % 값 */}
+            {recentDays.map((d, ri) => {
+              const last = ri === recentDays.length - 1;
+              const rate = d.외국인비율;
+              const dayLabel = d.date && d.date.length >= 10
+                ? d.date
+                : ri === 0 ? "오늘" : ri === 1 ? "어제" : `${ri}일전`;
+              return (
+                <tr key={d.date ?? ri}>
+                  <td className={`px-1.5 py-0.5 border-r border-gray-300 text-left text-gray-700 whitespace-nowrap
+                                  ${!last ? "border-b" : ""}`}>
+                    {dayLabel}
+                  </td>
+                  {investors.map(inv => {
+                    const v = (d[inv.key] as number) ?? 0;
+                    const color = v > 0 ? "text-rose-600"
+                                : v < 0 ? "text-blue-600"
+                                : "text-gray-400";
+                    const hl = highlightKey === inv.key;
+                    return (
+                      <td key={inv.key as string}
+                          className={`px-1.5 py-0.5 border-r border-gray-300 text-right tabular-nums
+                                      ${color}
+                                      ${hl ? "bg-amber-50" : ""}
+                                      ${!last ? "border-b" : ""}`}>
+                        {v === 0 ? "—" : compact(v)}
+                      </td>
+                    );
+                  })}
+                  <td className={`px-1.5 py-0.5 text-right tabular-nums text-gray-800
+                                  ${rateHl ? "bg-amber-50" : ""}
+                                  ${!last ? "border-b border-gray-300" : ""}`}>
+                    {rate != null && rate > 0 ? rate.toFixed(2) : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     );
+  };
 
   return (
     <div className={`group ${dimmed ? "opacity-60" : ""}`}>
@@ -679,61 +1007,79 @@ export function StockCard({
             Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
         <Tooltip content={
           <>
-            {/* 카드 배경색 — 보유 손익 상태 */}
-            <div className="text-gray-700 mb-1.5">
-              <div className="font-bold mb-1 text-gray-900">{stock.name} ({stock.ticker})</div>
-              {!hasPosition && (
-                <div>관심 종목 — 카드 배경 <ColorName name="흰색" /></div>
+            {/* 캔들차트 — 최근 ~60 거래일 OHLC (3개월), 평단가/목표가 가로 점선 */}
+            {priceHistory && priceHistory.length > 1 && (
+              <div className="mb-1.5">
+                <div className="font-bold mb-1 text-gray-900">최근 60일 캔들</div>
+                <MiniCandleChart
+                  prices={priceHistory.slice(-60)}
+                  avgPrice={hasPosition ? stock.avg_price : undefined}
+                  targetPrice={consensus?.target && consensus.target > 0 ? consensus.target : undefined}
+                  width={520}
+                  height={150}
+                />
+              </div>
+            )}
+            {/* 3개 정보 박스 — 가로 배치 (보유 손익 / 현재가 색 / 3개월 추이) */}
+            <div className={`flex gap-1.5 ${priceHistory && priceHistory.length > 1 ? "border-t border-gray-200 pt-1.5" : ""}`}>
+              {/* 박스 1 — 보유 손익 상태 */}
+              <div className="flex-1 min-w-0 border border-gray-200 rounded p-1.5 text-gray-700">
+                <div className="font-bold mb-1 text-gray-900">{stock.name} ({stock.ticker})</div>
+                {!hasPosition && (
+                  <div>관심 종목 — 카드 배경 <ColorName name="흰색" /></div>
+                )}
+                {hasPosition && pnl > 0 && (
+                  <>
+                    <div>매수가: <b className="text-gray-900">{Math.round(stock.avg_price).toLocaleString()}원</b> × {stock.shares.toLocaleString()}주</div>
+                    <div>전체수익: <b className="text-rose-600">{formatSigned(pnl)}원 ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)</b></div>
+                    <div>→ 익절 중 — 배경 <ColorName name="분홍" /></div>
+                  </>
+                )}
+                {hasPosition && pnl < 0 && (
+                  <>
+                    <div>매수가: <b className="text-gray-900">{Math.round(stock.avg_price).toLocaleString()}원</b> × {stock.shares.toLocaleString()}주</div>
+                    <div>전체수익: <b className="text-blue-600">{formatSigned(pnl)}원 ({pnlPct.toFixed(2)}%)</b></div>
+                    <div>→ 손실 중 — 배경 <ColorName name="파랑" /></div>
+                  </>
+                )}
+                {hasPosition && pnl === 0 && (
+                  <div>본전 — 배경 <ColorName name="흰색" /></div>
+                )}
+              </div>
+              {/* 박스 2 — 현재가 색 */}
+              {priceTip && (
+                <div className="flex-1 min-w-0 border border-gray-200 rounded p-1.5 text-gray-700">
+                  <div className="font-bold mb-1 text-gray-900">현재가 색</div>
+                  <div>직전 거래일 종가: <b className="text-gray-900">{price.prevClose.toLocaleString()}원</b></div>
+                  <div>변동: <b className={colorDiff > 0 ? "text-rose-600" : colorDiff < 0 ? "text-blue-600" : "text-gray-900"}>
+                    {formatSigned(colorDiff)}원 ({colorPct >= 0 ? "+" : ""}{colorPct.toFixed(2)}%)
+                  </b></div>
+                  <div>→ 금액색 <ColorName name={priceColorName} /></div>
+                </div>
               )}
-              {hasPosition && pnl > 0 && (
-                <>
-                  <div>매수가: <b className="text-gray-900">{Math.round(stock.avg_price).toLocaleString()}원</b> × {stock.shares.toLocaleString()}주</div>
-                  <div>전체수익: <b className="text-rose-600">{formatSigned(pnl)}원 ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)</b></div>
-                  <div>→ 익절 중 — 배경 <ColorName name="분홍" /></div>
-                </>
-              )}
-              {hasPosition && pnl < 0 && (
-                <>
-                  <div>매수가: <b className="text-gray-900">{Math.round(stock.avg_price).toLocaleString()}원</b> × {stock.shares.toLocaleString()}주</div>
-                  <div>전체수익: <b className="text-blue-600">{formatSigned(pnl)}원 ({pnlPct.toFixed(2)}%)</b></div>
-                  <div>→ 손실 중 — 배경 <ColorName name="파랑" /></div>
-                </>
-              )}
-              {hasPosition && pnl === 0 && (
-                <div>본전 — 배경 <ColorName name="흰색" /></div>
+              {/* 박스 3 — 3개월 추이 */}
+              {chart && chart.length > 1 && (
+                <div className="flex-1 min-w-0 border border-gray-200 rounded p-1.5 text-gray-700">
+                  <div className="font-bold mb-1 text-gray-900">3개월 추이</div>
+                  {(() => {
+                    const first = chart[0];
+                    const last = chart[chart.length - 1];
+                    const change = last - first;
+                    const pct = first > 0 ? (change / first) * 100 : 0;
+                    const colorName = change > 0 ? "빨강" : change < 0 ? "파랑" : "회색";
+                    return (
+                      <>
+                        <div>시작 → 끝: <b className="text-gray-900">{first.toLocaleString()}</b> → <b className="text-gray-900">{last.toLocaleString()}원</b></div>
+                        <div>변동: <b className={change > 0 ? "text-rose-600" : change < 0 ? "text-blue-600" : "text-gray-900"}>
+                          {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
+                        </b></div>
+                        <div>→ 그래프색 <ColorName name={colorName} /></div>
+                      </>
+                    );
+                  })()}
+                </div>
               )}
             </div>
-            {priceTip && (
-              <div className="text-gray-700 border-t border-gray-200 pt-1.5 mb-1">
-                <div className="font-bold mb-1 text-gray-900">현재가 색</div>
-                <div>직전 거래일 종가: <b className="text-gray-900">{price.prevClose.toLocaleString()}원</b></div>
-                <div>변동: <b className={colorDiff > 0 ? "text-rose-600" : colorDiff < 0 ? "text-blue-600" : "text-gray-900"}>
-                  {formatSigned(colorDiff)}원 ({colorPct >= 0 ? "+" : ""}{colorPct.toFixed(2)}%)
-                </b></div>
-                <div>→ 금액색 <ColorName name={priceColorName} /></div>
-              </div>
-            )}
-            {chart && chart.length > 1 && (
-              <div className="text-gray-700 border-t border-gray-200 pt-1.5">
-                <div className="font-bold mb-1 text-gray-900">3개월 추이</div>
-                {(() => {
-                  const first = chart[0];
-                  const last = chart[chart.length - 1];
-                  const change = last - first;
-                  const pct = first > 0 ? (change / first) * 100 : 0;
-                  const colorName = change > 0 ? "빨강" : change < 0 ? "파랑" : "회색";
-                  return (
-                    <>
-                      <div>시작 → 끝: <b className="text-gray-900">{first.toLocaleString()}</b> → <b className="text-gray-900">{last.toLocaleString()}원</b></div>
-                      <div>변동: <b className={change > 0 ? "text-rose-600" : change < 0 ? "text-blue-600" : "text-gray-900"}>
-                        {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
-                      </b></div>
-                      <div>→ 그래프색 <ColorName name={colorName} /></div>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
           </>
         } className="basis-[30%] min-w-0">
         <div className="relative w-full h-full">
@@ -1035,15 +1381,16 @@ export function StockCard({
 
           const sizeCls = HIGHLIGHT_SIZE[label] ?? "";
 
-          // 5/20/60/120/200일 누적 — cumulativeTable 헬퍼 사용 (비율 행은 제외)
-          const tooltipContent = (!isRatio && longHistory && longHistory.length > 0)
-            ? cumulativeTable(key, `${label} 매수/매도`, true)
+          // 5/20/60/120/200일 누적 + 일별 — 모든 행에서 동일한 통합 표 표시.
+          // 호버한 행에 대응하는 컬럼 강조 (외인비율 행 → 외인비율(%) 컬럼).
+          const tooltipContent = (longHistory && longHistory.length > 0)
+            ? allInvestorsTable(key)
             : null;
 
           const rowEl = (
             <div
               className={`flex items-center justify-between gap-1 px-1 py-px rounded
-                          ${rowBg} ${sizeCls} ${!isRatio ? "cursor-help" : ""}`}
+                          ${rowBg} ${sizeCls} ${tooltipContent ? "cursor-help" : ""}`}
             >
               <span className={`whitespace-nowrap shrink-0 ${labelColor}`}>
                 {label}

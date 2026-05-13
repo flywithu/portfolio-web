@@ -286,6 +286,11 @@ function Dashboard() {
     )),
     [chartQs, krxTickers]
   );
+  // OHLC 포함 원본 — StockCard 가격 박스 호버 툴팁의 1개월 캔들차트용
+  const priceHistoryMap = useMemo(
+    () => new Map(chartQs.map((q, i) => [krxTickers[i], q.data ?? []])),
+    [chartQs, krxTickers]
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -405,6 +410,7 @@ function Dashboard() {
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}
                   peak={peaks.get(stock.ticker)}
                   chart={chartMap.get(stock.ticker)}
+                  priceHistory={priceHistoryMap.get(stock.ticker)}
                   longHistory={longHistoryMap.get(stock.ticker)}
                   memo={memos.get(stock.ticker)}
                   onOpenValuation={setValuationTicker}
