@@ -172,15 +172,25 @@ const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
 // 강조 행 (외국인/기관/연기금) — 라벨/배경/값 색은 부호에 따라 동적 결정
 const HIGHLIGHT_LABELS = new Set(["외국인", "기관", "연기금"]);
 
-// 호버 툴팁용 미니 캔들차트 — 1개월 OHLC. lightweight-charts 대신 SVG.
+// 거래량 압축 라벨 — formatVolume 과 동일 (만/억) 단, 천 단위는 K
+function fmtVolShort(v: number): string {
+  if (v >= 100_000_000) return `${(v / 100_000_000).toFixed(1)}억`;
+  if (v >= 10_000)      return `${Math.round(v / 10_000)}만`;
+  if (v >= 1_000)       return `${(v / 1_000).toFixed(1)}K`;
+  return `${v}`;
+}
+
+// 호버 툴팁용 미니 캔들차트 — OHLC + 거래량 + 우측 가격축 라벨 + 외인비율 라인.
 // 양봉=빨강 / 음봉=파랑 (한국식). 평단가/목표가 점선 가로 기준선 옵션.
+// foreignRatio: 날짜(YYYY-MM-DD) → 외인비율(%) Map. 보라 점선으로 오버레이.
 function MiniCandleChart({
-  prices, avgPrice, targetPrice,
-  width = 360, height = 130,
+  prices, avgPrice, targetPrice, foreignRatio,
+  width = 360, height = 150,
 }: {
   prices: PricePoint[];
   avgPrice?: number;
   targetPrice?: number;
+  foreignRatio?: Map<string, number>;
   width?: number;
   height?: number;
 }) {
@@ -188,8 +198,17 @@ function MiniCandleChart({
     return <div style={{ width, height }} className="text-[10px] text-gray-400 flex items-center justify-center">차트 데이터 없음</div>;
   }
   const padX = 4, padTop = 4, padBottom = 4;
-  const innerW = width - padX * 2;
+  const padRight = 50;  // 우측 가격축 라벨 공간
+  const innerW = width - padX - padRight;
   const innerH = height - padTop - padBottom;
+  // 캔들/거래량 영역 분할 — 캔들 72% / gap 6% / 거래량 22%
+  const candleH = innerH * 0.72;
+  const gapH    = innerH * 0.06;
+  const volumeH = innerH * 0.22;
+  const candleTop = padTop;
+  const candleBot = candleTop + candleH;
+  const volumeTop = candleBot + gapH;
+  const volumeBot = volumeTop + volumeH;
   // Y 범위 계산 — 모든 OHLC + 가로 기준선 포함
   const vals: number[] = [];
   for (const p of prices) {
@@ -206,20 +225,40 @@ function MiniCandleChart({
   const min = Math.min(...vals);
   const max = Math.max(...vals);
   const range = max - min || 1;
-  const yFor = (v: number) => padTop + innerH - ((v - min) / range) * innerH;
+  const yFor = (v: number) => candleTop + candleH - ((v - min) / range) * candleH;
+  // 거래량 Y 범위
+  const maxVol = Math.max(...prices.map(p => p.volume ?? 0), 1);
+  const yVolFor = (v: number) => volumeBot - (v / maxVol) * volumeH;
   const slot = innerW / prices.length;
   const bodyW = Math.max(slot * 0.65, 1);
+  // 우측 가격축 라벨 — 5 tick (min, 25%, 50%, 75%, max)
+  const tickCount = 5;
+  const ticks = Array.from({ length: tickCount }, (_, i) => min + (range * i) / (tickCount - 1));
+  const labelX = width - padRight + 2;
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}
-         role="img" aria-label="1개월 캔들차트">
-      {/* 목표가 — amber 점선 */}
+         role="img" aria-label="캔들차트 + 거래량">
+      {/* 가로 그리드 + 우측 가격 라벨 */}
+      {ticks.map((t, ti) => {
+        const y = yFor(t);
+        return (
+          <g key={`tick-${ti}`}>
+            <line x1={padX} x2={width - padRight} y1={y} y2={y}
+                  stroke="#f3f4f6" strokeWidth="0.5" />
+            <text x={labelX} y={y + 3} fontSize="9" fill="#6b7280" textAnchor="start">
+              {Math.round(t).toLocaleString()}
+            </text>
+          </g>
+        );
+      })}
+      {/* 목표가 — amber 점선 (그리드 위) */}
       {targetPrice && targetPrice > 0 && (() => {
         const y = yFor(targetPrice);
         return (
           <g>
-            <line x1={padX} x2={width - padX} y1={y} y2={y}
+            <line x1={padX} x2={width - padRight} y1={y} y2={y}
                   stroke="#f59e0b" strokeWidth="0.8" strokeDasharray="3 2" />
-            <text x={width - padX - 2} y={y - 2} fontSize="9" fill="#b45309" textAnchor="end">
+            <text x={width - padRight - 2} y={y - 2} fontSize="9" fill="#b45309" textAnchor="end">
               목표 {targetPrice.toLocaleString()}
             </text>
           </g>
@@ -230,7 +269,7 @@ function MiniCandleChart({
         const y = yFor(avgPrice);
         return (
           <g>
-            <line x1={padX} x2={width - padX} y1={y} y2={y}
+            <line x1={padX} x2={width - padRight} y1={y} y2={y}
                   stroke="#10b981" strokeWidth="0.8" strokeDasharray="3 2" />
             <text x={padX + 2} y={y - 2} fontSize="9" fill="#047857">
               내 {avgPrice.toLocaleString()}
@@ -258,6 +297,63 @@ function MiniCandleChart({
           </g>
         );
       })}
+      {/* 거래량 영역 분리선 */}
+      <line x1={padX} x2={width - padRight} y1={volumeTop} y2={volumeTop}
+            stroke="#e5e7eb" strokeWidth="0.5" />
+      {/* 거래량 바 — 양봉색은 light red / 음봉색은 light blue */}
+      {prices.map((p, i) => {
+        const v = p.volume ?? 0;
+        if (v <= 0) return null;
+        const xCenter = padX + slot * i + slot / 2;
+        const y = yVolFor(v);
+        const h = Math.max(volumeBot - y, 0.5);
+        const isUp = p.open != null && p.close != null ? p.close >= p.open : true;
+        const c = isUp ? "#fecaca" : "#bfdbfe";
+        return (
+          <rect key={`vol-${p.date}`}
+                x={xCenter - bodyW / 2} y={y}
+                width={bodyW} height={h} fill={c} />
+        );
+      })}
+      {/* 거래량 max 라벨 (우측) */}
+      <text x={labelX} y={volumeTop + 8} fontSize="9" fill="#6b7280" textAnchor="start">
+        {fmtVolShort(maxVol)}
+      </text>
+      {/* 외인비율 라인 — 보라 점선, 별도 Y 스케일 (캔들 영역에 오버레이) */}
+      {(() => {
+        if (!foreignRatio || foreignRatio.size === 0) return null;
+        const ratios: { i: number; r: number }[] = [];
+        prices.forEach((p, i) => {
+          const r = foreignRatio.get(p.date);
+          if (r != null && r > 0) ratios.push({ i, r });
+        });
+        if (ratios.length < 2) return null;
+        const rMin = Math.min(...ratios.map(x => x.r));
+        const rMax = Math.max(...ratios.map(x => x.r));
+        const rRange = rMax - rMin || 1;
+        // 캔들 영역의 80% 만 사용 (위/아래 여유 — 캔들과 겹침 줄이기)
+        const ratioTop = candleTop + candleH * 0.1;
+        const ratioH   = candleH * 0.8;
+        const yRatio = (r: number) => ratioTop + ratioH - ((r - rMin) / rRange) * ratioH;
+        const d = ratios
+          .map((x, k) => {
+            const cx = padX + slot * x.i + slot / 2;
+            const cy = yRatio(x.r);
+            return `${k === 0 ? "M" : "L"} ${cx.toFixed(2)} ${cy.toFixed(2)}`;
+          })
+          .join(" ");
+        const lastR = ratios[ratios.length - 1].r;
+        return (
+          <g>
+            <path d={d} fill="none" stroke="#7c3aed" strokeWidth="1.2"
+                  strokeDasharray="2.5 2" strokeLinejoin="round" strokeLinecap="round" />
+            {/* 외인비율 라벨 — 좌측 상단 작게 */}
+            <text x={padX + 2} y={candleTop + 9} fontSize="9" fill="#7c3aed">
+              외인 {lastR.toFixed(2)}%
+            </text>
+          </g>
+        );
+      })()}
     </svg>
   );
 }
@@ -1007,19 +1103,30 @@ export function StockCard({
             Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
         <Tooltip content={
           <>
-            {/* 캔들차트 — 최근 ~60 거래일 OHLC (3개월), 평단가/목표가 가로 점선 */}
-            {priceHistory && priceHistory.length > 1 && (
-              <div className="mb-1.5">
-                <div className="font-bold mb-1 text-gray-900">최근 60일 캔들</div>
-                <MiniCandleChart
-                  prices={priceHistory.slice(-60)}
-                  avgPrice={hasPosition ? stock.avg_price : undefined}
-                  targetPrice={consensus?.target && consensus.target > 0 ? consensus.target : undefined}
-                  width={620}
-                  height={150}
-                />
-              </div>
-            )}
+            {/* 캔들차트 — 최근 ~60 거래일 OHLC (3개월), 평단가/목표가 가로 점선 + 외인비율 보라 라인 */}
+            {priceHistory && priceHistory.length > 1 && (() => {
+              const ratioMap = new Map<string, number>();
+              if (longHistory) {
+                for (const d of longHistory) {
+                  if (d.date && d.외국인비율 != null && d.외국인비율 > 0) {
+                    ratioMap.set(d.date, d.외국인비율);
+                  }
+                }
+              }
+              return (
+                <div className="mb-1.5">
+                  <div className="font-bold mb-1 text-gray-900">최근 60일 캔들</div>
+                  <MiniCandleChart
+                    prices={priceHistory.slice(-60)}
+                    avgPrice={hasPosition ? stock.avg_price : undefined}
+                    targetPrice={consensus?.target && consensus.target > 0 ? consensus.target : undefined}
+                    foreignRatio={ratioMap.size > 0 ? ratioMap : undefined}
+                    width={620}
+                    height={150}
+                  />
+                </div>
+              );
+            })()}
             {/* 3개 정보 박스 — 가로 배치 (보유 손익 / 현재가 색 / 3개월 추이) */}
             <div className={`flex gap-1.5 ${priceHistory && priceHistory.length > 1 ? "border-t border-gray-200 pt-1.5" : ""}`}>
               {/* 박스 1 — 보유 손익 상태 */}
