@@ -8,11 +8,12 @@ const CandleChartLight = lazy(() => import("./CandleChartLight"));
 const InvestorChartLight = lazy(() => import("./InvestorChartLight"));
 const ShortSellingChart = lazy(() => import("./ShortSellingChart"));
 import {
-  fetchFullValuation, matchBrokerToShareholder,
+  fetchFullValuation, fetchWisereportSeries, matchBrokerToShareholder,
   INDICATOR_SECTIONS, INDICATOR_LABELS, INDICATOR_DESCRIPTIONS,
   formatIndicator, judgeIndicator,
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
+import { FinancialCharts } from "./FinancialCharts";
 import { signColor } from "../lib/format";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
@@ -234,6 +235,13 @@ export function ValuationModal({
     enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 24 * 3600_000,
   });
+  // 재무 시계열 (Wisereport cF1001 같은 페이지의 다년치 파싱) — 24시간 캐시
+  const { data: finSeries } = useQuery({
+    queryKey: ["wise-series", ticker],
+    queryFn: () => fetchWisereportSeries(ticker),
+    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 24 * 3600_000,
+  });
   const downOnBackdropRef = useRef(false);
 
   if (!isOpen) return null;
@@ -317,6 +325,12 @@ export function ValuationModal({
                 ))}
               </ul>
             </section>
+          )}
+          {/* 재무 추이 — Wisereport 시계열 5개 차트 */}
+          {finSeries && (
+            <div className="mb-3">
+              <FinancialCharts series={finSeries} />
+            </div>
           )}
           {/* 3 컬럼 레이아웃 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">

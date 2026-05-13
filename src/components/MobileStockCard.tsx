@@ -44,6 +44,7 @@ interface Props {
   investorHistory?: Investor[] | null;   // 60일 수급 (AuxIndicators 외국인/기관/연기금)
   consensus?: Consensus | null; // 네이버 컨센서스 (목표가 + 점수)
   memo?: Memo;
+  otherGroups?: string[];     // 같은 ticker 가 속한 다른 그룹 이름들 (현재 그룹 제외)
   onOpenValuation?: (ticker: string) => void;  // 📊 기업가치 모달
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
@@ -99,7 +100,7 @@ function openTossStock(ticker: string) {
 }
 
 export function MobileStockCard({
-  stock, price, peak, sector, warning, chart, investorHistory, consensus, memo,
+  stock, price, peak, sector, warning, chart, investorHistory, consensus, memo, otherGroups,
   onOpenValuation, onEdit, onDelete, onOpenMemo,
 }: Props) {
   // 투자자 매매동향 레이어 토글 (👥 버튼)
@@ -496,6 +497,20 @@ export function MobileStockCard({
       <div className="relative basis-1/2 min-w-0 border border-gray-200 rounded
                        bg-gray-50/60 px-1.5 py-1 space-y-0.5
                        flex flex-col justify-start">
+        {/* 다른 그룹 표시 — 같은 ticker 가 속한 다른 account 들 (현재 그룹 제외).
+            통계 박스 우상단 외곽(-top-2)으로 — 박스 안 우상단 👥 버튼과 수직으로 안 겹침. */}
+        {otherGroups && otherGroups.length > 0 && (
+          <div className="absolute -top-2 right-1 z-30 flex items-baseline gap-1
+                          text-[9px] leading-tight">
+            {otherGroups.map(g => (
+              <span key={g}
+                    className="bg-gray-100 border border-gray-300 rounded
+                               px-1 py-0.5 text-gray-700 whitespace-nowrap">
+                {g}
+              </span>
+            ))}
+          </div>
+        )}
         {/* 👥 투자자 매매동향 열기 버튼 — 우상단 (닫기는 레이어 클릭) */}
         {investor && !showFlow && (
           <button onClick={() => setShowFlow(true)}

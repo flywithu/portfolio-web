@@ -317,6 +317,19 @@ export function MobileSimpleView() {
     return sortHoldings(groupHoldingsUnsorted, groupPriceMap, sectorMap, sortKey, sortDir);
   }, [groupHoldingsUnsorted, groupPriceMap, naverInfos.data, sortKey, sortDir]);
 
+  // 같은 ticker 가 속한 그룹들 — 카드 상단 알약 표시용 (전체 holdings 기준)
+  const tickerGroupsMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const h of holdings) {
+      const acc = h.account || "";
+      if (!acc) continue;
+      const arr = m.get(h.ticker) ?? [];
+      if (!arr.includes(acc)) arr.push(acc);
+      m.set(h.ticker, arr);
+    }
+    return m;
+  }, [holdings]);
+
   // Yahoo: 본물 + 선물 평탄화 (선행지수만 — ETF 제외)
   const yahooSymbols = US_PAIRS.flatMap(p =>
     p.future
@@ -506,6 +519,8 @@ export function MobileSimpleView() {
                                investorHistory={investorHistoryMap.get(s.ticker)}
                                consensus={naverInfos.data?.get(s.ticker)?.consensus}
                                memo={memos?.get(s.ticker)}
+                               otherGroups={(tickerGroupsMap.get(s.ticker) ?? [])
+                                 .filter(g => g !== (s.account || ""))}
                                onOpenValuation={setValuationTicker}
                                onOpenMemo={t => guardedAction(() => setMemoTicker(t))}
                                onEdit={st => guardedAction(() => setEditing(st))}
