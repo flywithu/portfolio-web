@@ -118,7 +118,15 @@ export function SemiCheckTab() {
       refetchOnWindowFocus: false,
     })),
   });
-  const chartMap = new Map(symbols.map((sym, i) => [sym, chartQs[i]?.data ?? []]));
+  const rawChartMap = new Map(symbols.map((sym, i) => [sym, chartQs[i]?.data ?? []]));
+  // sparkline fallback — Yahoo 가 historical 안 주는 심볼은 가장 가까운 현물로 대체
+  const SPARKLINE_FALLBACK: Record<string, string> = { "SOX=F": "^SOX" };
+  const chartMap = new Map(symbols.map(sym => {
+    const own = rawChartMap.get(sym) ?? [];
+    if (own.length > 1) return [sym, own];
+    const fb = SPARKLINE_FALLBACK[sym];
+    return [sym, fb ? (rawChartMap.get(fb) ?? own) : own];
+  }));
   const nameOf = (sym: string) =>
     US_PAIRS.find(p => p.symbol === sym)?.name ?? sym;
   const descOf = (sym: string) =>
