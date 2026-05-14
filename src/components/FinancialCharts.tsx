@@ -247,16 +247,34 @@ const TREND_TITLE: Record<Trend, string> = {
 };
 
 // ─── 단일 차트 카드 컨테이너 ────────────────────────
-function ChartCard({ title, sub, criteria, trend = "neutral", children }: {
-  title: string; sub?: string; criteria?: string; trend?: Trend; children: React.ReactNode;
+// 제목 색 = 추세 (good=빨강/bad=파랑/neutral=회색).
+// criteriaMetric + betterUp 으로 추세에 맞춰 문구 동적 생성 (긍정/부정/변화없음).
+function ChartCard({ title, sub, criteriaMetric, betterUp = true, trend = "neutral", children }: {
+  title: string; sub?: string;
+  criteriaMetric?: string;    // 예: "순이익"
+  betterUp?: boolean;         // true 면 ↑ 가 긍정 (기본). false 면 ↓ 가 긍정.
+  trend?: Trend;
+  children: React.ReactNode;
 }) {
+  const colorCls = TREND_TITLE[trend];
+  // 추세별 문구 — neutral 일 땐 "변화 없음" 으로
+  let criteriaText: string | null = null;
+  if (criteriaMetric) {
+    if (trend === "good") {
+      criteriaText = `${criteriaMetric} ${betterUp ? "↑" : "↓"}로 긍정판단`;
+    } else if (trend === "bad") {
+      criteriaText = `${criteriaMetric} ${betterUp ? "↓" : "↑"}로 부정판단`;
+    } else {
+      criteriaText = `${criteriaMetric} 변화 없음`;
+    }
+  }
   return (
     <section className="border border-gray-200 rounded p-2.5 bg-white">
       <header className="mb-1">
         <div className="flex items-baseline gap-1.5 flex-wrap">
-          <h4 className={`text-sm font-bold ${TREND_TITLE[trend]}`}>{title}</h4>
-          {criteria && (
-            <span className="text-[9px] text-gray-400">{criteria}</span>
+          <h4 className={`text-sm font-bold ${colorCls}`}>{title}</h4>
+          {criteriaText && (
+            <span className={`text-[10px] ${colorCls}`}>{criteriaText}</span>
           )}
         </div>
         {sub && <p className="text-[10px] text-gray-400">{sub}</p>}
@@ -303,7 +321,7 @@ export function FinancialCharts({ series }: { series: FinancialSeries }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
         {chart1Visible && (
           <ChartCard title="손익 추이" sub="매출·영업이익·순이익 + 마진"
-                     criteria="→ 순이익 (↑ 좋음)"
+                     criteriaMetric="순이익" betterUp={true}
                      trend={assessTrend(series.net_income, true)}>
             <Chart cfg={{
               width: W, height: H, years,
@@ -331,7 +349,7 @@ export function FinancialCharts({ series }: { series: FinancialSeries }) {
 
         {chart2Visible && (
           <ChartCard title="재무 건전성" sub="자본 + 부채 스택 → 자산총계, 부채비율 점선"
-                     criteria="→ 부채비율 (↓ 좋음)"
+                     criteriaMetric="부채비율" betterUp={false}
                      trend={assessTrend(series.debt_ratio, false)}>
             <Chart cfg={{
               width: W, height: H, years,
@@ -359,7 +377,7 @@ export function FinancialCharts({ series }: { series: FinancialSeries }) {
 
         {chart3Visible && (
           <ChartCard title="수익성 비율" sub="ROE / ROA / 마진 (%)"
-                     criteria="→ ROE (↑ 좋음)"
+                     criteriaMetric="ROE" betterUp={true}
                      trend={assessTrend(series.roe, true)}>
             <Chart cfg={{
               width: W, height: H, years,
@@ -385,7 +403,7 @@ export function FinancialCharts({ series }: { series: FinancialSeries }) {
 
         {chart4Visible && (
           <ChartCard title="현금흐름" sub="영업/투자/재무 CF + FCF"
-                     criteria="→ FCF (↑ 좋음)"
+                     criteriaMetric="FCF" betterUp={true}
                      trend={assessTrend(series.fcf, true)}>
             <Chart cfg={{
               width: W, height: H, years,
@@ -410,7 +428,7 @@ export function FinancialCharts({ series }: { series: FinancialSeries }) {
 
         {chart5Visible && (
           <ChartCard title="주주환원" sub="DPS + 배당수익률/성향 (우축)"
-                     criteria="→ DPS (↑ 좋음)"
+                     criteriaMetric="DPS" betterUp={true}
                      trend={assessTrend(series.dps, true)}>
             <Chart cfg={{
               width: W, height: H, years,
