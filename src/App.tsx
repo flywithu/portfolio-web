@@ -11,6 +11,7 @@ import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
+import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
@@ -415,6 +416,9 @@ function Dashboard() {
             <div className="sticky bottom-0 z-40 mt-3 w-full flex flex-wrap items-start gap-2">
               <TotalRow holdings={visible} prices={priceMap} />
               <TodayPnLTable holdings={visible} prices={priceMap} />
+              <div className="ml-auto">
+                <WhatIfRow holdings={visible} prices={priceMap} />
+              </div>
             </div>
           </>
         )}

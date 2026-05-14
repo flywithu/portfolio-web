@@ -46,6 +46,7 @@ import { detectPortfolioJson } from "../lib/portfolioImport";
 import { MobileStockCard } from "./MobileStockCard";
 import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";
+import { WhatIfRow } from "./WhatIfRow";
 import { MobileTodayPnLLayer } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
@@ -532,9 +533,10 @@ export function MobileSimpleView() {
                                pb-2 px-3 flex flex-col items-center gap-2
                                pointer-events-none">
                 {todayPnLOpen && (
-                  <div className="pointer-events-auto cursor-pointer"
+                  <div className="pointer-events-auto cursor-pointer flex flex-col items-center gap-2"
                        onClick={() => setTodayPnLOpen(false)}>
                     <MobileTodayPnLLayer holdings={groupHoldings} prices={groupPriceMap} />
+                    <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
                   </div>
                 )}
                 <div className="pointer-events-auto cursor-pointer"
