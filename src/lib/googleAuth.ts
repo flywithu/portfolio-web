@@ -187,15 +187,9 @@ loadCachedToken();
 handleAuthRedirect();
 scheduleSilentRefresh();
 
-// 탭이 다시 활성화될 때 토큰이 곧 만료되면 미리 갱신 (background timer suspend 대비)
-if (typeof document !== "undefined") {
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
-    if (!wasSignedIn()) return;
-    const needsRefreshSoon = !accessToken || (tokenExpiresAt - Date.now() < SILENT_REFRESH_LEAD_MS);
-    if (needsRefreshSoon) void requestSilentRefresh();
-  });
-}
+// 탭 전환 시 자동 silent refresh 제거 — Google 라이브러리가 prompt:"none" 이어도
+// 가끔 hidden iframe UI 가 잠깐 보이는 문제. 토큰 갱신은 SettingsDialog 진입 시
+// 또는 명시적 sync 액션(uploadToDrive 등) 시점에만 수행 (일관 정책).
 
 // 로그인 — 전체 페이지가 google 로 redirect (사용자 클릭 후)
 // Promise 안 반환 — redirect 후 다시 돌아올 때 token 처리됨
