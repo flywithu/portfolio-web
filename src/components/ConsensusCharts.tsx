@@ -1,7 +1,11 @@
 // 컨센서스 예상치 차트 — 토스 v2 estimate API (분기별 발표치 vs 애널리스트 예상치).
 // 매출 / 영업이익 / EPS 3개. SVG 직접 (FinancialCharts 와 동일한 의존성 0 패턴).
 
+import { useEffect, useState } from "react";
 import type { EstimateSeries } from "../lib/api";
+import { checkPersonalProxyPostSupport, type PersonalProxyStatus } from "../lib/proxyConfig";
+
+const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 
 interface Props {
   revenue?: EstimateSeries | null;
@@ -196,7 +200,39 @@ function SingleChart({ title, series, format }: SingleChartProps) {
 
 export function ConsensusCharts({ revenue, operatingIncome, eps }: Props) {
   const anyData = !!(revenue?.points.length || operatingIncome?.points.length || eps?.points.length);
-  if (!anyData) return null;
+
+  // 빈 상태 — 개인 프록시 사용 중 + 워커가 구버전(POST 미지원) 인지 1회 검증
+  const [proxyStatus, setProxyStatus] = useState<PersonalProxyStatus | "checking">("checking");
+  useEffect(() => {
+    if (anyData) return;  // 데이터 있으면 검증 불필요
+    void checkPersonalProxyPostSupport().then(setProxyStatus);
+  }, [anyData]);
+
+  if (!anyData) {
+    // 워커가 구버전이라 판명된 경우만 안내. (no-personal / ok / error / checking 은 표시 안 함)
+    if (proxyStatus !== "outdated") return null;
+    return (
+      <section className="mt-3">
+        <header className="mb-2 flex items-baseline gap-2 flex-wrap">
+          <h3 className="text-sm font-bold text-gray-700">🔮 컨센서스 예상치 (분기)</h3>
+        </header>
+        <div className="p-3 bg-amber-50 border border-amber-300 rounded text-sm">
+          <p className="font-bold text-amber-800">
+            ⚠️ 등록하신 개인 워커가 구버전입니다
+          </p>
+          <p className="text-amber-700 text-[12px] mt-1 leading-relaxed">
+            컨센서스 예상치 차트는 POST 호출을 지원하는 새 워커가 필요합니다.
+            기존 가격/차트/공매도/재무추이 등 다른 기능은 영향 없이 정상 작동합니다.
+          </p>
+          <a href={UPDATE_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+             className="inline-block mt-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700
+                        text-white text-[12px] font-bold rounded">
+            📘 5분 업데이트 가이드 열기 ↗
+          </a>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-3">

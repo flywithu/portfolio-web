@@ -7,8 +7,12 @@ import {
   getPersonalProxyUrl, setPersonalProxyUrl,
   getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS,
   getDimSleepingEnabled, setDimSleepingEnabled,
+  checkPersonalProxyPostSupport, invalidatePersonalProxyStatusCache,
+  type PersonalProxyStatus,
 } from "../lib/proxyConfig";
 import { resetProxyStats } from "../lib/proxyStatus";
+
+const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
@@ -34,6 +38,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const [proxyUrl, setProxyUrl] = useState("");
   const [pollMs, setPollMs] = useState(10_000);
   const [syncState, setSyncState] = useState(getSyncState());
+  const [proxyStatus, setProxyStatus] = useState<PersonalProxyStatus | "checking">("checking");
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncBusyMsg, setSyncBusyMsg] = useState("");   // 진행 중 오버레이 메시지
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
@@ -68,6 +73,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     setSyncState(getSyncState());
     setLastSyncedAt(getLastSyncedAt());
     setIndependent(getIndependentGroupsMode());
+    // 개인 프록시 POST 호환성 검증 — 캐시된 결과 우선, 없으면 비동기 호출
+    setProxyStatus("checking");
+    void checkPersonalProxyPostSupport().then(setProxyStatus);
     // 다이얼로그 열 때 — 토큰 silent refresh 시도, 실패하면 자동 logout (설정 안에서만 표시)
     // 평소 다른 곳에선 로그인 UI 가 안 보임 (업로드/다운로드 시점에만 필요)
     void (async () => {
@@ -100,6 +108,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     if (!v) {
       setPersonalProxyUrl(null);
       setProxyUrl("");
+      invalidatePersonalProxyStatusCache();
+      resetProxyStats();                // 옛 down 카운트 즉시 reset
+      setProxyStatus("no-personal");
       setStatusMsg("✅ 전용 프록시 해제 — 공개 4-way 사용");
       onChanged();
       return;
@@ -153,6 +164,10 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     setProxyUrl(v);
     resetProxyStats();              // 옛 4-way down 상태 제거 → 적응형 polling 즉시 정상화
     queryClient.invalidateQueries();
+    // POST 호환성 재검증 (새 URL)
+    invalidatePersonalProxyStatusCache();
+    setProxyStatus("checking");
+    void checkPersonalProxyPostSupport().then(setProxyStatus);
     onChanged();
     setStatusMsg(`✅ 전용 프록시 검증 OK — 적용: ${v}`);
   };
@@ -421,6 +436,21 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                 저장
               </button>
             </div>
+            {/* POST 미지원 (구버전) 워커 경고 */}
+            {proxyStatus === "outdated" && (
+              <div className="p-2 bg-amber-50 border border-amber-300 rounded text-[11px]">
+                <p className="font-bold text-amber-800">
+                  ⚠️ 등록하신 워커가 구버전 (POST 미지원) 입니다
+                </p>
+                <p className="text-amber-700 mt-0.5 leading-relaxed">
+                  기존 기능은 정상 작동합니다. 컨센서스 예상치 차트만 비어 보입니다.
+                </p>
+                <a href={UPDATE_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+                   className="inline-block mt-1.5 text-amber-700 underline font-bold">
+                  📘 5분 업데이트 가이드 ↗
+                </a>
+              </div>
+            )}
             {/* 폴링 주기 — 전용 프록시 있을 때만 의미 (공개는 항상 10초) */}
             <div className="flex items-center gap-2 mt-1">
               <span className={`text-[11px] ${proxyUrl ? "text-gray-700" : "text-gray-400"}`}>

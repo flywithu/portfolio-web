@@ -353,8 +353,9 @@ export function ValuationModal({
               <FinancialCharts series={finSeries} />
             </div>
           )}
-          {/* 컨센서스 예상치 — 분기별 발표 vs 예상 (매출/영업이익/EPS) */}
-          {(estRevenue || estOpIncome || estEps) && (
+          {/* 컨센서스 예상치 — 분기별 발표 vs 예상 (매출/영업이익/EPS).
+              데이터 모두 null 이라도 ConsensusCharts 가 워커 구버전 안내를 자체 표시. */}
+          {estEnabled && (
             <div className="mb-3">
               <ConsensusCharts revenue={estRevenue} operatingIncome={estOpIncome} eps={estEps} />
             </div>
