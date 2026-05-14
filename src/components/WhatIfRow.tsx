@@ -20,6 +20,7 @@ interface Props {
 export function WhatIfRow({ holdings, prices }: Props) {
   const seen = new Set<string>();
   let openSum = 0, curSum = 0, highSum = 0;
+  let dayDiffSum = 0;   // 어제 대비 변동 합 — 비거래일 감지용
   let count = 0;
 
   for (const s of holdings) {
@@ -33,6 +34,7 @@ export function WhatIfRow({ holdings, prices }: Props) {
     seen.add(s.ticker);
     openSum += open;
     curSum += cur;
+    dayDiffSum += (cur - base);
     const high = (p.high && p.high > 0) ? p.high : Math.max(open, cur, base);
     highSum += high;
     count += 1;
@@ -42,8 +44,9 @@ export function WhatIfRow({ holdings, prices }: Props) {
 
   const curDiff = curSum - openSum;
   const highDiff = highSum - openSum;
-  // 비거래일/시장 종료 후 가격 변동 없으면 레이어 의미 없음 — 숨김
-  if (curDiff === 0 && highDiff === 0) return null;
+  // 비거래일 감지 — 어제 대비 변동이 사실상 0 이면 비거래일/장 시작 전.
+  // open/high 가 이전 거래일 값이라 curDiff/highDiff 만 보면 false-positive 가능 → dayDiffSum 으로 판정.
+  if (Math.abs(dayDiffSum) < 1) return null;
 
   return (
     <div className="relative w-fit pt-2.5">
