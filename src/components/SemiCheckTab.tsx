@@ -7,6 +7,14 @@ import { allYahooSymbols, US_PAIRS } from "../lib/usMarketData";
 import { Sparkline } from "./Sparkline";
 import type { UsIndex } from "../lib/api";
 
+function quoteUrl(symbol: string): string {
+  const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
+  if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
+  if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
+  if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
+  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+}
+
 type Mood = "good" | "warn" | "bad" | "neutral";
 
 // 색 규칙: 빨강=강세/긍정 (good) / 파랑=약세·우려 (bad·warn) / 회색=보통 (neutral)
@@ -70,9 +78,12 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
                    : undefined}
                  className="absolute inset-0 w-full h-full opacity-50
                             pointer-events-none" />
-      <div className="relative z-10 text-base font-bold text-gray-900 truncate">
+      <a href={quoteUrl(symbol)}
+         target="_blank" rel="noopener noreferrer"
+         title={`${name} 자세히 보기`}
+         className="relative z-10 text-base font-bold text-gray-900 truncate hover:underline">
         {name}
-      </div>
+      </a>
       {desc && (
         <div className="relative z-10 text-[11px] text-gray-500 truncate">
           {desc}
