@@ -288,7 +288,7 @@ export function SemiCheckTab() {
               <span className="text-[11px] text-gray-500">· {sig.stepLabel}</span>
               <h3 className="text-[13px] font-semibold text-gray-800">{sig.title}</h3>
             </header>
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
               {sig.symbols.map(symbol => (
                 <Mini key={symbol}
                       symbol={symbol}
@@ -316,30 +316,25 @@ export function SemiCheckTab() {
             {overallTitle}
           </h3>
         </div>
-        <p className="text-[13px] mt-1 leading-relaxed flex flex-wrap gap-x-1">
-          {summaryParts.map((p, i) => (
-            <span key={p.label}>
+        <div className="text-[13px] mt-1 leading-relaxed space-y-0.5">
+          {summaryParts.map(p => (
+            <div key={p.label}>
               <span className="text-gray-500">{p.label}</span>
               <span className={`font-semibold ml-1 ${MOOD_TEXT[p.mood]}`}>
                 {p.text}
               </span>
-              {i < summaryParts.length - 1 && (
-                <span className="text-gray-300 ml-1">·</span>
-              )}
-            </span>
+            </div>
           ))}
-        </p>
+        </div>
         {/* 한국 메모리 2사 분리 분석 — 현재 신호 조합에 따라 동적 */}
         <div className="text-[12px] text-gray-600 mt-2 leading-relaxed space-y-0.5">
           <p>
             <span className={`font-semibold ${MOOD_TEXT[hynixMood]}`}>SK하이닉스</span>
-            <span className="text-gray-400"> (메모리 100%)</span>
             {" — "}
             <span className={`font-semibold ${MOOD_TEXT[hynixMood]}`}>{hynixDesc}</span>
           </p>
           <p>
             <span className={`font-semibold ${MOOD_TEXT[samsungMood]}`}>삼성전자</span>
-            <span className="text-gray-400"> (메모리 ~30% + 비메모리·가전·디스플레이)</span>
             {" — "}
             <span className={`font-semibold ${MOOD_TEXT[samsungMood]}`}>{samsungDesc}</span>
           </p>
