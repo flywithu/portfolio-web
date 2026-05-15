@@ -105,10 +105,10 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
         const rpct = q.regularPct ?? null;
         const cls = rpct == null ? "text-gray-700"
           : rpct > 0 ? "text-rose-600" : rpct < 0 ? "text-blue-600" : "text-gray-700";
-        const tagBg = rpct == null ? "bg-white border-gray-300"
-          : rpct > 0 ? "bg-rose-100 border-rose-300"
-          : rpct < 0 ? "bg-blue-100 border-blue-300"
-          : "bg-white border-gray-300";
+        const tagBg = rpct == null ? "bg-white/20 border-gray-300/20"
+          : rpct > 0 ? "bg-rose-100/20 border-rose-300/20"
+          : rpct < 0 ? "bg-blue-100/20 border-blue-300/20"
+          : "bg-white/20 border-gray-300/20";
         return (
           <div className={`absolute -top-0.5 right-2 z-20 px-1.5 py-0
                           border rounded-md shadow-sm

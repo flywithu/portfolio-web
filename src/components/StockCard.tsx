@@ -9,9 +9,16 @@ import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
 
+interface KrRegInfo {
+  ticker: string;
+  regularPrice: number;
+  regularPct: number;
+  marketState: string;
+}
 interface Props {
   stock: Stock;
   price?: Price;
+  krReg?: KrRegInfo;        // Yahoo .KS 정규장 종가 — 책갈피 표시용
   investor?: Investor | null;
   investorHistory?: Investor[] | null;   // 60일 수급 (신호 계산용)
   consensus?: Consensus | null;
@@ -490,7 +497,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, investor, investorHistory, consensus, sector, peak, warning, loading, chart, priceHistory, longHistory,
+  stock, price, krReg, investor, investorHistory, consensus, sector, peak, warning, loading, chart, priceHistory, longHistory,
   memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -1057,6 +1064,29 @@ export function StockCard({
           </>
         } className="basis-[30%] min-w-0">
         <div className="relative w-full h-full">
+        {/* 정규장 마감가 책갈피 — 토스 close 와 다를 때만 표시.
+            검증: Yahoo .KS/.KQ 가 다른 종목으로 매핑됐을 수 있어 차이 15% 이상이면 잘못된 데이터로 판단해 숨김.
+            가격 블록 좌측 상단으로 빠져나옴. */}
+        {krReg && krReg.regularPrice !== price.price
+              && price.price > 0
+              && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15 && (
+          <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
+                           border rounded text-[10px] leading-tight whitespace-nowrap
+                           ${krReg.regularPct > 0 ? "bg-rose-100/20 border-rose-300/20"
+                             : krReg.regularPct < 0 ? "bg-blue-100/20 border-blue-300/20"
+                             : "bg-white/20 border-gray-300/20"}`}>
+            <span className="text-gray-500">마감 </span>
+            <span className="text-gray-800 tabular-nums">
+              {Math.round(krReg.regularPrice).toLocaleString()}
+            </span>
+            <span className={`tabular-nums ml-1 font-bold
+                              ${krReg.regularPct > 0 ? "text-rose-600"
+                                : krReg.regularPct < 0 ? "text-blue-600"
+                                : "text-gray-700"}`}>
+              ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
+            </span>
+          </div>
+        )}
         {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}
         {(stock.shares > 0 || price.volume > 0) && (
           <div className="absolute -top-2 right-1 z-10 bg-white/70 border border-gray-200

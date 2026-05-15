@@ -229,10 +229,10 @@ export function UsMarketTab() {
               const regPct = q?.regularPct ?? null;
               const regSign = regPct == null ? "text-gray-700"
                 : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
-              const tagBg = regPct == null ? "bg-white border-gray-300"
-                : regPct > 0 ? "bg-rose-100 border-rose-300"
-                : regPct < 0 ? "bg-blue-100 border-blue-300"
-                : "bg-white border-gray-300";
+              const tagBg = regPct == null ? "bg-white/20 border-gray-300/20"
+                : regPct > 0 ? "bg-rose-100/20 border-rose-300/20"
+                : regPct < 0 ? "bg-blue-100/20 border-blue-300/20"
+                : "bg-white/20 border-gray-300/20";
               return (
                 <div key={p.symbol}
                      className={`relative overflow-hidden flex flex-col gap-0.5

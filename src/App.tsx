@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import {
-  fetchTossPrices, fetchInvestorHistory, pickTodayInvestor,
+  fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
   fetchInvestorHistorySafe,
 } from "./lib/api";
@@ -145,6 +145,49 @@ function Dashboard() {
     queryFn: () => fetchTossPrices(krxTickers),
     enabled: krxTickers.length > 0,
     refetchInterval: REFRESH_MS,
+  });
+
+  // 한국 종목 거래소 자동 검증 — 토스 stock-infos API 사용 (market.code: KSP/KSQ).
+  // 결과는 localStorage 캐시 (24시간) — 매번 검증 부담 회피.
+  const { data: verifiedMarketMap } = useQuery({
+    queryKey: ["kr-markets-verified", krxTickers],
+    queryFn: async () => {
+      const cacheRaw = localStorage.getItem("kr_markets_verified") ?? "{}";
+      const cache = JSON.parse(cacheRaw) as Record<string, "KOSPI" | "KOSDAQ">;
+      const cacheTs = Number(localStorage.getItem("kr_markets_verified_ts") ?? "0");
+      const isFresh = Date.now() - cacheTs < 24 * 3600 * 1000;
+      const known = isFresh ? new Map(Object.entries(cache)) : new Map();
+      const toVerify = krxTickers.filter(t => !known.has(t));
+      if (toVerify.length === 0) return known;
+      const fresh = await verifyKrMarkets(toVerify);
+      for (const [t, mkt] of fresh) known.set(t, mkt);
+      const obj: Record<string, string> = {};
+      for (const [k, v] of known) obj[k] = v;
+      localStorage.setItem("kr_markets_verified", JSON.stringify(obj));
+      localStorage.setItem("kr_markets_verified_ts", String(Date.now()));
+      return known;
+    },
+    enabled: krxTickers.length > 0,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  // 한국 주식 정규장 종가 — 검증된 거래소 사용 (없으면 Stock.market fallback)
+  const krMarketMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of holdings) {
+      if (!/^\d{6}$/.test(s.ticker)) continue;
+      const v = verifiedMarketMap?.get(s.ticker);
+      if (v) m.set(s.ticker, v);
+      else if (s.market) m.set(s.ticker, s.market);
+    }
+    return m;
+  }, [holdings, verifiedMarketMap]);
+  const { data: krRegMap } = useQuery({
+    queryKey: ["kr-reg", krxTickers, Array.from(krMarketMap.entries()).flat().join(",")],
+    queryFn: () => fetchKrRegularPrices(krxTickers, krMarketMap),
+    enabled: krxTickers.length > 0 && krMarketMap.size > 0,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   // 가격 갱신 시 피크가 forward-only 업데이트 (저장된 피크 < 현재가면 갱신)
@@ -394,6 +437,7 @@ function Dashboard() {
                   key={`${stock.ticker}_${stock.account || ""}`}
                   stock={stock}
                   price={priceMap.get(stock.ticker)}
+                  krReg={krRegMap?.get(stock.ticker)}
                   investor={investorMap.get(stock.ticker)}
                   investorHistory={investorHistoryMap.get(stock.ticker)}
                   warning={warningMap.get(stock.ticker)}

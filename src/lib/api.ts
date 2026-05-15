@@ -114,6 +114,84 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
   return out;
 }
 
+// 한국 주식 정규장 종가/변동률 — Yahoo v7 batch (15분 지연이지만 마감가는 정확)
+// 토스 close 는 시간외 단일가 포함이라 정규장 종가와 다를 수 있음 — 분리 필요.
+export interface KrRegularPrice {
+  ticker: string;
+  regularPrice: number;
+  regularPct: number;       // (regularPrice - prevClose) / prevClose × 100
+  marketState: string;
+}
+// 토스 stock-infos API 의 market.code (KSP=KOSPI, KSQ=KOSDAQ) 로 정확한 거래소 판별.
+// Stock.market 이 잘못 저장된 경우(6자리 코드 검색 시 무조건 "KOSPI" 였음)를 자동 교정.
+export async function verifyKrMarkets(
+  tickers: string[],
+): Promise<Map<string, "KOSPI" | "KOSDAQ">> {
+  const out = new Map<string, "KOSPI" | "KOSDAQ">();
+  if (tickers.length === 0) return out;
+  await Promise.all(tickers.map(async t => {
+    try {
+      const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-infos/code-or-symbol/A${t}`);
+      if (!r.ok) return;
+      const j = await r.json() as { result?: { market?: { code?: string } } };
+      const code = j.result?.market?.code;
+      if (code === "KSP") out.set(t, "KOSPI");
+      else if (code === "KSQ") out.set(t, "KOSDAQ");
+    } catch { /* skip */ }
+  }));
+  return out;
+}
+
+// markets 매개변수: ticker → KOSPI/KOSDAQ. KOSPI → .KS, KOSDAQ → .KQ.
+export async function fetchKrRegularPrices(
+  tickers: string[],
+  markets?: Map<string, string>,
+): Promise<Map<string, KrRegularPrice>> {
+  const out = new Map<string, KrRegularPrice>();
+  if (tickers.length === 0) return out;
+  const symbols = tickers.map(t => {
+    const m = markets?.get(t);
+    return `${t}.${m === "KOSDAQ" ? "KQ" : "KS"}`;
+  }).join(",");
+  const target = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return out;
+    const data = await resp.json() as {
+      quoteResponse?: {
+        result?: Array<{
+          symbol: string;
+          regularMarketPrice?: number;
+          regularMarketPreviousClose?: number;
+          regularMarketChangePercent?: number;
+          marketState?: string;
+        }>;
+      };
+    };
+    for (const q of (data.quoteResponse?.result ?? [])) {
+      const m = /^(\d{6})\.(KS|KQ)$/.exec(q.symbol);
+      if (!m) continue;
+      const ticker = m[1];
+      const regP = q.regularMarketPrice;
+      const regPrev = q.regularMarketPreviousClose;
+      if (typeof regP !== "number" || !Number.isFinite(regP)) continue;
+      const rawPct = q.regularMarketChangePercent;
+      const regPct = typeof rawPct === "number" && Number.isFinite(rawPct)
+        ? rawPct
+        : (typeof regPrev === "number" && regPrev > 0
+           ? ((regP - regPrev) / regPrev) * 100
+           : 0);
+      out.set(ticker, {
+        ticker,
+        regularPrice: regP,
+        regularPct: regPct,
+        marketState: q.marketState ?? "",
+      });
+    }
+  } catch { /* network — return empty */ }
+  return out;
+}
+
 export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   if (tickers.length === 0) return [];
   const codes = tickers.map(t => `A${t}`).join(",");
