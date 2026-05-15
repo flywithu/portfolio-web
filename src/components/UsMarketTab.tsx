@@ -235,7 +235,7 @@ export function UsMarketTab() {
                      className={`relative overflow-hidden flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5
                                   ${bg}
-                                  ${(sleeping && dimEnabled) || isClosed ? "opacity-60" : ""}`}>
+                                  ${dimEnabled && (sleeping || isClosed) ? "opacity-60" : ""}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={400} height={80}
                              color={sleeping && dimEnabled ? "#94a3b8" : undefined}

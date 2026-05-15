@@ -8,6 +8,7 @@ import { allYahooSymbols, US_PAIRS } from "../lib/usMarketData";
 import { Sparkline } from "./Sparkline";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
+import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
@@ -59,6 +60,7 @@ interface MiniProps {
   q?: UsIndex;
   chart: number[];
   direction?: Direction;
+  dimEnabled?: boolean;
 }
 // direction === "inverse" 면 상승 = 한국 위험 → 색 반전 (상승=파랑, 하락=빨강)
 function colorFor(pct: number | null, direction: Direction = "direct"): string {
@@ -69,7 +71,7 @@ function colorFor(pct: number | null, direction: Direction = "direct"): string {
   }
   return isUp ? "text-rose-600" : isDown ? "text-blue-600" : "text-gray-700";
 }
-function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps) {
+function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled = false }: MiniProps) {
   // 메인 가격 = 가장 최신 NASDAQ 거래 가격.
   //   REGULAR/PRE/POST: q.price (Yahoo 분기로 라이브 가격 자동 설정)
   //   POSTPOST/PREPRE/CLOSED: 거래 휴장 → 시간외 마감가(postPrice) 가 가장 최신
@@ -122,7 +124,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
       })()}
     <div className={`relative overflow-hidden
                      flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}
-                     ${q?.marketState && closedStates.includes(q.marketState) ? "opacity-60" : ""}`}>
+                     ${dimEnabled && q?.marketState && closedStates.includes(q.marketState) ? "opacity-60" : ""}`}>
       <Sparkline data={chart} width={400} height={80}
                  color={chart.length > 1
                    ? (chart[chart.length - 1] > chart[0]
@@ -192,6 +194,7 @@ export function SemiCheckTab() {
     US_PAIRS.find(p => p.symbol === sym)?.name ?? sym;
   const descOf = (sym: string) =>
     US_PAIRS.find(p => p.symbol === sym)?.desc;
+  const dimEnabled = getDimSleepingEnabled();
   const directionOf = (sym: string): Direction =>
     (US_PAIRS.find(p => p.symbol === sym)?.direction ?? "direct") as Direction;
 
@@ -365,7 +368,8 @@ export function SemiCheckTab() {
                       desc={descOf(symbol)}
                       q={usMap?.get(symbol)}
                       chart={chartMap.get(symbol) ?? []}
-                      direction={directionOf(symbol)} />
+                      direction={directionOf(symbol)}
+                      dimEnabled={dimEnabled} />
               ))}
             </div>
             <p className={`mt-2 text-sm font-bold ${MOOD_TEXT[sig.mood]}`}>
