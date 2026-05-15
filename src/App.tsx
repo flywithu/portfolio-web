@@ -8,7 +8,7 @@ import {
 import { loadHoldings, loadPeaks, loadMemos, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateLegacyHoldGroup } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, MY_STOCKS_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
 import { WhatIfRow } from "./components/WhatIfRow";
@@ -432,7 +432,11 @@ function Dashboard() {
                             onToggleDir={sortHandlers.onToggleDir} />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-              {sortedVisible.map(stock => (
+              {sortedVisible.map(stock => {
+                // 합산 그룹 row — 실제 holdings 가 아니라 가상으로 합쳐진 항목.
+                // 수정/삭제는 실제 그룹 탭에서만 가능 (어느 그룹을 수정할지 모호).
+                const isAggregated = activeTab === MY_STOCKS_TAB_KEY;
+                return (
                 <StockCard
                   key={`${stock.ticker}_${stock.account || ""}`}
                   stock={stock}
@@ -448,17 +452,20 @@ function Dashboard() {
                   priceHistory={priceHistoryMap.get(stock.ticker)}
                   longHistory={longHistoryMap.get(stock.ticker)}
                   memo={memos.get(stock.ticker)}
-                  otherGroups={(tickerGroupsMap.get(stock.ticker) ?? [])
-                    .filter(g => g !== (stock.account || ""))}
+                  otherGroups={isAggregated
+                    ? (tickerGroupsMap.get(stock.ticker) ?? [])
+                    : (tickerGroupsMap.get(stock.ticker) ?? [])
+                        .filter(g => g !== (stock.account || ""))}
                   onOpenValuation={setValuationTicker}
-                  onEdit={s => setEditing(s)}
-                  onDelete={async s => {
+                  onEdit={isAggregated ? undefined : (s => setEditing(s))}
+                  onDelete={isAggregated ? undefined : (async s => {
                     await removeHolding(s.ticker, s.account || "");
                     setReloadKey(k => k + 1);
-                  }}
+                  })}
                   onOpenMemo={t => setMemoTicker(t)}
                 />
-              ))}
+                );
+              })}
             </div>
             <div className="sticky bottom-0 z-40 mt-3 w-full flex flex-wrap items-start gap-2">
               <TotalRow holdings={visible} prices={priceMap} />

@@ -65,6 +65,7 @@ import type { Stock } from "../types";
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
 const US_KEY = "__us__";  // 미국 (환율·매크로·원자재·미국지수·미국 대표 ETF)
 const SEMI_KEY = "__semi__";  // 반도체 점검 — MU·NVDA·장비주·환율
+const MY_KEY = "__my-stocks__";  // 내주식(가상 합산) — 모든 그룹의 동일 ticker 를 shares 합/가중평균 평단
 const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 const KAKAOPAY_URL = "https://qr.kakaopay.com/FCscirjeF";
 
@@ -181,6 +182,14 @@ export function MobileSimpleView() {
       { key: US_KEY, label: "매크로", count: 0 },
       { key: SEMI_KEY, label: "🔧반도체", count: 0 },
     ];
+    // 합산 그룹 — 보유 수량 있는 unique ticker 수
+    const uniqHeld = new Set<string>();
+    for (const s of holdings) {
+      if (s.shares > 0 && s.avg_price > 0) uniqHeld.add(s.ticker);
+    }
+    if (uniqHeld.size > 0) {
+      tabs.push({ key: MY_KEY, label: "📦내주식", count: uniqHeld.size });
+    }
     if (counts.has("")) {
       tabs.push({ key: "", label: "보유", count: counts.get("")! });
     }
@@ -204,6 +213,31 @@ export function MobileSimpleView() {
   // 선택된 그룹 종목들 (활성 탭이 그룹일 때만)
   const groupHoldingsUnsorted = useMemo(() => {
     if (isSystemTab) return [];
+    if (activeTab === MY_KEY) {
+      // 합산 — 같은 ticker shares 합 + 가중평균 avg_price (수량>0 만)
+      interface Acc { name: string; shares: number; investedSum: number; firstDate?: string; market?: string }
+      const m = new Map<string, Acc>();
+      for (const h of holdings) {
+        if (!(h.shares > 0) || !(h.avg_price > 0)) continue;
+        const cur = m.get(h.ticker);
+        const invested = h.shares * h.avg_price;
+        if (!cur) {
+          m.set(h.ticker, { name: h.name, shares: h.shares, investedSum: invested, firstDate: h.buy_date, market: h.market });
+        } else {
+          cur.shares += h.shares;
+          cur.investedSum += invested;
+          if (h.buy_date && (!cur.firstDate || h.buy_date < cur.firstDate)) cur.firstDate = h.buy_date;
+          if (!cur.market && h.market) cur.market = h.market;
+        }
+      }
+      return Array.from(m, ([ticker, v]) => ({
+        ticker, name: v.name, shares: v.shares,
+        avg_price: v.investedSum / v.shares,
+        invested: Math.round(v.investedSum),
+        buy_date: v.firstDate, market: v.market,
+        account: MY_KEY,
+      } as Stock));
+    }
     return holdings.filter(s => normalizeAccount(s.account) === activeTab);
   }, [holdings, activeTab, isSystemTab]);
 
@@ -489,7 +523,10 @@ export function MobileSimpleView() {
                 이 그룹에는 종목이 없습니다
               </div>
             )}
-            {groupHoldings.map(s => (
+            {groupHoldings.map(s => {
+              // 합산 그룹 row — 수정/삭제 비활성 (실제 그룹 탭에서만 수정 가능)
+              const isAggregated = activeTab === MY_KEY;
+              return (
               <MobileStockCard key={s.ticker + (s.account ?? "")}
                                stock={s}
                                price={groupPriceMap.get(s.ticker)}
@@ -500,12 +537,14 @@ export function MobileSimpleView() {
                                investorHistory={investorHistoryMap.get(s.ticker)}
                                consensus={naverInfos.data?.get(s.ticker)?.consensus}
                                memo={memos?.get(s.ticker)}
-                               otherGroups={(tickerGroupsMap.get(s.ticker) ?? [])
-                                 .filter(g => g !== (s.account || ""))}
+                               otherGroups={isAggregated
+                                 ? (tickerGroupsMap.get(s.ticker) ?? [])
+                                 : (tickerGroupsMap.get(s.ticker) ?? [])
+                                     .filter(g => g !== (s.account || ""))}
                                onOpenValuation={setValuationTicker}
                                onOpenMemo={t => setMemoTicker(t)}
-                               onEdit={st => setEditing(st)}
-                               onDelete={async st => {
+                               onEdit={isAggregated ? undefined : (st => setEditing(st))}
+                               onDelete={isAggregated ? undefined : (async st => {
                                  const indep = getIndependentGroupsMode();
                                  const msg = indep
                                    ? `"${st.name}" 을(를) "${st.account || "보유"}" 그룹에서 삭제할까요?`
@@ -520,8 +559,9 @@ export function MobileSimpleView() {
                                  void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
           scheduleAutoSync();
-                               }} />
-            ))}
+                               })} />
+              );
+            })}
           </div>
           {/* 합계 — 화면 하단 fixed.
               합계 클릭 시 위로 오늘 수익/손해 레이어가 펼쳐짐, 다시 클릭 또는 바깥 탭 시 닫힘.

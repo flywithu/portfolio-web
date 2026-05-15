@@ -90,26 +90,36 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
 
 export const US_MARKET_TAB_KEY = "__us-market__";
 export const SEMI_CHECK_TAB_KEY = "__semi-check__";
+// 가상 합산 그룹 — 모든 그룹의 동일 ticker 를 합쳐 표시 (수량/평단 통합 뷰)
+export const MY_STOCKS_TAB_KEY = "__my-stocks__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
-const RESERVED = new Set<string>(["관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY]);
+const RESERVED = new Set<string>([
+  "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, MY_STOCKS_TAB_KEY,
+]);
 
-// 미국증시 → 반도체 점검 → 보유 → 사용자 그룹 알파벳 순
+// 미국증시 → 반도체 점검 → 내주식(합산) → 보유 → 사용자 그룹 알파벳 순
 export function buildTabs(holdings: Stock[]): TabSpec[] {
   const counts = new Map<string, number>();
+  const uniqHeld = new Set<string>();
   for (const s of holdings) {
     const acc = normalizeAccount(s.account);
     counts.set(acc, (counts.get(acc) || 0) + 1);
+    if (s.shares > 0 && s.avg_price > 0) uniqHeld.add(s.ticker);
   }
   const tabs: TabSpec[] = [
     { key: US_MARKET_TAB_KEY, label: "주요 지수", emoji: "📈", count: 0 },
     { key: SEMI_CHECK_TAB_KEY, label: "반도체", emoji: "🔧", count: 0 },
   ];
-  // 1) 보유 (account="") — 일반 그룹과 동일 아이콘
+  // 1) 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
+  if (uniqHeld.size > 0) {
+    tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
+  }
+  // 2) 보유 (account="") — 일반 그룹과 동일 아이콘
   if (counts.has("")) {
     tabs.push({ key: "", label: "보유", emoji: "🏷", count: counts.get("")! });
   }
-  // 2) 그 외 모든 사용자 그룹 — 동일 아이콘, 알파벳 순
+  // 3) 그 외 모든 사용자 그룹 — 동일 아이콘, 알파벳 순
   const userGroups = Array.from(counts.keys())
     .filter(k => !["", "관심ETF"].includes(k))
     .sort();
@@ -121,5 +131,45 @@ export function buildTabs(holdings: Stock[]): TabSpec[] {
 }
 
 export function filterByTab(holdings: Stock[], tabKey: string): Stock[] {
+  if (tabKey === MY_STOCKS_TAB_KEY) return aggregateHoldings(holdings);
   return holdings.filter(s => normalizeAccount(s.account) === tabKey);
+}
+
+// 합산 — 같은 ticker 의 shares 합 + 가중평균 avg_price.
+// 수량 있는 holdings 만 합산 (관심종목/수량 0 제외).
+// buy_date: 가장 이른 매수일. market: 첫 발견 값.
+function aggregateHoldings(holdings: Stock[]): Stock[] {
+  interface Acc {
+    name: string; shares: number; investedSum: number;
+    firstDate?: string; market?: string;
+  }
+  const m = new Map<string, Acc>();
+  for (const h of holdings) {
+    if (!(h.shares > 0) || !(h.avg_price > 0)) continue;
+    const cur = m.get(h.ticker);
+    const invested = h.shares * h.avg_price;
+    if (!cur) {
+      m.set(h.ticker, {
+        name: h.name, shares: h.shares, investedSum: invested,
+        firstDate: h.buy_date, market: h.market,
+      });
+    } else {
+      cur.shares += h.shares;
+      cur.investedSum += invested;
+      if (h.buy_date && (!cur.firstDate || h.buy_date < cur.firstDate)) {
+        cur.firstDate = h.buy_date;
+      }
+      if (!cur.market && h.market) cur.market = h.market;
+    }
+  }
+  return Array.from(m, ([ticker, v]) => ({
+    ticker,
+    name: v.name,
+    shares: v.shares,
+    avg_price: v.investedSum / v.shares,
+    invested: Math.round(v.investedSum),
+    buy_date: v.firstDate,
+    market: v.market,
+    account: MY_STOCKS_TAB_KEY,   // 합산 row 식별자 — UI 분기용
+  }));
 }
