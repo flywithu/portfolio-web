@@ -14,6 +14,7 @@ import { resetProxyStats } from "../lib/proxyStatus";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
+import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
@@ -44,6 +45,16 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
   const [independentMode, setIndependent] = useState(getIndependentGroupsMode());
   const [conflicts, setConflicts] = useState<TickerConflict[] | null>(null);
+  const [tabVis, setTabVis] = useState(getTabVisibility());
+
+  const toggleTab = (key: "usMarket" | "semiCheck" | "myStocks", v: boolean) => {
+    const next = { ...tabVis, [key]: v };
+    setTabVis(next);
+    setTabVisibility({ [key]: v });
+    const labelMap = { usMarket: "지수", semiCheck: "반도체", myStocks: "내주식" };
+    setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
+    onChanged();
+  };
 
   const handleIndependentToggle = async (next: boolean) => {
     if (next) {
@@ -515,6 +526,36 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                 </span>
               </span>
             </label>
+
+            {/* 시스템 탭 표시/숨김 — 지수 / 반도체 / 내주식 */}
+            <div className="mt-3 pt-2 border-t border-gray-200">
+              <div className="text-[11px] text-gray-700 font-medium mb-1.5">
+                상단 탭 표시
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.usMarket}
+                         onChange={e => toggleTab("usMarket", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">📈 지수</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.semiCheck}
+                         onChange={e => toggleTab("semiCheck", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">🔧 반도체</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.myStocks}
+                         onChange={e => toggleTab("myStocks", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">📦 내주식 (합산)</span>
+                </label>
+              </div>
+              <div className="text-[10px] text-gray-500 mt-1">
+                꺼두면 해당 탭이 상단 메뉴에서 사라집니다. 데이터는 보존됩니다.
+              </div>
+            </div>
           </div>
 
           <div className="text-sm text-gray-600">

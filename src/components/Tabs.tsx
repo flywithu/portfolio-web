@@ -1,5 +1,6 @@
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
+import type { TabVisibility } from "../lib/tabVisibility";
 
 export interface TabSpec {
   key: string;
@@ -98,8 +99,12 @@ const RESERVED = new Set<string>([
   "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, MY_STOCKS_TAB_KEY,
 ]);
 
-// 미국증시 → 반도체 점검 → 내주식(합산) → 보유 → 사용자 그룹 알파벳 순
-export function buildTabs(holdings: Stock[]): TabSpec[] {
+// 미국증시 → 반도체 점검 → 내주식(합산) → 보유 → 사용자 그룹 알파벳 순.
+// visibility 미지정 시 시스템 탭 모두 노출 (기본 동작).
+export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpec[] {
+  const showUs = visibility?.usMarket ?? true;
+  const showSemi = visibility?.semiCheck ?? true;
+  const showMy = visibility?.myStocks ?? true;
   const counts = new Map<string, number>();
   const uniqHeld = new Set<string>();
   for (const s of holdings) {
@@ -107,12 +112,11 @@ export function buildTabs(holdings: Stock[]): TabSpec[] {
     counts.set(acc, (counts.get(acc) || 0) + 1);
     if (s.shares > 0 && s.avg_price > 0) uniqHeld.add(s.ticker);
   }
-  const tabs: TabSpec[] = [
-    { key: US_MARKET_TAB_KEY, label: "주요 지수", emoji: "📈", count: 0 },
-    { key: SEMI_CHECK_TAB_KEY, label: "반도체", emoji: "🔧", count: 0 },
-  ];
+  const tabs: TabSpec[] = [];
+  if (showUs) tabs.push({ key: US_MARKET_TAB_KEY, label: "지수", emoji: "📈", count: 0 });
+  if (showSemi) tabs.push({ key: SEMI_CHECK_TAB_KEY, label: "반도체", emoji: "🔧", count: 0 });
   // 1) 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
-  if (uniqHeld.size > 0) {
+  if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
   }
   // 2) 보유 (account="") — 일반 그룹과 동일 아이콘

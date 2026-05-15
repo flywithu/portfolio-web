@@ -61,6 +61,7 @@ import {
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
+import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
 
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
 const US_KEY = "__us__";  // 미국 (환율·매크로·원자재·미국지수·미국 대표 ETF)
@@ -177,17 +178,21 @@ export function MobileSimpleView() {
       const acc = normalizeAccount(s.account);
       counts.set(acc, (counts.get(acc) || 0) + 1);
     }
-    const tabs: { key: string; label: string; count: number }[] = [
-      { key: KR_KEY, label: "섹터", count: 0 },
-      { key: US_KEY, label: "매크로", count: 0 },
-      { key: SEMI_KEY, label: "🔧반도체", count: 0 },
-    ];
+    const vis = getTabVisibility();
+    const tabs: { key: string; label: string; count: number }[] = [];
+    if (vis.usMarket) {
+      tabs.push({ key: KR_KEY, label: "섹터", count: 0 });
+      tabs.push({ key: US_KEY, label: "매크로", count: 0 });
+    }
+    if (vis.semiCheck) {
+      tabs.push({ key: SEMI_KEY, label: "🔧반도체", count: 0 });
+    }
     // 합산 그룹 — 보유 수량 있는 unique ticker 수
     const uniqHeld = new Set<string>();
     for (const s of holdings) {
       if (s.shares > 0 && s.avg_price > 0) uniqHeld.add(s.ticker);
     }
-    if (uniqHeld.size > 0) {
+    if (vis.myStocks && uniqHeld.size > 0) {
       tabs.push({ key: MY_KEY, label: "📦내주식", count: uniqHeld.size });
     }
     if (counts.has("")) {
@@ -200,7 +205,8 @@ export function MobileSimpleView() {
       tabs.push({ key: g, label: g, count: counts.get(g)! });
     }
     return tabs;
-  }, [holdings]);
+    // settingsOpen 의존 — 설정 모달 닫힐 때 visibility 재평가
+  }, [holdings, settingsOpen]);
 
   // 저장된 탭이 더이상 없으면 (그룹 삭제 등) 한국으로 fallback
   useEffect(() => {
@@ -1177,6 +1183,35 @@ function SettingsModal({
                 </span>
               </span>
             </label>
+
+            {/* 시스템 탭 표시/숨김 — 지수/반도체/내주식.
+                모달 닫힐 때 groupTabs useMemo 재계산되어 반영됨. */}
+            <div className="mt-3 pt-2 border-t border-gray-200">
+              <div className="text-[11px] text-gray-700 font-medium mb-1.5">
+                상단 탭 표시
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {([
+                  { key: "usMarket" as const, label: "📈 지수" },
+                  { key: "semiCheck" as const, label: "🔧 반도체" },
+                  { key: "myStocks" as const, label: "📦 내주식" },
+                ]).map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input type="checkbox" defaultChecked={getTabVisibility()[key]}
+                           onChange={e => {
+                             setTabVisibility({ [key]: e.target.checked });
+                             setSavedMsg(`✅ ${label}: ${e.target.checked ? "표시" : "숨김"}`);
+                             setTimeout(() => setSavedMsg(""), 2000);
+                           }}
+                           className="w-4 h-4 accent-blue-600" />
+                    <span className="text-[11px] text-gray-700">{label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="text-[10px] text-gray-500 mt-1">
+                꺼두면 해당 탭이 상단에서 사라집니다 (모달 닫을 때 반영).
+              </div>
+            </div>
           </div>
 
           {/* 2) 포트폴리오 데이터 import/export */}

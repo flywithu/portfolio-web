@@ -9,6 +9,7 @@ import { loadHoldings, loadPeaks, loadMemos, updatePeaksForward, removeHolding, 
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, MY_STOCKS_TAB_KEY } from "./components/Tabs";
+import { getTabVisibility } from "./lib/tabVisibility";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
 import { WhatIfRow } from "./components/WhatIfRow";
@@ -117,7 +118,8 @@ function Dashboard() {
     })();
   }, [reloadKey]);
 
-  const tabs = useMemo(() => buildTabs(holdings), [holdings]);
+  // reloadKey 의존성 — 설정에서 시스템 탭 visibility 변경 시 즉시 반영
+  const tabs = useMemo(() => buildTabs(holdings, getTabVisibility()), [holdings, reloadKey]);
 
   // 데이터 로드 후 첫 탭 자동 선택
   useEffect(() => {
