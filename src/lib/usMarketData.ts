@@ -36,6 +36,8 @@ export const US_PAIRS: Pair[] = [
   { symbol: "DX-Y.NYB", name: "달러 인덱스",  desc: "DXY — 6개 통화 대비 달러 강도", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "JPY=X",    name: "엔/달러",     desc: "USD/JPY — 한일 수출 경쟁력 (엔 약세 = 한국 불리)", tier: "T0", sector: "dashboard", direction: "neutral" },
   { symbol: "^TNX",     name: "미국 10Y",    desc: "미 10년 국채금리 — 외국인 수급·성장주 할인율", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "IEF",      name: "미국 중기채",  desc: "iShares 7-10년 국채 ETF — 10Y yield 가격 환산 (yield↑ = 가격↓)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "TLT",      name: "미국 장기채",  desc: "iShares 20+년 국채 ETF — 금리·안전자산 헤지, 변동 큼", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "EWY",      name: "EWY",         desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^VIX",     name: "VIX",         desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 행 2 — 원자재 + 위험자산

@@ -34,9 +34,16 @@ function highlightStyles(value: number): { bg: string; color: string } {
 // 모바일 종목 카드 — 데스크톱 StockCard 의 가격 + 통계 박스만 (투자자 동향 X)
 // 폰트 모두 작게.
 
+// PC StockCard 와 동일 — Yahoo .KS/.KQ 정규장 종가 책갈피용
+interface KrRegInfo {
+  regularPrice: number;
+  regularPct: number;
+}
+
 interface Props {
   stock: Stock;
   price?: Price;
+  krReg?: KrRegInfo;          // Yahoo .KS 정규장 종가 — 책갈피 표시용
   peak?: number;
   sector?: string;
   warning?: string;
@@ -100,7 +107,7 @@ function openTossStock(ticker: string) {
 }
 
 export function MobileStockCard({
-  stock, price, peak, sector, warning, chart, investorHistory, consensus, memo, otherGroups,
+  stock, price, krReg, peak, sector, warning, chart, investorHistory, consensus, memo, otherGroups,
   onOpenValuation, onEdit, onDelete, onOpenMemo,
 }: Props) {
   // 투자자 매매동향 레이어 토글 (👥 버튼)
@@ -271,9 +278,10 @@ export function MobileStockCard({
         </div>
       </div>
 
-      {/* 카드 본체 — 좌우 박스 (50:50) */}
-      <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5
-                            ${!price.high ? "min-h-[90px]" : ""}
+      {/* 카드 본체 — 좌우 박스 (50:50).
+          min-h-[95px]: 책갈피(다른 그룹/정규장 마감/매수일)가 카드 위로 -top-2 빠져나오므로
+          최소 높이를 충분히 잡아야 짧은 카드(목표가 없는 경우)에서 책갈피끼리 안 겹침. */}
+      <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5 min-h-[95px]
                             ${cardBg} ${cardBorder}`}>
       {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크.
           Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
@@ -336,6 +344,29 @@ export function MobileStockCard({
         </>
       } className="basis-1/2 min-w-0">
       <div className="relative w-full h-full">
+      {/* 정규장 마감가 책갈피 — Yahoo .KS/.KQ 정규장 종가가 토스 현재가와 다를 때만.
+          15% 이상 차이 = Yahoo 매핑 오류 가능성으로 숨김.
+          가격 박스 바깥(상위 wrapper 자식)에 두어 overflow:hidden 에 잘리지 않게. */}
+      {krReg && krReg.regularPrice !== price.price
+            && price.price > 0
+            && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15 && (
+        <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
+                         border rounded text-[10px] leading-tight whitespace-nowrap
+                         ${krReg.regularPct > 0 ? "bg-rose-100/20 border-rose-300/20"
+                           : krReg.regularPct < 0 ? "bg-blue-100/20 border-blue-300/20"
+                           : "bg-white/20 border-gray-300/20"}`}>
+          <span className="text-gray-500">마감 </span>
+          <span className="text-gray-800 tabular-nums">
+            {Math.round(krReg.regularPrice).toLocaleString()}
+          </span>
+          <span className={`tabular-nums ml-1 font-bold
+                            ${krReg.regularPct > 0 ? "text-rose-600"
+                              : krReg.regularPct < 0 ? "text-blue-600"
+                              : "text-gray-700"}`}>
+            ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
+          </span>
+        </div>
+      )}
       {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}
       {(stock.shares > 0 || price.volume > 0) && (
         <div className="absolute -top-2 right-1 z-10 bg-white/70 border border-gray-200

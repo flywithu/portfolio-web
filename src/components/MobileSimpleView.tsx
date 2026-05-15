@@ -8,6 +8,7 @@ import { SortSelector, makeSortHandlers } from "./SortSelector";
 import { AuxBatchToggle } from "./AuxBatchToggle";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory,
+  fetchKrRegularPrices, verifyKrMarkets,
   fetchYahooChart, fetchKrPriceHistory,
 } from "../lib/api";
 import {
@@ -90,6 +91,7 @@ const KR_ORDER: string[] = [
 const US_ORDER: string[] = [
   "KRW=X", "DX-Y.NYB",
   "JPY=X", "^TNX",
+  "IEF", "TLT",            // 미국 중기·장기 국채 ETF — 10Y yield 가격 환산
   "^IXIC", "NQ=F",
   "^GSPC", "ES=F",
   "^N225", "SPY",
@@ -258,6 +260,51 @@ export function MobileSimpleView() {
     refetchInterval: REFRESH_MS,
   });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
+
+  // 한국 종목 거래소 자동 검증 — Toss stock-infos API (24h localStorage 캐시) — PC 동일 로직
+  const krxOnlyTickers = groupTickers.filter(t => /^\d{6}$/.test(t));
+  const { data: verifiedMarketMap } = useQuery({
+    queryKey: ["m-kr-markets-verified", krxOnlyTickers],
+    queryFn: async () => {
+      const cacheRaw = localStorage.getItem("kr_markets_verified") ?? "{}";
+      const cache = JSON.parse(cacheRaw) as Record<string, "KOSPI" | "KOSDAQ">;
+      const cacheTs = Number(localStorage.getItem("kr_markets_verified_ts") ?? "0");
+      const isFresh = Date.now() - cacheTs < 24 * 3600 * 1000;
+      const known = isFresh ? new Map(Object.entries(cache)) : new Map();
+      const toVerify = krxOnlyTickers.filter(t => !known.has(t));
+      if (toVerify.length === 0) return known;
+      const fresh = await verifyKrMarkets(toVerify);
+      for (const [t, mkt] of fresh) known.set(t, mkt);
+      const obj: Record<string, string> = {};
+      for (const [k, v] of known) obj[k] = v;
+      localStorage.setItem("kr_markets_verified", JSON.stringify(obj));
+      localStorage.setItem("kr_markets_verified_ts", String(Date.now()));
+      return known;
+    },
+    enabled: krxOnlyTickers.length > 0,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  // 검증된 시장(KSP/KSQ) → fetchKrRegularPrices 입력 Map
+  const krMarketMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of groupHoldingsUnsorted) {
+      if (!/^\d{6}$/.test(s.ticker)) continue;
+      const v = verifiedMarketMap?.get(s.ticker);
+      if (v) m.set(s.ticker, v);
+      else if (s.market) m.set(s.ticker, s.market);
+    }
+    return m;
+  }, [groupHoldingsUnsorted, verifiedMarketMap]);
+
+  // 한국 정규장 종가/변동률 (Yahoo .KS/.KQ batch) — 책갈피 표시용
+  const { data: krRegMap } = useQuery({
+    queryKey: ["m-kr-reg", krxOnlyTickers, Array.from(krMarketMap.entries()).flat().join(",")],
+    queryFn: () => fetchKrRegularPrices(krxOnlyTickers, krMarketMap),
+    enabled: krxOnlyTickers.length > 0 && krMarketMap.size > 0,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
 
   // 비거래일 감지 (PC 와 동일) — 첫 종목 high 없으면 비거래일
   // 비거래일에만 일봉 차트 fetch — 카드 가격 박스 sparkline (PC 와 캐시 키 공유)
@@ -536,6 +583,7 @@ export function MobileSimpleView() {
               <MobileStockCard key={s.ticker + (s.account ?? "")}
                                stock={s}
                                price={groupPriceMap.get(s.ticker)}
+                               krReg={krRegMap?.get(s.ticker)}
                                peak={peaks?.get(s.ticker)}
                                sector={naverInfos.data?.get(s.ticker)?.sector}
                                warning={warningMap.get(s.ticker) || undefined}
@@ -630,7 +678,17 @@ export function MobileSimpleView() {
               if (!p) return null;
               const q = usMap?.get(p.symbol);
               const sleeping = isSymbolSleeping(p.symbol);
-              const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
+              // 메인 가격 — 거래 휴장(POSTPOST/PREPRE/CLOSED) 시 시간외 마감가(postPrice) 우선 (PC 동일)
+              const closedStates = ["POSTPOST", "PREPRE", "CLOSED"];
+              const isClosed = q?.marketState != null && closedStates.includes(q.marketState);
+              const effPrice = isClosed && q?.postPrice ? q.postPrice : q?.price;
+              const effBase = q?.prevClose;
+              const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
+                ? q.regularPct
+                : (effPrice != null && effBase != null && effBase > 0
+                   ? ((effPrice - effBase) / effBase) * 100
+                   : null);
+              const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
               const isFuture = p.symbol.endsWith("=F");
               const bg = sleeping && dimEnabled
                 ? "bg-gray-100 border-gray-300"
@@ -642,16 +700,41 @@ export function MobileSimpleView() {
                 : cdiff < 0 ? "text-blue-600"
                 : "text-gray-900";
               const nameColor = isFuture ? "text-amber-700" : "text-gray-900";
+              // 책갈피 = 메인 가격이 정규장 종가와 다를 때만 (시간외 거래/마감 시)
+              const showCloseTag = q?.regularPrice != null && effPrice !== q.regularPrice;
+              const regPct = q?.regularPct ?? null;
+              const regSign = regPct == null ? "text-gray-700"
+                : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
+              const tagBg = regPct == null ? "bg-white/20 border-gray-300/20"
+                : regPct > 0 ? "bg-rose-100/20 border-rose-300/20"
+                : regPct < 0 ? "bg-blue-100/20 border-blue-300/20"
+                : "bg-white/20 border-gray-300/20";
               return (
                 <div key={p.symbol}
                      className={`relative overflow-hidden flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5
-                                  ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
+                                  ${bg} ${dimEnabled && (sleeping || isClosed) ? "opacity-60" : ""}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={300} height={70}
                              color={sleeping && dimEnabled ? "#94a3b8" : undefined}
                              className="absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none" />
+                  {/* 정규장 마감가 책갈피 — 메인이 시간외 가격일 때만 (PC 동일) */}
+                  {showCloseTag && q?.regularPrice != null && (
+                    <div className={`absolute top-0 right-1 z-10 px-1.5 py-0
+                                    border rounded-b
+                                    text-[9px] font-medium leading-tight whitespace-nowrap ${tagBg}`}>
+                      <span className="text-gray-500">마감 </span>
+                      <span className="text-gray-800 tabular-nums">
+                        {q.regularPrice < 1000 ? q.regularPrice.toFixed(2) : Math.round(q.regularPrice).toLocaleString()}
+                      </span>
+                      {regPct != null && (
+                        <span className={`tabular-nums ml-1 ${regSign}`}>
+                          ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="relative flex items-baseline gap-1.5">
                     {sleeping && (
                       <span className="text-[11px] text-gray-400">zZ</span>
@@ -677,11 +760,11 @@ export function MobileSimpleView() {
                   </div>
                   <div className="relative flex items-baseline mt-1">
                     <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
-                      {q ? fmtPrice(p.symbol, q.price) : "—"}
+                      {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
                     </span>
                     <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
-                      {q && Math.abs(q.pct) >= 0.005
-                        ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%`
+                      {pct != null && Math.abs(pct) >= 0.005
+                        ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`
                         : ""}
                     </span>
                   </div>

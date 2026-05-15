@@ -74,7 +74,7 @@ export function UsMarketTab() {
   // T0 그룹 — 비슷한 지수끼리 묶어서 줄별로 표시
   const T0_GROUPS: string[][] = [
     ["^KS11", "^KS200", "^KQ11", "^KQ100"],                       // 한국 지수 (맨 위)
-    ["KRW=X", "DX-Y.NYB", "JPY=X", "^TNX", "EWY", "^VIX"],     // 환율 + 매크로 + 외국인 투심 + 공포
+    ["KRW=X", "DX-Y.NYB", "JPY=X", "^TNX", "IEF", "TLT", "EWY", "^VIX"], // 환율 + 매크로 + 국채 가격 + 외국인 투심 + 공포
     ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],        // 원자재 + 비트코인
     ["^IXIC", "NQ=F", "^N225", "^GSPC", "ES=F", "^SOX", "SOX=F"], // 미국 지수·선물 + 닛케이 + 필반
     ["SPY", "QQQ", "DIA", "IWM", "VTI"],                          // 미국 대표 ETF
