@@ -1,85 +1,85 @@
-# 포트폴리오 v3 (PWA)
+# 포트폴리오 (Portfolio Web)
 
-데스크톱 v1/v2 + 모바일(Kivy)을 잇는 웹 버전. 무료 호스팅, 사용자 데이터 브라우저 로컬 저장.
+한국·미국 주식을 한눈에 보는 PWA. 토스·Yahoo·Naver 데이터를 통합해 보유 종목 손익·시간외 가격·정규장 종가·수급·컨센서스·기대가/목표가/손절가까지 한 카드에 표시합니다.
 
-> 📋 **모든 기능/규칙/색상 체계/경고 뱃지/그룹 시스템 정리** → [`FEATURES.md`](FEATURES.md)
-> 📖 **본인 전용 Cloudflare Worker 배포 가이드** → [`workers/proxy/DEPLOY-USER.md`](workers/proxy/DEPLOY-USER.md)
+> 사이트: https://hanjungwoo3.github.io/portfolio-web/
+
+- 정적 호스팅: GitHub Pages (무료)
+- CORS 프록시: 4-way 라운드 로빈 자동 페일오버 — Cloudflare · Vercel · Deno · Render
+- 사용자 데이터: 브라우저 IndexedDB (per-user 로컬, Google Drive 동기화 옵션)
 
 ## 아키텍처
 
 ```
-사용자 브라우저 (PWA)
-  ├─ React + TypeScript + Tailwind
-  ├─ TanStack Query (폴링/캐싱)
-  ├─ IndexedDB (Dexie) — holdings/peaks/config
-  └─ fetch ─→ Cloudflare Worker (CORS 프록시)
+브라우저 (PWA)
+  ├─ React + TypeScript + Vite + Tailwind
+  ├─ TanStack Query (자동 폴링·캐싱)
+  ├─ Dexie (IndexedDB) — holdings / peaks / memos
+  └─ fetch ─→ CORS 프록시 (Cloudflare/Vercel/Deno/Render 라운드 로빈)
                      ↓
-                Toss API / Naver
+            Toss · Yahoo Finance · Naver · DART
 ```
-
-- 정적 호스팅: GitHub Pages (무료)
-- CORS 프록시: Cloudflare Workers (무료 티어 100K req/day)
-- 데이터: 브라우저 IndexedDB (per-user, 자동)
 
 ## 폴더
 
 | 경로 | 설명 |
 |------|------|
 | `src/` | React 앱 (Vite) |
-| `workers/proxy/` | Cloudflare Worker (CORS 프록시) |
+| `workers/proxy/` | Cloudflare Worker — 주력 프록시 |
+| `workers/vercel-proxy/` | Vercel Edge Function |
+| `workers/deno-proxy/` | Deno Deploy |
+| `workers/render-proxy/` | Render |
 
 ## 로컬 개발
 
-### 1. Worker 실행
-```bash
-cd workers/proxy
-npm install
-npx wrangler dev      # http://localhost:8787
-```
-
-### 2. Vite 실행 (별도 터미널)
 ```bash
 npm install
 npm run dev           # http://localhost:5173
 ```
 
-브라우저에서 http://localhost:5173 — 데모 4종목 카드 표시.
+`.env.production` 또는 `.env.local` 에 프록시 URL 설정:
+```
+VITE_PROXY_URL=https://portfolio-proxy.<sub>.workers.dev
+VITE_PROXY_URL_2=https://<your-vercel>.vercel.app
+VITE_PROXY_URL_3=https://<your-deno>.deno.net
+VITE_PROXY_URL_4=https://<your-render>.onrender.com
+```
+
+빈 값은 자동으로 제외되어 나머지로만 운영됩니다 (`filter(Boolean)`).
 
 ## 배포
 
-### Worker (Cloudflare)
 ```bash
-cd workers/proxy
-npx wrangler login    # 1회
-npx wrangler deploy   # → https://portfolio-proxy.<sub>.workers.dev
+npm run deploy
 ```
+한 명령으로:
+1. `npm run build` (predeploy)
+2. `git push origin main` — 소스 동기화
+3. `gh-pages -d dist -b gh-pages` — `gh-pages` 브랜치에 빌드 결과 publish
 
-배포 URL을 `.env.production` 의 `VITE_PROXY_URL` 에 설정.
+push 실패 시 사이트 publish 가 차단되어 **사이트와 소스 일관성이 보장**됩니다.
 
-### 웹앱 (GitHub Pages)
-```bash
-npm run build         # → dist/
-# .github/workflows/deploy.yml 로 자동 배포 (추후 추가)
-```
+## 프록시 워커
 
-## 데이터 호환
+각 워커 폴더 안의 README/DEPLOY 가이드 참고.
 
-데스크톱 v2 / 모바일의 `holdings.json` import 지원 (예정). 스키마:
+- Cloudflare: `workers/proxy/DEPLOY-USER.md` (본인 전용 워커 1-3분 셋업)
+- Vercel / Deno / Render: 각 폴더 `README.md`
+
+## 데이터 import / export
+
+설정 다이얼로그에서 JSON 으로 가져오기·내보내기. 스키마 예:
 ```json
 {
   "holdings": [
     { "ticker": "005930", "name": "삼성전자",
-      "shares": 10, "avg_price": 200000,
-      "account": "" }
-  ]
+      "shares": 10, "avg_price": 60000,
+      "account": "보유" }
+  ],
+  "peaks": { "005930": 75000 }
 }
 ```
 
-## v1/v2/모바일 / v3 관계
+## 자세한 기능 정리
 
-- v1 (`portfolio_window.py`): 데스크톱 Tkinter, 단일 탭
-- v2 (`portfolio_window_v2.py`): 데스크톱 Tkinter, 사용자 그룹 + 검색
-- 모바일 (`mobile/`): Kivy → Android APK
-- **v3 (이 폴더): 웹 PWA — 모든 플랫폼 단일 코드**
-
-v3 출시 후에도 v2/모바일은 그대로 유지.
+색상 규칙, 메모 시스템, 그룹/탭 정책, 책갈피·dim 처리, 정규장/시간외 변동률 등 모든 운영 규칙은 [`FEATURES.md`](FEATURES.md) 참고.
