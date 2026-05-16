@@ -197,12 +197,17 @@ export function UsMarketTab() {
               if (!p) return null;
               const q = usMap?.get(p.symbol);
               const sleeping = isSymbolSleeping(p.symbol);
-              // 메인 가격 — 거래 휴장(POSTPOST/PREPRE/CLOSED) 시 시간외 마감가(postPrice) 우선
-              const closedStates = ["POSTPOST", "PREPRE", "CLOSED"];
-              const isClosed = q?.marketState != null && closedStates.includes(q.marketState);
-              const effPrice = isClosed && q?.postPrice ? q.postPrice : q?.price;
+              // 메인 가격/변동률 — 한국 입장(미국장 마감 후 아침에 확인):
+              // · REGULAR: regularPct (어제 종가 대비)
+              // · 시간외(PRE/POST/POSTPOST/PREPRE/CLOSED): postPrice + 어제 종가(prevClose) 대비
+              //   = 정규장 + 시간외 누적 변동률 (예: -7.75%)
+              // 시간외 진입~마감 전체 구간에서 postPrice 일관 사용 → POST↔POSTPOST 전환 시 점프 없음
+              const offHoursStates = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"];
+              const isOffHours = q?.marketState != null && offHoursStates.includes(q.marketState);
+              const isClosed = q?.marketState != null
+                && ["POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState);
+              const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
-              // 메인 변동률 — REGULAR 시 Yahoo raw 우선, 그 외 시간외 합산
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
                 ? q.regularPct
                 : (effPrice != null && effBase != null && effBase > 0

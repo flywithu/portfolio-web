@@ -30,16 +30,18 @@ const MOOD_TEXT: Record<Mood, string> = {
   bad:     "text-blue-600",
   neutral: "text-gray-600",
 };
-// 메인 가격과 동일 로직 — 거래 휴장 시엔 시간외 마감가, 그 외는 q.price
+// 시간외 상태 — REGULAR 가 아닌 모든 상태. 한국 입장 누적 변동률: base = prevClose (어제 종가)
+const OFF_HOURS_STATES = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"];
+// 메인 가격 — 시간외엔 postPrice(시간외 가격), 그 외는 q.price.
+// 시간외 전체에서 일관 사용 → POST↔POSTPOST 전환 시 점프 없음
 function effPriceOf(q?: UsIndex): number | null {
   if (!q) return null;
-  const closedStates = ["POSTPOST", "PREPRE", "CLOSED"];
-  if (q.marketState && closedStates.includes(q.marketState) && q.postPrice) {
+  if (q.marketState && OFF_HOURS_STATES.includes(q.marketState) && q.postPrice) {
     return q.postPrice;
   }
   return q.price;
 }
-// 어제 종가 대비 합산 변동률 — 시간외 변동도 자동 반영
+// 메인 변동률 — 어제 종가 대비 누적 (정규장 + 시간외 합산)
 function pctOf(q?: UsIndex): number | null {
   if (!q) return null;
   const p = effPriceOf(q);
@@ -72,16 +74,14 @@ function colorFor(pct: number | null, direction: Direction = "direct"): string {
   return isUp ? "text-rose-600" : isDown ? "text-blue-600" : "text-gray-700";
 }
 function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled = false }: MiniProps) {
-  // 메인 가격 = 가장 최신 NASDAQ 거래 가격.
-  //   REGULAR/PRE/POST: q.price (Yahoo 분기로 라이브 가격 자동 설정)
-  //   POSTPOST/PREPRE/CLOSED: 거래 휴장 → 시간외 마감가(postPrice) 가 가장 최신
-  const closedStates = ["POSTPOST", "PREPRE", "CLOSED"];
-  const effPrice = q?.marketState && closedStates.includes(q.marketState) && q.postPrice
-    ? q.postPrice
-    : q?.price;
+  // 메인 가격/변동률 — 한국 입장 누적 변동률 (정규장 + 시간외 합산):
+  // · REGULAR: regularPct (어제 종가 대비)
+  // · 시간외(PRE/POST/POSTPOST/PREPRE/CLOSED): postPrice 사용, 어제 종가(prevClose) 대비
+  const isOffHours = !!(q?.marketState && OFF_HOURS_STATES.includes(q.marketState));
+  const isClosed = !!(q?.marketState
+    && ["POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState));
+  const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
   const effBase = q?.prevClose;
-  // 메인 변동률 — REGULAR 시 Yahoo raw regularPct 우선 (선물 등 base 불일치 종목 대응),
-  // 그 외 (POST/POSTPOST 등) 시 시간외 포함 합산 변동률
   const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
     ? q.regularPct
     : (effPrice != null && effBase != null && effBase > 0
@@ -127,7 +127,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
       })()}
     <div className={`relative overflow-hidden
                      flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}
-                     ${dimEnabled && q?.marketState && closedStates.includes(q.marketState) ? "opacity-60" : ""}`}>
+                     ${dimEnabled && isClosed ? "opacity-60" : ""}`}>
       <Sparkline data={chart} width={400} height={80}
                  color={chart.length > 1
                    ? (chart[chart.length - 1] > chart[0]

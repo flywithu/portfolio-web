@@ -678,10 +678,13 @@ export function MobileSimpleView() {
               if (!p) return null;
               const q = usMap?.get(p.symbol);
               const sleeping = isSymbolSleeping(p.symbol);
-              // 메인 가격 — 거래 휴장(POSTPOST/PREPRE/CLOSED) 시 시간외 마감가(postPrice) 우선 (PC 동일)
-              const closedStates = ["POSTPOST", "PREPRE", "CLOSED"];
-              const isClosed = q?.marketState != null && closedStates.includes(q.marketState);
-              const effPrice = isClosed && q?.postPrice ? q.postPrice : q?.price;
+              // 메인 가격/변동률 (PC UsMarketTab 동일 로직) — 한국 입장 누적 변동률:
+              // REGULAR → regularPct, 시간외 → postPrice + 어제 종가 대비 합산
+              const offHoursStates = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"];
+              const isOffHours = q?.marketState != null && offHoursStates.includes(q.marketState);
+              const isClosed = q?.marketState != null
+                && ["POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState);
+              const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
                 ? q.regularPct
