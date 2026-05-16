@@ -15,6 +15,7 @@ import { TodayPnLTable } from "./components/TodayPnLTable";
 import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FeedbackDialog } from "./components/FeedbackDialog";
+import { DonateDialog } from "./components/DonateDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
@@ -56,10 +57,6 @@ function useIsMobile(): boolean {
 
 // 기본 폴링 — 공개 4-way: 10초 / 전용 프록시 사용 시: localStorage 설정값 (5/10/30/60초)
 // 다운 시 자동 증가 (base × (1 + downCount))
-
-// 카카오페이 송금받기 링크 (모바일/카카오톡 deep link)
-const KAKAOPAY_URL = "https://qr.kakaopay.com/FCscirjeF";
-const QR_IMG_URL = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(KAKAOPAY_URL)}`;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -350,40 +347,41 @@ function Dashboard() {
                          hover:bg-gray-100 transition">
               🔄
             </button>
+            {/* 모바일 헤더와 통일 — 아이콘 제거, 짧은 한글 라벨 */}
             <button
               onClick={() => setSearchOpen(true)}
+              title="종목 검색 / 추가 — 검색 결과에서 수량·평단 입력 시 보유로 등록"
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
                          text-white rounded text-sm">
-              🔍 검색
+              검색/주식추가
             </button>
             <button
               onClick={() => setHelpOpen(true)}
               title="사용법 빠른 시작"
               className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
                          text-gray-700 rounded text-sm">
-              ❓ 사용법
+              사용법
             </button>
             <button
-               onClick={() => setFeedbackOpen(true)}
-               title="기능 요청 / 버그 신고 / 의견 (가입 없이 익명 작성)"
-               className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100
-                          text-emerald-700 rounded text-sm border border-emerald-200">
-              💡 기능 요청
+              onClick={() => setFeedbackOpen(true)}
+              title="기능 요청 / 버그 신고 / 의견 (가입 없이 익명 작성)"
+              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100
+                         text-emerald-700 rounded text-sm border border-emerald-200">
+              질문하기
             </button>
             <button
               onClick={() => setDonateOpen(true)}
               title="개발자 후원하기 (카카오페이)"
-              className="px-2 py-1 rounded text-xs flex items-center gap-1
-                         text-gray-400 opacity-60 hover:opacity-100
-                         hover:text-gray-600 transition">
-              <span className="opacity-50">☕</span>
-              <span className="hidden sm:inline">개발자 후원하기</span>
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
+                         text-gray-700 rounded text-sm">
+              후원하기
             </button>
             <button
               onClick={() => setSettingsOpen(true)}
+              title="설정"
               className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
                          text-gray-700 rounded text-sm">
-              ⚙️ 설정
+              설정
             </button>
           </div>
         </div>
@@ -531,46 +529,7 @@ function Dashboard() {
         onChanged={() => setReloadKey(k => k + 1)}
       />
 
-      {donateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center
-                         bg-black/40 p-4"
-             onClick={() => setDonateOpen(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6
-                           text-center"
-               onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-1">☕ 후원해주셔서 감사합니다</h2>
-            <p className="text-xs text-gray-600 leading-relaxed mb-4">
-              모인 후원금은 <b>Cloudflare Worker 운영비</b>,
-              <br />그리고 <b>꾸준한 기능 개발·유지보수</b>에 사용됩니다.
-              <br />
-              <span className="text-gray-400">
-                (개발자가 퇴근 후 시간을 쪼개 만들고 있어요 🙏)
-              </span>
-            </p>
-            <div className="bg-[#FEE500] rounded-lg p-4 inline-block mb-3">
-              <img src={QR_IMG_URL} alt="카카오페이 QR" width={200} height={200}
-                   className="block mx-auto" />
-            </div>
-            <p className="text-xs text-gray-600 mb-1">
-              📱 <strong>카카오톡 앱</strong>의 QR 스캔이 가장 빠릅니다
-            </p>
-            <p className="text-[11px] text-gray-400 mb-3">
-              카메라/토스로 스캔 시 카카오톡으로 자동 이동
-            </p>
-            <a href={KAKAOPAY_URL}
-               target="_blank" rel="noopener noreferrer"
-               className="block px-4 py-2 rounded font-bold text-[#191919]
-                          hover:brightness-95"
-               style={{ backgroundColor: "#FEE500" }}>
-              모바일에서 직접 열기
-            </a>
-            <button onClick={() => setDonateOpen(false)}
-                    className="mt-3 text-sm text-gray-500 hover:text-gray-700">
-              닫기
-            </button>
-          </div>
-        </div>
-      )}
+      <DonateDialog isOpen={donateOpen} onClose={() => setDonateOpen(false)} />
 
       {valuationTicker && (() => {
         const s = holdings.find(h => h.ticker === valuationTicker);
