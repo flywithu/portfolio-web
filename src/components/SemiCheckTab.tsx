@@ -9,6 +9,7 @@ import { Sparkline } from "./Sparkline";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { isSymbolSleeping } from "../lib/format";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
@@ -78,8 +79,12 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
   // · REGULAR: regularPct (어제 종가 대비)
   // · 시간외(PRE/POST/POSTPOST/PREPRE/CLOSED): postPrice 사용, 어제 종가(prevClose) 대비
   const isOffHours = !!(q?.marketState && OFF_HOURS_STATES.includes(q.marketState));
+  // dim 처리 — marketState 기반 + 시간 기반 fallback.
+  // 토스 인덱스(SOX.NAI 등)는 marketState="" 라 marketState 만으로는 판정 불가 →
+  // isSymbolSleeping(시간대 기반)도 함께 OR 처리
   const isClosed = !!(q?.marketState
-    && ["POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState));
+    && ["POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState));
+  const sleeping = isSymbolSleeping(symbol);
   const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
   const effBase = q?.prevClose;
   const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
@@ -127,7 +132,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
       })()}
     <div className={`relative overflow-hidden
                      flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}
-                     ${dimEnabled && isClosed ? "opacity-60" : ""}`}>
+                     ${dimEnabled && (isClosed || sleeping) ? "opacity-60" : ""}`}>
       <Sparkline data={chart} width={400} height={80}
                  color={chart.length > 1
                    ? (chart[chart.length - 1] > chart[0]

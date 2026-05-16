@@ -682,8 +682,9 @@ export function MobileSimpleView() {
               // REGULAR → regularPct, 시간외 → postPrice + 어제 종가 대비 합산
               const offHoursStates = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"];
               const isOffHours = q?.marketState != null && offHoursStates.includes(q.marketState);
+              // dim 처리 — 정규장 마감 후 모든 상태 (POST 부터). PRE 는 새 거래일 시작 직전이라 제외.
               const isClosed = q?.marketState != null
-                && ["POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState);
+                && ["POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState);
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
