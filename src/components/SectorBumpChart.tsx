@@ -249,6 +249,7 @@ export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover }: Props
                   <g key={k}>
                     <circle cx={pt.x} cy={y} r={r}
                             fill={color} stroke="#fff" strokeWidth="1" />
+                    {/* 점 위 = 정렬 모드 값 */}
                     {label && (
                       <text x={pt.x} y={y - r - 3}
                             textAnchor="middle"
@@ -257,6 +258,16 @@ export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover }: Props
                             fontWeight={isHovered ? 700 : 500}
                             opacity={isHovered ? 1 : 0.7}>
                         {label}
+                      </text>
+                    )}
+                    {/* 점 아래 = 순위 — 호버 시에만 표시 */}
+                    {isHovered && (
+                      <text x={pt.x} y={y + r + 9}
+                            textAnchor="middle"
+                            fontSize="9"
+                            fill="#6b7280"
+                            fontWeight="600">
+                        {pt.rank}위
                       </text>
                     )}
                   </g>
