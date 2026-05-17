@@ -47,11 +47,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const [conflicts, setConflicts] = useState<TickerConflict[] | null>(null);
   const [tabVis, setTabVis] = useState(getTabVisibility());
 
-  const toggleTab = (key: "usMarket" | "semiCheck" | "myStocks", v: boolean) => {
+  const toggleTab = (key: "usMarket" | "semiCheck" | "sectorRank" | "myStocks", v: boolean) => {
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
     setTabVisibility({ [key]: v });
-    const labelMap = { usMarket: "지수", semiCheck: "반도체", myStocks: "내주식" };
+    const labelMap = { usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식" };
     setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
     onChanged();
   };
@@ -549,6 +549,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                          onChange={e => toggleTab("usMarket", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
                   <span className="text-[11px] text-gray-700">📈 지수</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.sectorRank}
+                         onChange={e => toggleTab("sectorRank", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">🏷 섹터</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input type="checkbox" checked={tabVis.semiCheck}

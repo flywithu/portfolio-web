@@ -8,7 +8,8 @@ import {
 import { loadHoldings, loadPeaks, loadMemos, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateLegacyHoldGroup } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, MY_STOCKS_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY } from "./components/Tabs";
+import { SectorRankingTab } from "./components/SectorRankingTab";
 import { getTabVisibility } from "./lib/tabVisibility";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
@@ -402,6 +403,8 @@ function Dashboard() {
 
         {activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab />
+        ) : activeTab === SECTOR_RANK_TAB_KEY ? (
+          <SectorRankingTab />
         ) : activeTab === SEMI_CHECK_TAB_KEY ? (
           <SemiCheckTab />
         ) : visible.length === 0 ? (

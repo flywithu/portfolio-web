@@ -114,6 +114,212 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
   return out;
 }
 
+// 한국 섹터 ranking — KODEX/TIGER 섹터 ETF 기반 자체 계산.
+// 우리 사이트와 일관성(매크로 탭 한국 ETF 줄과 동일) + 4기간(오늘/5/10/20일) 모두 활성화.
+// Yahoo chart 일별 종가 → 마지막 vs N거래일 전 종가 비교로 등락률 계산.
+export interface KrSectorEtf {
+  ticker: string;   // 6자리 (Yahoo 호출 시 .KS 자동 추가)
+  name: string;     // 섹터 표시명 (예: "반도체")
+  fullName?: string; // ETF 정식명 (호버용)
+  isMarket?: boolean; // 시장 전체 proxy(KOSPI/KOSDAQ) — 시각 구분용
+}
+export const KR_SECTOR_ETFS: KrSectorEtf[] = [
+  // 시장 전체 ETF (proxy) — KOSPI 200 / KOSDAQ 150 추종
+  { ticker: "069500", name: "KODEX 200",      fullName: "KODEX 200 (KOSPI 200 추종)",          isMarket: true },
+  { ticker: "229200", name: "KODEX 코스닥150", fullName: "KODEX KOSDAQ 150 (KOSDAQ 150 추종)",  isMarket: true },
+  // 섹터 ETF
+  { ticker: "091160", name: "반도체",   fullName: "KODEX 반도체" },
+  { ticker: "117700", name: "건설",     fullName: "KODEX 건설" },
+  { ticker: "305720", name: "2차전지",  fullName: "KODEX 2차전지" },
+  { ticker: "244580", name: "바이오",   fullName: "KODEX 바이오" },
+  { ticker: "091170", name: "은행",     fullName: "KODEX 은행" },
+  { ticker: "449450", name: "방산",     fullName: "K-방산" },
+  { ticker: "266420", name: "헬스케어", fullName: "KODEX 헬스케어" },
+  { ticker: "445290", name: "로봇",     fullName: "KODEX 로봇" },
+  { ticker: "091180", name: "자동차",   fullName: "KODEX 자동차" },
+  { ticker: "102970", name: "증권",     fullName: "KODEX 증권" },
+  { ticker: "117680", name: "철강",     fullName: "KODEX 철강" },
+  { ticker: "117460", name: "에너지화학", fullName: "KODEX 에너지화학" },
+];
+
+export interface KrSectorEtfRank {
+  ticker: string;
+  name: string;
+  fullName?: string;
+  isMarket?: boolean;
+  today: number | null;   // 오늘 등락률 (%) — 어제 종가 대비
+  d5: number | null;      // 5거래일 (1주)
+  d10: number | null;     // 10거래일 (2주)
+  d20: number | null;     // 20거래일 (1달)
+  // 각 기간 거래대금 합계 (원)
+  amountToday: number | null;
+  amountD5: number | null;
+  amountD10: number | null;
+  amountD20: number | null;
+  // OBV-like 누적 (상승일 +close×volume / 하락일 −close×volume) — 정밀 자금 유출입 추정
+  obvToday: number | null;
+  obvD5: number | null;
+  obvD10: number | null;
+  obvD20: number | null;
+  lastClose: number | null;
+}
+
+function pctBetween(closes: number[], lookback: number): number | null {
+  if (closes.length < lookback + 1) return null;
+  const last = closes[closes.length - 1];
+  const prev = closes[closes.length - 1 - lookback];
+  if (!Number.isFinite(last) || !Number.isFinite(prev) || prev <= 0) return null;
+  return ((last - prev) / prev) * 100;
+}
+
+// 마지막 N 거래일 거래대금 합계 = Σ(close × volume) 마지막 N 개
+function amountSum(closes: number[], volumes: number[], lookback: number): number | null {
+  const len = Math.min(closes.length, volumes.length);
+  if (len < lookback) return null;
+  let s = 0;
+  for (let i = len - lookback; i < len; i++) {
+    const c = closes[i], v = volumes[i];
+    if (Number.isFinite(c) && Number.isFinite(v)) s += c * v;
+  }
+  return s;
+}
+
+// OBV-like 누적: 각 일별 sign(이전 종가 대비) × close × volume 의 합.
+// lookback N 이면 그 N 거래일 안에서만 누적 (직전 일과 비교 필요해서 N+1 개 필요).
+function obvSum(closes: number[], volumes: number[], lookback: number): number | null {
+  const len = Math.min(closes.length, volumes.length);
+  if (len < lookback + 1) return null;
+  let s = 0;
+  for (let i = len - lookback; i < len; i++) {
+    const cPrev = closes[i - 1], c = closes[i], v = volumes[i];
+    if (!Number.isFinite(cPrev) || !Number.isFinite(c) || !Number.isFinite(v)) continue;
+    const sign = c > cPrev ? 1 : c < cPrev ? -1 : 0;
+    s += sign * c * v;
+  }
+  return s;
+}
+
+// chart endpoint — close + volume 둘 다 추출 (시간순 정렬)
+async function fetchYahooChartCV(symbol: string, range = "2mo"): Promise<{ closes: number[]; volumes: number[] }> {
+  const target = `https://query1.finance.yahoo.com/v8/finance/chart/`
+              + `${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return { closes: [], volumes: [] };
+    const data = await resp.json() as {
+      chart?: { result?: Array<{ indicators?: { quote?: Array<{
+        close?: (number | null)[]; volume?: (number | null)[];
+      }> } }> }
+    };
+    const q = data.chart?.result?.[0]?.indicators?.quote?.[0];
+    const rawC = q?.close ?? [];
+    const rawV = q?.volume ?? [];
+    // null 제거 시 close/volume 인덱스 일치 보장 — 같은 위치에서 함께 필터
+    const closes: number[] = [];
+    const volumes: number[] = [];
+    for (let i = 0; i < Math.max(rawC.length, rawV.length); i++) {
+      const c = rawC[i], v = rawV[i];
+      if (typeof c === "number" && Number.isFinite(c)
+          && typeof v === "number" && Number.isFinite(v)) {
+        closes.push(c);
+        volumes.push(v);
+      }
+    }
+    return { closes, volumes };
+  } catch {
+    return { closes: [], volumes: [] };
+  }
+}
+
+export async function fetchKrSectorEtfRanking(): Promise<KrSectorEtfRank[]> {
+  const results = await Promise.all(
+    KR_SECTOR_ETFS.map(async etf => {
+      const { closes, volumes } = await fetchYahooChartCV(`${etf.ticker}.KS`, "2mo");
+      if (closes.length < 2) {
+        return {
+          ticker: etf.ticker, name: etf.name, fullName: etf.fullName, isMarket: etf.isMarket,
+          today: null, d5: null, d10: null, d20: null,
+          amountToday: null, amountD5: null, amountD10: null, amountD20: null,
+          obvToday: null, obvD5: null, obvD10: null, obvD20: null,
+          lastClose: null,
+        } as KrSectorEtfRank;
+      }
+      return {
+        ticker: etf.ticker, name: etf.name, fullName: etf.fullName,
+        today: pctBetween(closes, 1),
+        d5: pctBetween(closes, 5),
+        d10: pctBetween(closes, 10),
+        d20: pctBetween(closes, 20),
+        amountToday: amountSum(closes, volumes, 1),
+        amountD5: amountSum(closes, volumes, 5),
+        amountD10: amountSum(closes, volumes, 10),
+        amountD20: amountSum(closes, volumes, 20),
+        obvToday: obvSum(closes, volumes, 1),
+        obvD5: obvSum(closes, volumes, 5),
+        obvD10: obvSum(closes, volumes, 10),
+        obvD20: obvSum(closes, volumes, 20),
+        lastClose: closes[closes.length - 1],
+      } as KrSectorEtfRank;
+    })
+  );
+  return results;
+}
+
+// 한국 업종(섹터) ranking — 토스 TICS (Toss Industry Classification System) depth1 = 대분류.
+// 응답: 섹터별 오늘 등락률 + 순위 + 상승/하락 종목 수 + 아이콘.
+// 기간(5/10/20일) 별 endpoint 는 미확인 → 우선 오늘만.
+export interface KrSectorRankItem {
+  ticsId: string;        // 섹터 식별자 (예: "425" = 윤활유)
+  title: string;         // 섹터명 한국어
+  pct: number;           // 등락률 (+9.6 = +9.6%)
+  ranking: number;       // 순위 (1부터)
+  priceLabel?: string;   // "3개 중 2개 종목 상승" 같은 보조 라벨
+  imageUrl?: string;     // 섹터 아이콘 (토스 CDN)
+  imageBgLight?: string; // 아이콘 배경 (라이트 모드)
+  imageBgDark?: string;
+}
+export async function fetchKrSectorRanking(): Promise<KrSectorRankItem[]> {
+  const target = "https://wts-info-api.tossinvest.com/api/v1/rankings/contents/tics_margin_depth1/tags/kr";
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const data = await resp.json() as {
+      result?: {
+        data?: Array<{
+          ticsId?: string;
+          title?: string;
+          value?: string;       // "+9.6%"
+          ranking?: number;
+          priceValue?: string;
+          imageUrl?: string;
+          imageBackground?: { light?: string; dark?: string };
+        }>;
+      };
+    };
+    const items = data.result?.data ?? [];
+    return items
+      .map(r => {
+        const pctNum = parseFloat((r.value ?? "0").replace(/[+%,\s]/g, ""));
+        const ticsId = r.ticsId ?? "";
+        const title = r.title ?? "";
+        if (!ticsId || !title) return null;
+        return {
+          ticsId, title,
+          pct: Number.isFinite(pctNum) ? pctNum : 0,
+          ranking: r.ranking ?? 0,
+          priceLabel: r.priceValue ?? undefined,
+          imageUrl: r.imageUrl ?? undefined,
+          imageBgLight: r.imageBackground?.light,
+          imageBgDark: r.imageBackground?.dark,
+        } as KrSectorRankItem;
+      })
+      .filter((x): x is KrSectorRankItem => x !== null)
+      .sort((a, b) => a.ranking - b.ranking);
+  } catch {
+    return [];
+  }
+}
+
 // 한국 주식 정규장 종가/변동률 — Yahoo v7 batch (15분 지연이지만 마감가는 정확)
 // 토스 close 는 시간외 단일가 포함이라 정규장 종가와 다를 수 있음 — 분리 필요.
 export interface KrRegularPrice {

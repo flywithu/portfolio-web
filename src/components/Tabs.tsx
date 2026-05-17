@@ -91,19 +91,23 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
 
 export const US_MARKET_TAB_KEY = "__us-market__";
 export const SEMI_CHECK_TAB_KEY = "__semi-check__";
+// 한국 섹터 순위 — 토스 TICS depth1 기반, 돈의 흐름 시각화
+export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 // 가상 합산 그룹 — 모든 그룹의 동일 ticker 를 합쳐 표시 (수량/평단 통합 뷰)
 export const MY_STOCKS_TAB_KEY = "__my-stocks__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
-  "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, MY_STOCKS_TAB_KEY,
+  "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY,
 ]);
 
-// 미국증시 → 반도체 점검 → 내주식(합산) → 보유 → 사용자 그룹 알파벳 순.
+// 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 보유 → 사용자 그룹 알파벳 순.
 // visibility 미지정 시 시스템 탭 모두 노출 (기본 동작).
 export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpec[] {
   const showUs = visibility?.usMarket ?? true;
   const showSemi = visibility?.semiCheck ?? true;
+  const showSector = visibility?.sectorRank ?? true;
   const showMy = visibility?.myStocks ?? true;
   const counts = new Map<string, number>();
   const uniqHeld = new Set<string>();
@@ -114,6 +118,8 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   }
   const tabs: TabSpec[] = [];
   if (showUs) tabs.push({ key: US_MARKET_TAB_KEY, label: "지수", emoji: "📈", count: 0 });
+  // 섹터 — 지수와 반도체 사이 위치 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마)
+  if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터", emoji: "🏷", count: 0 });
   if (showSemi) tabs.push({ key: SEMI_CHECK_TAB_KEY, label: "반도체", emoji: "🔧", count: 0 });
   // 1) 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {

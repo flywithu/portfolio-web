@@ -49,6 +49,7 @@ import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";
 import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
+import { SectorRankingTab } from "./SectorRankingTab";
 import { MobileTodayPnLLayer } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
 import { FeedbackDialog } from "./FeedbackDialog";
@@ -69,6 +70,7 @@ import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
 const US_KEY = "__us__";  // 미국 (환율·매크로·원자재·미국지수·미국 대표 ETF)
 const SEMI_KEY = "__semi__";  // 반도체 점검 — MU·NVDA·장비주·환율
+const SECTOR_KEY = "__sector__";  // 한국 섹터 순위 — 토스 TICS depth1 ranking
 const MY_KEY = "__my-stocks__";  // 내주식(가상 합산) — 모든 그룹의 동일 ticker 를 shares 합/가중평균 평단
 const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 
@@ -143,7 +145,8 @@ export function MobileSimpleView() {
     if (typeof localStorage === "undefined") return KR_KEY;
     return localStorage.getItem(TAB_KEY) ?? KR_KEY;
   });
-  const isSystemTab = activeTab === KR_KEY || activeTab === US_KEY || activeTab === SEMI_KEY;
+  const isSystemTab = activeTab === KR_KEY || activeTab === US_KEY
+    || activeTab === SEMI_KEY || activeTab === SECTOR_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -188,6 +191,9 @@ export function MobileSimpleView() {
     if (vis.usMarket) {
       tabs.push({ key: KR_KEY, label: "섹터", count: 0 });
       tabs.push({ key: US_KEY, label: "매크로", count: 0 });
+    }
+    if (vis.sectorRank) {
+      tabs.push({ key: SECTOR_KEY, label: "🏷섹터", count: 0 });
     }
     if (vis.semiCheck) {
       tabs.push({ key: SEMI_KEY, label: "🔧반도체", count: 0 });
@@ -676,10 +682,13 @@ export function MobileSimpleView() {
         </>
       )}
 
-      {/* ─── 한국 / 미국 / 반도체 점검 시스템 탭 ─── */}
+      {/* ─── 한국 / 미국 / 반도체 점검 / 섹터 순위 시스템 탭 ─── */}
       {isSystemTab && (() => {
         if (activeTab === SEMI_KEY) {
           return <div className="px-2 py-2"><SemiCheckTab /></div>;
+        }
+        if (activeTab === SECTOR_KEY) {
+          return <div className="px-2 py-2"><SectorRankingTab /></div>;
         }
         const order = activeTab === KR_KEY ? KR_ORDER : US_ORDER;
         // 한국 탭은 KOSPI/KOSDAQ 카드와 짝(미국 ETF/한국 ETF 페어)
@@ -1307,6 +1316,7 @@ function SettingsModal({
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                 {([
                   { key: "usMarket" as const, label: "📈 지수" },
+                  { key: "sectorRank" as const, label: "🏷 섹터" },
                   { key: "semiCheck" as const, label: "🔧 반도체" },
                   { key: "myStocks" as const, label: "📦 내주식" },
                 ]).map(({ key, label }) => (
