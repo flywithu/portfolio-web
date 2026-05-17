@@ -148,11 +148,11 @@ function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMod
                       title="거래대금 (실제 자금 이동량)">
                   {amt != null ? fmtAmount(amt) : "—"}
                 </span>
-                <span className={`text-right font-bold ${etf.isMarket ? "text-gray-500" : pctColor(pct)}`}
+                <span className={`text-right font-bold ${pctColor(pct)}`}
                       title="등락률 (가격 변동 강도)">
                   {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
                 </span>
-                <span className={`text-right font-semibold ${etf.isMarket ? "text-gray-500" : pctColor(obv)}`}
+                <span className={`text-right font-semibold ${pctColor(obv)}`}
                       title="유입: 상승일 +volume·하락일 −volume 누적 (OBV-like) — 정밀 자금 유출입 추정">
                   {obv != null ? fmtAmount(obv) : "—"}
                 </span>
