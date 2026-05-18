@@ -2,7 +2,7 @@
 // 매출 / 영업이익 / EPS 3개. SVG 직접 (FinancialCharts 와 동일한 의존성 0 패턴).
 
 import { useEffect, useState } from "react";
-import type { EstimateSeries } from "../lib/api";
+import type { EstimateSeries, EstimatePoint } from "../lib/api";
 import { checkPersonalProxyPostSupport, type PersonalProxyStatus } from "../lib/proxyConfig";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
@@ -65,7 +65,7 @@ interface SingleChartProps {
 }
 
 function SingleChart({ title, series, format }: SingleChartProps) {
-  const { points } = series;
+  const { points, fluctuationRate } = series;
   if (points.length < 2) {
     return (
       <section className="border border-gray-200 rounded p-2.5 bg-white">
@@ -111,14 +111,49 @@ function SingleChart({ title, series, format }: SingleChartProps) {
     estPath.push(`${estPath.length === 0 ? "M" : "L"} ${x(i)} ${y(p.estimate)}`);
   });
 
-  // 마지막 발표치 분기 직전 분기 대비 변동률 (header 표시)
+  // 발표 분기의 서프라이즈 — API 가 null 이어도 actual·estimate 가 있으면 직접 계산
+  // (토스가 최신 분기엔 surprise 를 안 주는 경우가 많음 → fallback 으로 보강)
+  const surpriseOf = (p: EstimatePoint): number | null => {
+    if (p.surprise != null) return p.surprise;
+    if (p.actual != null && p.estimate != null && p.estimate !== 0) {
+      return ((p.actual - p.estimate) / Math.abs(p.estimate)) * 100;
+    }
+    return null;
+  };
   const lastActual = [...points].reverse().find(p => p.actual != null);
+  const lastSurprise = lastActual ? surpriseOf(lastActual) : null;
   const surpriseColor = (s: number | null) =>
     s == null ? "#9ca3af" : s >= 0 ? "#dc2626" : "#2563eb";
 
-  // 예상치 추세 평가 — 라인 + 마커 색에 반영
+  // 예상치 추세 — 라인(점선) 색은 시계열 추세 그대로
   const estTrend = assessTrend(points.map(p => p.estimate));
   const estColor = TREND_COLOR[estTrend];
+
+  // 타이틀 화살표·색 — 다음 분기 예상치 vs 직전 분기 발표치 비교.
+  //   예상치 > 직전 발표치 → ↑ (애널리스트가 성장 전망)
+  //   예상치 < 직전 발표치 → ↓ (애널리스트가 둔화 전망)
+  // 1순위: 토스 API 의 fluctuationRate (=다음 예상치 vs 직전 발표치 변동률 %)
+  // 2순위: 직접 계산 — 직전 발표치(lastActual) 다음 미래 분기의 estimate 비교
+  // 3순위: 예상치 시계열 추세 fallback
+  const lastActualIdx = points.reduce<number>((acc, p, i) => p.actual != null ? i : acc, -1);
+  const lastActualVal = lastActualIdx >= 0 ? points[lastActualIdx].actual : null;
+  const nextEstimateVal = lastActualIdx >= 0
+    ? (points.slice(lastActualIdx + 1).find(p => p.estimate != null)?.estimate ?? null)
+    : null;
+  const headerTrend: Trend = (() => {
+    if (fluctuationRate != null) {
+      if (fluctuationRate > 0) return "good";
+      if (fluctuationRate < 0) return "bad";
+      return "neutral";
+    }
+    if (lastActualVal != null && nextEstimateVal != null) {
+      if (nextEstimateVal > lastActualVal) return "good";
+      if (nextEstimateVal < lastActualVal) return "bad";
+      return "neutral";
+    }
+    return estTrend;
+  })();
+  const headerColor = TREND_COLOR[headerTrend];
 
   // X축 라벨 정책 — 분기 13개+ 일 때 비좁아 연도 첫 분기만 표시 (3월 또는 첫 등장 연도)
   const seenYears = new Set<string>();
@@ -133,20 +168,25 @@ function SingleChart({ title, series, format }: SingleChartProps) {
   return (
     <section className="border border-gray-200 rounded p-2.5 bg-white">
       <header className="mb-1">
-        <h4 className="text-sm font-bold" style={{ color: estColor }}>
+        <h4 className="text-sm font-bold" style={{ color: headerColor }}>
           {title}
-          {estTrend === "good" && " ↑"}
-          {estTrend === "bad" && " ↓"}
+          {headerTrend === "good" && " ↑"}
+          {headerTrend === "bad" && " ↓"}
         </h4>
         {lastActual && (
           <p className="text-[10px] text-gray-500 mt-0.5">
             최근 {shortPeriod(lastActual.period)} 발표 {format(lastActual.actual)}
-            {lastActual.surprise != null && (
+            {lastActual.estimate != null && (
+              <span className="ml-1 text-gray-400">
+                (예상 {format(lastActual.estimate)})
+              </span>
+            )}
+            {lastSurprise != null && (
               <>
                 {" · "}
-                <span style={{ color: surpriseColor(lastActual.surprise) }}>
-                  서프라이즈 {lastActual.surprise >= 0 ? "+" : ""}
-                  {lastActual.surprise.toFixed(2)}%
+                <span style={{ color: surpriseColor(lastSurprise) }}>
+                  서프라이즈 {lastSurprise >= 0 ? "+" : ""}
+                  {lastSurprise.toFixed(2)}%
                 </span>
               </>
             )}
@@ -188,10 +228,11 @@ function SingleChart({ title, series, format }: SingleChartProps) {
           <path d={actualPath.join(" ")} fill="none" stroke="#2563eb" strokeWidth="2"
                 strokeLinejoin="round" strokeLinecap="round" />
         )}
-        {/* 발표치 점 — 서프라이즈 부호로 색 변경 (양수=빨강, 음수=파랑, 0/없음=회색) */}
+        {/* 발표치 점 — 서프라이즈 부호로 색 변경 (양수=빨강, 음수=파랑, 0/없음=회색).
+            토스가 surprise 를 null 로 주는 최신 분기도 actual·estimate 로 직접 계산하여 색 부여 */}
         {points.map((p, i) => p.actual != null && (
           <circle key={`a-${i}`} cx={x(i)} cy={y(p.actual)} r="2.8"
-                  fill={surpriseColor(p.surprise)} />
+                  fill={surpriseColor(surpriseOf(p))} />
         ))}
         {/* X축 라벨 — 연도 첫 등장 분기에 "23년" 표기 */}
         {xLabels.map(({ i, label }) => (

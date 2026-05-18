@@ -1443,6 +1443,111 @@ interface NaverACResp {
   result?: { items?: NaverACItem[] };
 }
 
+// ─── 토스 자동완성 — 자음 검색 + 부분 매칭 지원 (네이버보다 유연) ─────────
+// 응답 구조가 토스 내부 변경에 민감하므로 다양한 shape 를 방어적으로 파싱.
+interface TossACProduct {
+  productCode?: string;            // "A005930"
+  ticker?: string;                 // 일부 응답에서 직접 노출
+  code?: string;
+  symbol?: string;
+  productName?: string;            // "삼성전자" (토스 실제 응답)
+  name?: string;
+  korName?: string;
+  fullName?: string;
+  keyword?: string;                // autocomplete 추천 키워드
+  type?: string;                   // "DOMESTIC_STOCK" 등
+  productType?: string;
+  exchange?: string;               // KOSPI / KOSDAQ
+  marketType?: string;
+  market?: string;                 // "KSP" | "KSQ" 등 (토스 단축 표기)
+  nationCode?: string;             // "KOR"
+  countryCode?: string;
+}
+
+// 토스 단축 market 코드 → 표준 라벨
+const TOSS_MARKET_LABEL: Record<string, string> = {
+  KSP: "KOSPI", KSQ: "KOSDAQ", KNX: "KONEX",
+  NYS: "NYSE", NAS: "NASDAQ", AMS: "AMEX",
+};
+interface TossACResp {
+  result?: {
+    products?: TossACProduct[];
+    stocks?: TossACProduct[];
+    items?: TossACProduct[];
+  };
+}
+
+// 응답을 재귀 탐색해 종목 정보를 가진 객체들을 평탄화 수집.
+// 토스 실제 응답: result[].data.items[] 안에 productCode/productName/symbol/market(KSP|KSQ).
+function extractTossProducts(node: unknown, acc: TossACProduct[] = []): TossACProduct[] {
+  if (!node || typeof node !== "object") return acc;
+  if (Array.isArray(node)) {
+    for (const v of node) extractTossProducts(v, acc);
+    return acc;
+  }
+  const o = node as Record<string, unknown>;
+  // 종목 객체 인식 — productCode 또는 symbol 이 있고 productName 또는 name 있음
+  const hasCode = ["productCode", "code", "ticker", "symbol"].some(k => typeof o[k] === "string");
+  const hasName = ["productName", "name", "korName", "fullName", "keyword"].some(k => typeof o[k] === "string");
+  if (hasCode && hasName) {
+    acc.push(o as TossACProduct);
+    return acc;  // 종목 객체 내부엔 더 들어갈 필요 X (중복 방지)
+  }
+  // 하위 객체도 탐색 (result/data/items/sections 등)
+  for (const v of Object.values(o)) extractTossProducts(v, acc);
+  return acc;
+}
+
+export async function searchTossAutoComplete(
+  query: string, limit = 30
+): Promise<SearchResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  // 토스 검색 endpoint (실제 토스 웹 사용 형식 그대로)
+  const url = "https://wts-info-api.tossinvest.com/api/v3/search-all/wts-auto-complete";
+  const body = JSON.stringify({
+    query: q,
+    sections: [
+      { type: "PRODUCT", option: { addIntegratedSearchResult: true } },
+    ],
+  });
+  try {
+    const resp = await fetchProxied(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    if (!resp.ok) return [];
+    const json = await resp.json() as unknown;
+    const products = extractTossProducts(json);
+    const out: SearchResult[] = [];
+    const seen = new Set<string>();
+    for (const it of products) {
+      // ticker 추출 — productCode "A005930" → "005930", symbol 폴백
+      let code = (it.productCode ?? "").replace(/^A/, "")
+              || it.symbol || it.ticker || it.code || "";
+      code = code.trim();
+      if (!/^[\dA-Za-z]{6}$/.test(code)) continue;
+      const nation = it.nationCode || it.countryCode;
+      if (nation && nation !== "KOR") continue;
+      // 한국 ETF/주식만 (market KSP/KSQ/KNX) — 다른 시장은 검색 결과에서 제외
+      const rawMarket = (it.market ?? it.exchange ?? it.marketType ?? "").toString();
+      if (rawMarket && !["KSP", "KSQ", "KNX", "KOSPI", "KOSDAQ", "KONEX"].includes(rawMarket)) continue;
+      if (seen.has(code)) continue;
+      seen.add(code);
+      out.push({
+        ticker: code,
+        name: (it.productName ?? it.korName ?? it.name ?? it.fullName ?? it.keyword ?? code).trim(),
+        market: TOSS_MARKET_LABEL[rawMarket] ?? rawMarket ?? "KOSPI",
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export async function searchNaverAutoComplete(
   query: string, limit = 20
 ): Promise<SearchResult[]> {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  searchNaverAutoComplete, fetchStockName, fetchTossPrices,
+  searchTossAutoComplete, searchNaverAutoComplete, fetchStockName, fetchTossPrices,
   type SearchResult,
 } from "../lib/api";
 import {
@@ -56,48 +56,65 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     setGroupWarn(false);
   }, [isOpen]);
 
-  // 외부 prefill — 열릴 때 initialQuery 가 있으면 자동 입력 + 검색 자동 실행
+  // 외부 prefill — 열릴 때 initialQuery 가 있으면 query 만 세팅, 검색은 라이브 useEffect 가 자동 처리
   useEffect(() => {
     if (isOpen && initialQuery) {
       setQuery(initialQuery);
-      // 다음 tick 에 검색 트리거 (state 반영 후)
-      const t = setTimeout(() => {
-        void (async () => {
-          const q = initialQuery.trim();
-          if (!q) return;
-          setSearching(true);
-          setStatusMsg("검색 중...");
-          setSelected(new Set());
-          try {
-            const codes = Array.from(new Set(
-              (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
-            ));
-            let stocks: SearchResult[];
-            if (codes.length > 0) {
-              const names = await Promise.all(
-                codes.map(c => fetchStockName(c).then(n => n ?? c))
-              );
-              stocks = codes.map((c, i) => ({
-                ticker: c, name: names[i], market: "KOSPI",
-              }));
-            } else {
-              stocks = await searchNaverAutoComplete(q);
-            }
-            setResults(stocks);
-            setSelected(new Set(stocks.map(s => s.ticker)));
-            setStatusMsg(stocks.length === 0
-              ? "검색 결과 없음"
-              : `${stocks.length}건 — 체크 후 그룹 선택 (보유 포함) → [일괄적용]`);
-          } catch {
-            setStatusMsg("검색 실패");
-          } finally {
-            setSearching(false);
-          }
-        })();
-      }, 0);
-      return () => clearTimeout(t);
     }
   }, [isOpen, initialQuery]);
+
+  // 라이브 검색 — query 변경 시 300ms debounce 후 자동 검색.
+  // 6자리 코드면 직접 조회, 아니면 토스(자음/부분 매칭) 우선 → 0건이면 네이버 fallback.
+  // 중첩 요청 race 방지 — requestId 로 최신 응답만 반영
+  const reqIdRef = useRef(0);
+  useEffect(() => {
+    if (!isOpen) return;
+    const q = query.trim();
+    if (!q) {
+      setResults([]); setSelected(new Set()); setStatusMsg("");
+      return;
+    }
+    const myId = ++reqIdRef.current;
+    const t = setTimeout(() => {
+      void (async () => {
+        setSearching(true);
+        setStatusMsg("검색 중...");
+        try {
+          const codes = Array.from(new Set(
+            (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
+          ));
+          let stocks: SearchResult[];
+          if (codes.length > 0) {
+            const names = await Promise.all(
+              codes.map(c => fetchStockName(c).then(n => n ?? c))
+            );
+            stocks = codes.map((c, i) => ({
+              ticker: c, name: names[i], market: "KOSPI",
+            }));
+          } else {
+            // 토스 우선 (자음 매칭 + 부분 매칭 강함), 0건이면 네이버
+            stocks = await searchTossAutoComplete(q);
+            if (stocks.length === 0) {
+              stocks = await searchNaverAutoComplete(q);
+            }
+          }
+          // 더 최신 요청이 발생했으면 결과 무시
+          if (reqIdRef.current !== myId) return;
+          setResults(stocks);
+          setSelected(new Set(stocks.map(s => s.ticker)));
+          setStatusMsg(stocks.length === 0
+            ? "검색 결과 없음"
+            : `${stocks.length}건 — 체크 후 그룹 선택 (보유 포함) → [일괄적용]`);
+        } catch {
+          if (reqIdRef.current !== myId) return;
+          setStatusMsg("검색 실패");
+        } finally {
+          if (reqIdRef.current === myId) setSearching(false);
+        }
+      })();
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, isOpen]);
   // 그룹 마킹되면 경고 즉시 해제
   useEffect(() => {
     if (markedGroups.size > 0) setGroupWarn(false);
@@ -206,12 +223,13 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     });
   }, [results, existingStocks]);
 
+  // 엔터/검색 버튼 — 디바운스 우회용 즉시 트리거. 라이브 useEffect 와 동일 로직
   const doSearch = async () => {
     const q = query.trim();
     if (!q) return;
+    const myId = ++reqIdRef.current;
     setSearching(true);
     setStatusMsg("검색 중...");
-    setSelected(new Set());
     try {
       const codes = Array.from(new Set(
         (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
@@ -225,17 +243,22 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           ticker: c, name: names[i], market: "KOSPI",
         }));
       } else {
-        stocks = await searchNaverAutoComplete(q);
+        stocks = await searchTossAutoComplete(q);
+        if (stocks.length === 0) {
+          stocks = await searchNaverAutoComplete(q);
+        }
       }
+      if (reqIdRef.current !== myId) return;
       setResults(stocks);
       setSelected(new Set(stocks.map(s => s.ticker)));
       setStatusMsg(stocks.length === 0
         ? "검색 결과 없음"
         : `${stocks.length}건 — 체크 후 그룹 선택 (보유 포함) → [일괄적용]`);
     } catch {
+      if (reqIdRef.current !== myId) return;
       setStatusMsg("검색 실패");
     } finally {
-      setSearching(false);
+      if (reqIdRef.current === myId) setSearching(false);
     }
   };
 
