@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Stock, Price } from "../types";
-import { formatSigned } from "../lib/format";
+import { formatSigned, nowKstDateStr } from "../lib/format";
 
 // ─── 공용: 손익 계산 (오늘 / 전체) ────────────────────────────
 export interface TodayPnLRow {
@@ -50,7 +50,10 @@ function computePnL(
 }
 
 export function computeTodayPnL(holdings: Stock[], prices: Map<string, Price>) {
-  return computePnL(holdings, prices, (_, p) => p.base);
+  // 오늘 매수 종목은 어제 보유분이 없으므로 매수단가 기준 (= 당일 손익)
+  const today = nowKstDateStr();
+  return computePnL(holdings, prices, (s, p) =>
+    s.buy_date === today ? s.avg_price : p.base);
 }
 export function computeOverallPnL(holdings: Stock[], prices: Map<string, Price>) {
   return computePnL(holdings, prices, (s) => s.avg_price);

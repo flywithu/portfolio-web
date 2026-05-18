@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
-import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { Sparkline } from "./Sparkline";
@@ -1377,18 +1377,30 @@ export function StockCard({
           </div>
         )}
 
-        {/* 오늘 (보유만) — 보유분 어제대비 변동 (오늘 움직인 금액) */}
-        {hasPosition && (
-          <div className="text-xs">
-            <span className="text-[10px] text-gray-500">오늘 </span>
-            <span className={`font-bold bg-yellow-100 rounded px-1 ${signColor(dayDiff)}`}>
-              {formatSigned(dayDiff * stock.shares)}원
-            </span>{" "}
-            <span className={signColor(dayDiff)}>
-              ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
-            </span>
-          </div>
-        )}
+        {/* 오늘 (보유만) — 보유분 어제대비 변동 (오늘 움직인 금액)
+            ※ 오늘 매수 종목은 어제 보유분이 없으므로 기준=매수단가(avg_price) */}
+        {hasPosition && (() => {
+          const boughtToday = stock.buy_date === nowKstDateStr();
+          const baseForHold = boughtToday ? stock.avg_price : price.base;
+          const holdDayDiff = baseForHold > 0 ? price.price - baseForHold : 0;
+          const holdDayPct  = baseForHold > 0 ? (holdDayDiff / baseForHold) * 100 : 0;
+          return (
+            <div className="text-xs">
+              <span className="text-[10px] text-gray-500">오늘 </span>
+              <span className={`font-bold bg-yellow-100 rounded px-1 ${signColor(holdDayDiff)}`}>
+                {formatSigned(holdDayDiff * stock.shares)}원
+              </span>{" "}
+              <span className={signColor(holdDayDiff)}>
+                ({holdDayPct >= 0 ? "+" : ""}{holdDayPct.toFixed(2)}%)
+              </span>
+              {boughtToday && (
+                <span className="ml-1 text-[9px] text-gray-400" title="오늘 매수 — 매수단가 기준">
+                  (당일)
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ─── 보조 지표 (3개월 / 변동성 / 외인비율 추세) ─────
             거래일엔 접혀있고 비거래일엔 펼쳐있음. 클릭으로 토글 */}

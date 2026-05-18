@@ -26,6 +26,13 @@ import { normalizeAccount } from "../lib/account";
 import type { MarketIndexKey } from "../lib/api";
 import { MarketFlowModal } from "./MarketFlowModal";
 
+// PC UsMarketTab과 동일 — Yahoo .KS/.KQ 6자리 ETF 심볼 → 토스 compositions ticker
+const KR_ETF_SYMBOL_RE = /^(\d{6})\.K[SQ]$/;
+function krEtfTicker(symbol: string): string | null {
+  const m = KR_ETF_SYMBOL_RE.exec(symbol);
+  return m ? m[1] : null;
+}
+
 // Toss / Yahoo 외부 링크 (UsMarketTab 와 동일 규칙)
 function quoteUrl(symbol: string): string {
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
@@ -789,6 +796,20 @@ export function MobileSimpleView() {
                         📊
                       </button>
                     )}
+                    {/* ETF 책갈피 — KR ETF (예: 091160.KS) 만. 클릭 시 구성종목 모달 (PC UsMarketTab 과 동일) */}
+                    {(() => {
+                      const etfTk = krEtfTicker(p.symbol);
+                      if (!etfTk) return null;
+                      return (
+                        <button onClick={() => setEtfDialog({ ticker: etfTk, name: p.name })}
+                                title="ETF 구성 종목 보기"
+                                className="ml-1 px-1 py-0.5 rounded text-[10px] font-bold leading-none
+                                           text-violet-700 bg-violet-50/80 active:bg-violet-100
+                                           border border-violet-200 self-center">
+                          ETF
+                        </button>
+                      );
+                    })()}
                   </div>
                   <div className="relative text-[11px] text-gray-500 truncate">
                     {p.desc}
