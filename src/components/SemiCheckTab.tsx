@@ -216,9 +216,9 @@ export function SemiCheckTab() {
     return "warn";
   })();
   const memoryAiDesc =
-    memoryAiMood === "good" ? "마이크론(미국 메모리 반도체)과 엔비디아(AI 칩 대표)가 동반 상승. 메모리 수요와 AI 수요가 같이 살아나는 신호 — 삼성전자·SK하이닉스의 메모리 사업도 강세 가능성"
-    : memoryAiMood === "bad"  ? "마이크론과 엔비디아가 동반 하락. 메모리 사이클과 AI 수요 모두 부진 — 삼성전자·SK하이닉스 메모리도 약세 가능성"
-    : memoryAiMood === "warn" ? "마이크론과 엔비디아가 따로 움직임. 미국 반도체 지수가 강세여도 메모리 사이클은 부진할 수 있다는 신호 — 한국 메모리 강세라고 단정하기 어려운 상태"
+    memoryAiMood === "good" ? "마이크론(미국 메모리 반도체)과 엔비디아(AI 칩 대표)가 동반 상승. 메모리 수요와 AI 수요가 같이 살아나는 신호\n삼성전자·SK하이닉스의 메모리 사업도 강세 가능성"
+    : memoryAiMood === "bad"  ? "마이크론과 엔비디아가 동반 하락. 메모리 사이클과 AI 수요 모두 부진\n삼성전자·SK하이닉스 메모리도 약세 가능성"
+    : memoryAiMood === "warn" ? "마이크론과 엔비디아가 따로 움직임. 미국 반도체 지수가 강세여도 메모리 사이클은 부진할 수 있다는 신호\n한국 메모리 강세라고 단정하기 어려운 상태"
     : "—";
 
   const equipPcts = ["AMAT", "LRCX", "ASML"].map(s => pctOf(usMap?.get(s)))
@@ -227,21 +227,17 @@ export function SemiCheckTab() {
   const equipMood: Mood = equipAvg == null ? "neutral"
     : equipAvg > 0.5 ? "good" : equipAvg < -0.5 ? "bad" : "neutral";
   const equipDesc =
-    equipMood === "good" ? "반도체 공장 설비를 만드는 3대 회사(어플라이드머티리얼즈·램리서치·ASML)가 강세. 반도체 회사들이 새 공장과 장비에 투자를 늘리고 있다는 신호 — 6~12개월 후 삼성전자·SK하이닉스 메모리 매출 증가 가능성"
-    : equipMood === "bad" ? "장비 3사가 약세. 반도체 회사들이 설비 투자를 줄이고 있다는 신호 — 6~12개월 시차로 삼성전자·SK하이닉스 메모리 매출에도 부담 가능"
-    : "장비 3사 보합 — 특별한 방향성 없음";
+    equipMood === "good" ? "반도체 공장 설비를 만드는 3대 회사(어플라이드머티리얼즈·램리서치·ASML)가 강세. 반도체 회사들이 새 공장과 장비에 투자를 늘리고 있다는 신호\n6~12개월 후 삼성전자·SK하이닉스 메모리 매출 증가 가능성"
+    : equipMood === "bad" ? "장비 3사가 약세. 반도체 회사들이 설비 투자를 줄이고 있다는 신호\n6~12개월 시차로 삼성전자·SK하이닉스 메모리 매출에도 부담 가능"
+    : "장비 3사 보합\n특별한 방향성 없음";
 
-  const soxPct    = pctOf(usMap?.get("^SOX"));
-  const soxFutPct = pctOf(usMap?.get("SOX=F"));
+  const soxPct = pctOf(usMap?.get("^SOX"));
   const soxMood: Mood = soxPct == null ? "neutral"
     : soxPct > 1 ? "good" : soxPct < -1 ? "bad" : "neutral";
-  const soxStatusLine = soxFutPct != null
-    ? `정규 ${fmtPct(soxPct)} · 야간 ${fmtPct(soxFutPct)}`
-    : `정규 ${fmtPct(soxPct)}`;
   const soxDesc =
-    soxMood === "good" ? `미국 반도체 30개사 평균(필라델피아반도체 지수)이 강세. 한국 반도체(삼성전자·SK하이닉스)도 우호적 출발 신호 — 정규장 종가 + 야간 선물: ${soxStatusLine}`
-    : soxMood === "bad"  ? `미국 반도체 30개사 평균(필라델피아반도체 지수)이 약세. 한국 반도체(삼성전자·SK하이닉스)도 약세 출발 가능성 — 정규장 종가 + 야간 선물: ${soxStatusLine}`
-    : `특별한 방향성 없음 — 정규장 종가 + 야간 선물: ${soxStatusLine}`;
+    soxMood === "good" ? "미국 반도체 30개사 평균(필라델피아반도체 지수)이 강세.\n한국 반도체(삼성전자·SK하이닉스)도 우호적 출발 신호"
+    : soxMood === "bad"  ? "미국 반도체 30개사 평균(필라델피아반도체 지수)이 약세.\n한국 반도체(삼성전자·SK하이닉스)도 약세 출발 가능성"
+    : "특별한 방향성 없음";
 
   const krwPrice = usMap?.get("KRW=X")?.price ?? 0;
   // 원달러 ≥1,400원 = 부정 신호 → bad (파랑)
@@ -250,9 +246,9 @@ export function SemiCheckTab() {
     : krwPrice >= 1350 ? "neutral"
     : "good";
   const fxDesc = krwPrice === 0 ? "—"
-    : krwPrice >= 1400 ? `원달러 ${Math.round(krwPrice).toLocaleString()}원 — 외국인 매도 압력 (원화 약세로 환차손 위험, 외국인 자금 이탈 가능성)`
-    : krwPrice >= 1350 ? `원달러 ${Math.round(krwPrice).toLocaleString()}원 — 중립 (강세·약세 신호 모두 약함)`
-    : `원달러 ${Math.round(krwPrice).toLocaleString()}원 — 안정 (외국인 자금이 들어오기 좋은 환경)`;
+    : krwPrice >= 1400 ? `원달러 ${Math.round(krwPrice).toLocaleString()}원 — 외국인 매도 압력\n원화 약세로 환차손 위험, 외국인 자금 이탈 가능성`
+    : krwPrice >= 1350 ? `원달러 ${Math.round(krwPrice).toLocaleString()}원 — 중립\n강세·약세 신호 모두 약함`
+    : `원달러 ${Math.round(krwPrice).toLocaleString()}원 — 안정\n외국인 자금이 들어오기 좋은 환경`;
 
   // 종합 — 메모리·AI 가중 2배
   const w: Record<Mood, number> = { good: 1, neutral: 0, warn: -0.5, bad: -1 };
@@ -380,8 +376,18 @@ export function SemiCheckTab() {
                       dimEnabled={dimEnabled} />
               ))}
             </div>
-            <p className={`mt-2 text-sm font-bold ${MOOD_TEXT[sig.mood]}`}>
-              → {sig.desc}
+            <p className="mt-2 text-xs text-gray-500 flex gap-1.5">
+              {/* 삼각형 — 좋으면 ▲ 빨강 / 안 좋으면 ▼ 파랑 / 그 외 ▶ 회색 (주가 카드와 동일) */}
+              <span aria-hidden className={`opacity-50 ${
+                sig.mood === "good" ? "text-rose-600"
+                : sig.mood === "bad" || sig.mood === "warn" ? "text-blue-600"
+                : "text-gray-400"
+              }`}>
+                {sig.mood === "good" ? "▲"
+                  : sig.mood === "bad" || sig.mood === "warn" ? "▼"
+                  : "▶"}
+              </span>
+              <span className="whitespace-pre-line flex-1">{sig.desc}</span>
             </p>
           </section>
         ))}
