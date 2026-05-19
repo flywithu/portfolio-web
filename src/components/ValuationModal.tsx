@@ -17,6 +17,7 @@ import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/funda
 import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { signColor } from "../lib/format";
+import { handleTossLinkClick } from "../lib/toss";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo, fetchTossEstimate } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
@@ -405,6 +406,8 @@ export function ValuationModal({
           {/* 외부 링크 */}
           <section className="mt-4 flex flex-wrap gap-2 text-xs">
             <a href={`https://tossinvest.com/stocks/A${ticker}`}
+               target="_blank" rel="noopener noreferrer"
+               onClick={e => handleTossLinkClick(e, `https://tossinvest.com/stocks/A${ticker}`)}
                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded">
               🔗 토스
             </a>

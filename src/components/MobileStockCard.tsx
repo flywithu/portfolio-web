@@ -5,6 +5,7 @@ import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName }
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor } from "../lib/api";
+import { openTossStock } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { Tooltip, ColorName } from "./Tooltip";
 import { AuxIndicators } from "./AuxIndicators";
@@ -86,26 +87,6 @@ const WARN_TIPS: Record<string, string> = {
   투자주의:     "이상 거래 징후 — 가장 가벼운 단계",
 };
 
-function openTossStock(ticker: string) {
-  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return;
-  const code = `A${ticker}`;
-  const inner = `https://service.tossinvest.com?nextLandingUrl=/stocks/${code}`;
-  const deep = `supertoss://securities?url=${encodeURIComponent(inner)}`;
-  const https = `https://tossinvest.com/stocks/${code}`;
-
-  // 모바일: 토스 앱 deeplink 우선 (Android Intent / iOS scheme),
-  // 1.2초 내 visibilityState 가 그대로면 https 새 탭으로 폴백
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    location.href = deep;
-    setTimeout(() => {
-      if (document.visibilityState === "visible") {
-        window.open(https, "_blank", "noopener,noreferrer");
-      }
-    }, 1200);
-  } else {
-    window.open(https, "_blank", "noopener,noreferrer");
-  }
-}
 
 export function MobileStockCard({
   stock, price, krReg, peak, sector, warning, chart, investorHistory, consensus, memo, otherGroups,

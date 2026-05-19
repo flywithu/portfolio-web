@@ -51,6 +51,7 @@ import {
   deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
+import { handleTossLinkClick } from "../lib/toss";
 import { MobileStockCard } from "./MobileStockCard";
 import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";
@@ -781,6 +782,7 @@ export function MobileSimpleView() {
                     )}
                     <a href={quoteUrl(p.symbol)}
                        target="_blank" rel="noopener noreferrer"
+                       onClick={e => handleTossLinkClick(e, quoteUrl(p.symbol))}
                        title={`${p.name} 자세히 보기`}
                        className={`text-base font-bold ${nameColor} active:underline`}>
                       {p.name}

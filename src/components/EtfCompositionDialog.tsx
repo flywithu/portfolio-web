@@ -4,6 +4,7 @@ import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegu
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { formatSigned, signColor, isEtfByName } from "../lib/format";
+import { handleTossLinkClick, openExternal } from "../lib/toss";
 
 // ETF 구성 종목 모달 — 토스 v2 compositions endpoint
 // 비교 모드: secondEtf 가 있으면 좌우 2-panel 으로 표시, 공통 종목은 opacity 로 흐리게
@@ -268,6 +269,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
         )}
         <a href={`https://www.tossinvest.com/stocks/A${ticker}`}
            target="_blank" rel="noopener noreferrer"
+           onClick={e => handleTossLinkClick(e, `https://www.tossinvest.com/stocks/A${ticker}`)}
            title="토스 ETF 페이지에서 보기"
            className="ml-auto inline-flex items-center gap-1 px-2 py-0.5
                       border border-blue-200 rounded
@@ -322,7 +324,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                 <div className="flex items-end justify-between gap-1 mx-1">
                   <div className="flex items-end gap-0.5 flex-wrap min-w-0">
                     <button onClick={isStandard
-                              ? () => window.open(`https://www.tossinvest.com/stocks/${it.stockCode}`, "_blank")
+                              ? () => openExternal(`https://www.tossinvest.com/stocks/${it.stockCode}`)
                               : undefined}
                             disabled={!isStandard}
                             className={`inline-flex items-center px-2 py-0.5 rounded-t-md

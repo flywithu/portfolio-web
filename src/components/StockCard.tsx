@@ -5,6 +5,7 @@ import type { PricePoint } from "../lib/api";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
+import { openTossStock } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
@@ -156,11 +157,6 @@ const WARN_TIPS: Record<string, string> = {
   투자주의:     "이상 거래 징후 — 가장 가벼운 단계",
 };
 
-function openTossStock(ticker: string) {
-  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return;
-  window.open(`https://tossinvest.com/stocks/A${ticker}`,
-              "_blank", "noopener,noreferrer");
-}
 
 
 const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [

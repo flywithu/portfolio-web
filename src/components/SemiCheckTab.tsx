@@ -8,6 +8,7 @@ import { allYahooSymbols, US_PAIRS } from "../lib/usMarketData";
 import { Sparkline } from "./Sparkline";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
+import { handleTossLinkClick } from "../lib/toss";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { isSymbolSleeping } from "../lib/format";
 import type { UsIndex } from "../lib/api";
@@ -143,6 +144,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
                             pointer-events-none" />
       <a href={quoteUrl(symbol)}
          target="_blank" rel="noopener noreferrer"
+         onClick={e => handleTossLinkClick(e, quoteUrl(symbol))}
          title={`${name} 자세히 보기`}
          className="relative z-10 text-base font-bold text-gray-900 truncate hover:underline">
         {name}

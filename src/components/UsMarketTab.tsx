@@ -11,6 +11,7 @@ import {
 } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
+import { handleTossLinkClick } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
@@ -282,6 +283,7 @@ export function UsMarketTab() {
                     {/* 종목명 자체가 외부 링크 (Toss/Yahoo) */}
                     <a href={quoteUrl(p.symbol)}
                        target="_blank" rel="noopener noreferrer"
+                       onClick={e => handleTossLinkClick(e, quoteUrl(p.symbol))}
                        title={`${p.name} 자세히 보기`}
                        className={`text-base font-bold ${nameColor} hover:underline`}>
                       {p.name}
@@ -429,6 +431,7 @@ function QuoteList({ rows }: QuoteListProps) {
             </span>
             <a href={quoteUrl(r.symbol)}
                target="_blank" rel="noopener noreferrer"
+               onClick={e => handleTossLinkClick(e, quoteUrl(r.symbol))}
                title={r.desc}
                className={`relative z-10 text-sm font-bold hover:underline truncate w-[160px]
                             ${r.kind === "future" ? "text-amber-700"

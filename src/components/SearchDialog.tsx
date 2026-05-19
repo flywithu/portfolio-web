@@ -12,6 +12,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { Stock, Price } from "../types";
 import { signColor, isEtfByName } from "../lib/format";
+import { handleTossLinkClick } from "../lib/toss";
 import { useEscClose } from "../lib/useEscClose";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
@@ -650,7 +651,10 @@ function SearchResultRow({
                className="w-4 h-4 accent-blue-600 shrink-0" />
         <a href={`https://tossinvest.com/stocks/A${item.ticker}`}
            target="_blank" rel="noopener noreferrer"
-           onClick={e => e.stopPropagation()}
+           onClick={e => {
+             e.stopPropagation();
+             handleTossLinkClick(e, `https://tossinvest.com/stocks/A${item.ticker}`);
+           }}
            className="font-bold text-sm hover:text-blue-600">
           {item.name}
         </a>
