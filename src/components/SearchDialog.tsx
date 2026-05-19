@@ -5,7 +5,7 @@ import {
   type SearchResult,
 } from "../lib/api";
 import {
-  bulkRemoveFromGroup, removeHolding, getUserGroups, loadHoldings,
+  bulkRemoveFromGroup, getUserGroups, loadHoldings,
   upsertHoldingToGroup, syncAllRowsForTicker,
 } from "../lib/db";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -121,7 +121,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           setSelected(new Set(stocks.map(s => s.ticker)));
           setStatusMsg(stocks.length === 0
             ? "검색 결과 없음"
-            : `${stocks.length}건 — 체크 후 그룹 선택 (보유 포함) → [일괄적용]`);
+            : `${stocks.length}건 — 체크 후 그룹 선택 → [일괄적용]`);
         } catch {
           if (reqIdRef.current !== myId) return;
           setStatusMsg("검색 실패");
@@ -164,9 +164,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     enabled: isOpen,
   });
 
-  // 보유는 더 이상 기본 그룹으로 노출하지 않음 — 사용자가 만든 그룹만 칩으로 표시.
+  // "보유" 는 특별 그룹이 아님 — 일반 사용자 그룹과 동일하게 취급.
   // 첫 사용자(그룹 0개) → "관심" 가상 그룹만 자동 노출·마킹.
-  const HOLDING_LABEL = "보유";  // upsertHoldingToGroup 매핑용 상수 유지 (account="")
   const isFirstUser = userGroups.length === 0;
   const baseGroups = isFirstUser ? ["관심"] : [...userGroups];
   // 사용자가 새로 만든 그룹(pending) 도 칩 영역에 — 중복 제거
@@ -187,8 +186,10 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       const all = await loadHoldings();
       const map = new Map<string, string[]>();
       for (const s of all) {
+        const acc = s.account ?? "";
+        if (!acc) continue;  // 그룹 없는 row(account="") 는 칩 카운트/배지 대상 아님
         const groups = map.get(s.ticker) ?? [];
-        groups.push(s.account || "보유");
+        groups.push(acc);
         map.set(s.ticker, groups);
       }
       return map;
@@ -265,7 +266,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       setSelected(new Set(stocks.map(s => s.ticker)));
       setStatusMsg(stocks.length === 0
         ? "검색 결과 없음"
-        : `${stocks.length}건 — 체크 후 그룹 선택 (보유 포함) → [일괄적용]`);
+        : `${stocks.length}건 — 체크 후 그룹 선택 → [일괄적용]`);
     } catch {
       if (reqIdRef.current !== myId) return;
       setStatusMsg("검색 실패");
@@ -312,18 +313,17 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     setNewGroup("");
   };
 
-  // 일괄적용 — 마킹된 그룹들에만 적용 ("보유" 도 일반 그룹과 동일하게 마킹 시에만).
-  // 1) 수량 입력된 행: 마킹된 각 그룹에 upsert (보유 = account="")
+  // 일괄적용 — 마킹된 그룹들에만 적용. "보유" 도 일반 그룹과 완전히 동일하게 취급.
+  // 1) 수량 입력된 행: 마킹된 각 그룹에 upsert (account = 그룹명)
   //    + sync 모드면 같은 ticker 의 모든 기존 row 동일 값으로 sync
-  // 2) 수량 미입력 행: 마킹된 watchlist 그룹들에 0주 추가 (보유는 watchlist 의미 없어 제외)
+  // 2) 수량 미입력 행: 마킹된 그룹들에 0주(관심) 추가
   const bulkApply = async () => {
     if (selected.size === 0) {
       setStatusMsg("⚠️ 종목을 먼저 체크하세요");
       return;
     }
-    // 아무 그룹도 선택 안 했으면 차단 — "보유" 도 명시적으로 선택해야 추가됨
     if (markedGroups.size === 0) {
-      setStatusMsg("⚠️ 그룹을 먼저 선택하세요 — 위쪽 그룹 칩 클릭 (보유 포함)");
+      setStatusMsg("⚠️ 그룹을 먼저 선택하세요 — 위쪽 그룹 칩 클릭");
       setGroupWarn(true);
       window.setTimeout(() => setGroupWarn(false), 1600);
       return;
@@ -331,9 +331,6 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     const sel = results.filter(r => selected.has(r.ticker));
     let syncedTotal = 0;
     const groupResults: Map<string, { added: number; updated: number }> = new Map();
-
-    // 마킹된 그룹의 실제 account 값 ("보유" → "")
-    const toAccount = (g: string) => (g === HOLDING_LABEL ? "" : g);
 
     for (const r of sel) {
       const ed = rowEdits.get(r.ticker);
@@ -344,14 +341,13 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       const buyDate = ed?.buyDate || todayKstStr();
 
       if (hasValues) {
-        // 마킹된 각 그룹에 upsert (보유 포함 — 단, 마킹된 경우에만)
         for (const g of markedGroups) {
           const stock: Stock = {
             ticker: r.ticker, name: r.name,
             shares: sh, avg_price: ap, invested: Math.round(sh * ap),
-            buy_date: buyDate, market: r.market, account: toAccount(g),
+            buy_date: buyDate, market: r.market, account: g,
           };
-          const gres = await upsertHoldingToGroup(stock, toAccount(g));
+          const gres = await upsertHoldingToGroup(stock, g);
           const cur = groupResults.get(g) ?? { added: 0, updated: 0 };
           if (gres === "added") cur.added += 1; else cur.updated += 1;
           groupResults.set(g, cur);
@@ -366,9 +362,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           syncedTotal += sync.updated;
         }
       } else {
-        // 수량 미입력 — 마킹된 watchlist 그룹들에 0주 추가 ("보유" 는 의미 없어 skip)
+        // 수량 미입력 — 마킹된 그룹들에 0주(관심) 추가
         for (const g of markedGroups) {
-          if (g === HOLDING_LABEL) continue;
           const stock: Stock = {
             ticker: r.ticker, name: r.name,
             shares: 0, avg_price: 0, invested: 0,
@@ -393,7 +388,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     }
     setStatusMsg(parts.length > 0
       ? `✅ ${parts.join(" · ")}`
-      : "⚠️ 적용된 항목 없음 — 수량 입력 + 보유 마킹 또는 다른 그룹 마킹 필요");
+      : "⚠️ 적용된 항목 없음 — 그룹 마킹과 수량 확인");
     setReloadKey(k => k + 1);
     onAdded();
     if (parts.length > 0) onClose();
@@ -401,11 +396,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
 
   // 행의 ✓그룹 배지 클릭 = 그 종목만 그 그룹에서 제거
   const removeOneFromGroup = async (ticker: string, group: string) => {
-    if (group === "보유") {
-      await removeHolding(ticker, "");
-    } else {
-      await bulkRemoveFromGroup([ticker], group);
-    }
+    await bulkRemoveFromGroup([ticker], group);
     setStatusMsg(`🗑 ${ticker} 을 "${group}" 에서 제거`);
     setReloadKey(k => k + 1);
     onAdded();
@@ -591,11 +582,11 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           )}
         </div>
 
-        {/* 하단 일괄적용 — 마킹된 그룹들에만 추가 (보유도 마킹 시 추가) */}
+        {/* 하단 일괄적용 — 마킹된 그룹들에만 추가 */}
         {results.length > 0 && (
           <footer className="px-5 py-3 border-t bg-gray-50 flex items-center gap-2">
             <span className="text-xs text-gray-600">
-              마킹된 그룹{markedGroups.size > 0 && ` (${markedGroups.size}개)`}에만 추가 — 보유 포함 선택해야 보유에 등록
+              마킹된 그룹{markedGroups.size > 0 && ` (${markedGroups.size}개)`}에만 추가
               <span className="ml-1 text-blue-700">— 수량 입력 시 sync 모드면 동일 ticker 모든 그룹에 반영</span>
             </span>
             <button onClick={() => void bulkApply()}

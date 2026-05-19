@@ -41,7 +41,7 @@ export function GroupConflictDialog({ conflicts, onResolved, onClose }: Props) {
   const allDecided = conflicts.every(c => {
     const s = strategies.get(c.ticker);
     if (!s) return false;
-    // 보유 그룹은 account === "" (빈 문자열) 이므로 typeof 체크 — falsy 함정 회피
+    // 그룹명이 비어있을 가능성 대비 typeof 체크 — falsy 함정 회피
     if ((s.mode === "groupA" || s.mode === "groupB") && typeof s.account !== "string") return false;
     return true;
   });

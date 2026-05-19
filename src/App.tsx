@@ -5,7 +5,7 @@ import {
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
   fetchInvestorHistorySafe,
 } from "./lib/api";
-import { loadHoldings, loadPeaks, loadMemos, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateLegacyHoldGroup } from "./lib/db";
+import { loadHoldings, loadPeaks, loadMemos, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY } from "./components/Tabs";
@@ -105,16 +105,12 @@ function Dashboard() {
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
-  // IndexedDB 로드
+  // IndexedDB 로드 — 마이그레이션은 AppRoot 에서 1회 완료 후 진입하므로 여기선 단순 로드
   useEffect(() => {
     void (async () => {
-      // 잔여 관심ETF 항목 청소 (web v3는 섹터 매핑을 코드 상수로 사용)
-      const removed = await cleanupReservedAccounts();
-      // 잘못 저장된 account="보유" row 정리 (1회) — 빈 그룹과 통합
-      const migrated = await migrateLegacyHoldGroup();
       const [h, p, m] = await Promise.all([loadHoldings(), loadPeaks(), loadMemos()]);
       // eslint-disable-next-line no-console
-      console.log(`[v3 load] holdings=${h.length}, peaks=${p.size}, memos=${m.size}, cleaned=${removed}, migrated=${migrated}`);
+      console.log(`[v3 load] holdings=${h.length}, peaks=${p.size}, memos=${m.size}`);
       setHoldings(h);
       setPeaks(p);
       setMemos(m);
@@ -581,20 +577,24 @@ function RefreshIndicatorGlobal({ refetchIntervalMs }: { refetchIntervalMs: numb
 
 function AppRoot() {
   const isMobile = useIsMobile();
+  const [ready, setReady] = useState(false);
 
-  // PC/모바일 공통 — 잘못된 account="보유" row 1회 정리 (앱 부팅 시)
-  // 모바일은 useQuery 캐시 무효화 필요 (마이그레이션 후 stale 데이터 회피)
+  // PC/모바일 공통 — 부팅 1회: 레거시 데이터 정리 + 마이그레이션
+  // 완료 전 children mount 차단 → race condition 방지
   useEffect(() => {
     void (async () => {
-      const n = await migrateLegacyHoldGroup();
-      if (n > 0) {
+      const removed = await cleanupReservedAccounts();
+      const migrated = await migrateEmptyAccountToHolding();
+      if (removed > 0 || migrated > 0) {
         // eslint-disable-next-line no-console
-        console.log(`[migration] account="보유" → "" 정리 ${n}건`);
+        console.log(`[boot] cleaned=${removed}, migrated=${migrated}`);
         await queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
       }
+      setReady(true);
     })();
   }, []);
 
+  if (!ready) return null;
   return isMobile ? <MobileSimpleView /> : <Dashboard />;
 }
 

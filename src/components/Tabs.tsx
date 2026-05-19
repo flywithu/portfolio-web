@@ -102,7 +102,8 @@ const RESERVED = new Set<string>([
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY,
 ]);
 
-// 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 보유 → 사용자 그룹 알파벳 순.
+// 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 사용자 그룹 알파벳 순.
+// "보유"도 일반 사용자 그룹과 동일하게 취급 (별도 분기 없음).
 // visibility 미지정 시 시스템 탭 모두 노출 (기본 동작).
 export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpec[] {
   const showUs = visibility?.usMarket ?? true;
@@ -121,15 +122,11 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   // 섹터 — 지수와 반도체 사이 위치 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마)
   if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터", emoji: "🏷", count: 0 });
   if (showSemi) tabs.push({ key: SEMI_CHECK_TAB_KEY, label: "반도체", emoji: "🔧", count: 0 });
-  // 1) 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
+  // 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
   }
-  // 2) 보유 (account="") — 일반 그룹과 동일 아이콘
-  if (counts.has("")) {
-    tabs.push({ key: "", label: "보유", emoji: "🏷", count: counts.get("")! });
-  }
-  // 3) 그 외 모든 사용자 그룹 — 동일 아이콘, 알파벳 순
+  // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())
     .filter(k => !["", "관심ETF"].includes(k))
     .sort();

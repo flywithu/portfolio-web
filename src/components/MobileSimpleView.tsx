@@ -216,9 +216,7 @@ export function MobileSimpleView() {
     if (vis.myStocks && uniqHeld.size > 0) {
       tabs.push({ key: MY_KEY, label: "📦내주식", count: uniqHeld.size });
     }
-    if (counts.has("")) {
-      tabs.push({ key: "", label: "보유", count: counts.get("")! });
-    }
+    // "보유" 도 일반 사용자 그룹과 동일하게 취급 — 별도 분기 없음
     const userGroups = Array.from(counts.keys())
       .filter(k => !["", "관심ETF"].includes(k))
       .sort();

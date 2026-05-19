@@ -53,35 +53,56 @@ export async function cleanupReservedAccounts(): Promise<number> {
   return await db.holdings.where("account").equals("관심ETF").delete();
 }
 
-// account="보유" (한글 라벨) 로 잘못 저장된 row 정리.
-//   - 같은 ticker 의 account="" row 있음 → "보유" row 삭제 (정상 row 보존)
-//   - 없음 → account="" 로 이름 변경
-//   "" row 는 어떤 경우에도 유지 — 데이터 손실 없음.
-//   반환: 처리된 row 수 (사용자 알림용, 0 이면 noop)
-export async function migrateLegacyHoldGroup(): Promise<number> {
+// 레거시 account="" 행을 일반 그룹 "보유" 로 통일 (앱 로드 시 호출, idempotent).
+// 충돌(같은 ticker 의 account="보유" 행 존재) 시 우선순위로 데이터 손실 방지:
+//   1) shares > 0 인 쪽 우선 (수량 있는 쪽이 의미 있는 데이터)
+//   2) 둘 다 수량 있으면 buy_date 최신 쪽 우선 (가장 최근 의도)
+//   3) 둘 다 동일하면 기존 "보유" 행 유지
+// 반환: 처리된 빈 row 수 (0 이면 noop).
+export async function migrateEmptyAccountToHolding(): Promise<number> {
   const all = await db.holdings.toArray();
-  const legacy = all.filter(s => s.account === "보유");
-  if (legacy.length === 0) return 0;
+  const empties = all.filter(s => (s.account ?? "") === "");
+  if (empties.length === 0) return 0;
 
-  const emptyByTicker = new Map<string, Stock & { id: string }>();
+  const holdingByTicker = new Map<string, Stock & { id: string }>();
   for (const s of all) {
-    if ((s.account ?? "") === "" && s.account !== "보유") {
-      emptyByTicker.set(s.ticker, s as Stock & { id: string });
-    }
+    if (s.account === "보유") holdingByTicker.set(s.ticker, s as Stock & { id: string });
   }
+
+  // 빈 행 vs "보유" 행 중 어느 쪽 값을 살릴지 결정
+  const pickWinner = (
+    empty: Stock, hold: Stock & { id: string },
+  ): Stock => {
+    const eHas = empty.shares > 0 && empty.avg_price > 0;
+    const hHas = hold.shares > 0 && hold.avg_price > 0;
+    if (eHas && !hHas) return empty;
+    if (!eHas && hHas) return hold;
+    if (eHas && hHas) {
+      // 둘 다 보유 — 최신 buy_date 우선
+      const eDate = empty.buy_date || "";
+      const hDate = hold.buy_date || "";
+      return eDate > hDate ? empty : hold;
+    }
+    // 둘 다 관심(0주) — 기존 "보유" 행 유지
+    return hold;
+  };
 
   let processed = 0;
   await db.transaction("rw", db.holdings, async () => {
-    for (const s of legacy) {
-      const legacyId = holdingId(s);
-      if (emptyByTicker.has(s.ticker)) {
-        // 이미 정상 "" row 존재 → 잘못된 "보유" row 만 삭제
-        await db.holdings.delete(legacyId);
-      } else {
-        // 정상 row 없음 → account="" 로 이름 변경 (id 도 새로 계산)
-        await db.holdings.delete(legacyId);
-        const fixed = { ...s, account: "" };
+    for (const s of empties) {
+      const oldId = holdingId(s);
+      await db.holdings.delete(oldId);
+      const existingHold = holdingByTicker.get(s.ticker);
+      if (existingHold) {
+        // 충돌 — winner 값을 "보유" 그룹으로 보존
+        const winner = pickWinner(s, existingHold);
+        const fixed = { ...winner, account: "보유" };
         await db.holdings.put({ ...fixed, id: holdingId(fixed) } as Stock & { id: string });
+        holdingByTicker.set(s.ticker, { ...fixed, id: holdingId(fixed) } as Stock & { id: string });
+      } else {
+        const fixed = { ...s, account: "보유" };
+        await db.holdings.put({ ...fixed, id: holdingId(fixed) } as Stock & { id: string });
+        holdingByTicker.set(s.ticker, { ...fixed, id: holdingId(fixed) } as Stock & { id: string });
       }
       processed += 1;
     }
