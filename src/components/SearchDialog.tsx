@@ -678,9 +678,9 @@ function SearchResultRow({
             ✓ {g}
           </button>
         ))}
-        {/* pending 배지 — 보유 그룹이 있을 때만 표시 (기존 vs 추가될 그룹 구분 필요).
-            보유 0개면 행마다 표시하지 않음 — 상단 안내가 이미 알려주므로 중복 회피 */}
-        {existing.length > 0 && pending.map(g => (
+        {/* pending 배지 — 일괄적용 시 추가될 그룹을 행마다 미리보기.
+            (모든 행에 표시 — 어디로 추가될지 명확히 확인 가능하게) */}
+        {pending.map(g => (
           <span key={g}
                 title="일괄적용 시 추가됨"
                 className="text-[10px] bg-blue-50 text-blue-700
