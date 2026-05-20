@@ -9,6 +9,7 @@ import { openTossStock } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
+import { IntradayPatternDialog } from "./IntradayPatternDialog";
 
 interface KrRegInfo {
   ticker: string;
@@ -499,6 +500,7 @@ export function StockCard({
   memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
+  const [intradayOpen, setIntradayOpen] = useState(false);
 
   useEffect(() => {
     const cur = price?.price;
@@ -927,6 +929,16 @@ export function StockCard({
               <Lightbulb size={16} strokeWidth={2.2}
                          fill={memo ? "currentColor" : "none"}
                          className={memo ? "" : "group-hover/lb:fill-current transition-colors"} />
+            </button>
+          )}
+          {/^\d{6}$/.test(stock.ticker) && (
+            <button
+              type="button"
+              onClick={() => setIntradayOpen(true)}
+              title="시간대 패턴 (하루 중 매매 타이밍)"
+              className="opacity-70 hover:opacity-100
+                         text-sm leading-none px-0.5 transition-opacity">
+              📈
             </button>
           )}
           {onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker) && (
@@ -1467,6 +1479,14 @@ export function StockCard({
         })}
       </div>
     </article>
+    {intradayOpen && (
+      <IntradayPatternDialog
+        isOpen={intradayOpen}
+        onClose={() => setIntradayOpen(false)}
+        ticker={stock.ticker}
+        stockName={stock.name}
+      />
+    )}
     </div>
   );
 }

@@ -1224,6 +1224,49 @@ export async function fetchYahooChart(
   }
 }
 
+// Yahoo 분봉 (intraday) — timestamp 포함. 시간대 겹침(intraday overlay) 차트용.
+// 5분봉은 Yahoo 가 최대 ~60일 제공 → range="1mo"(약 20거래일) 권장.
+// 반환: { t: epoch초(UTC), close } 배열 (null 봉 제외, 시간순).
+export interface IntradayBar { t: number; close: number; }
+export async function fetchYahooIntraday(
+  symbol: string,
+  range = "1mo",
+  interval = "5m",
+): Promise<IntradayBar[]> {
+  // includePrePost=true — KR 은 프리마켓 미제공이지만 마감 동시호가(15:20~15:30)까지 더 완전하게 들어옴
+  const target = `https://query1.finance.yahoo.com/v8/finance/chart/`
+              + `${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=true`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const data = await resp.json() as ChartResp;
+    const r = data.chart?.result?.[0];
+    const ts = r?.timestamp ?? [];
+    const closes = r?.indicators?.quote?.[0]?.close ?? [];
+    const out: IntradayBar[] = [];
+    for (let i = 0; i < ts.length; i++) {
+      const c = closes[i];
+      if (typeof c === "number" && Number.isFinite(c)) out.push({ t: ts[i], close: c });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// KR 6자리 → 분봉. KOSPI(.KS)/KOSDAQ(.KQ) 둘 다 받아 봉이 많은 쪽 선택.
+// (KOSDAQ 을 .KS 로 받으면 빈값/노이즈 5~20봉만 나와 fetchKrPriceHistory 의 ">0" 폴백으론 부족 → 개수 비교)
+export async function fetchKrIntraday(
+  ticker: string, range = "1mo", interval = "5m",
+): Promise<IntradayBar[]> {
+  if (!/^\d{6}$/.test(ticker)) return [];
+  const [ks, kq] = await Promise.all([
+    fetchYahooIntraday(`${ticker}.KS`, range, interval),
+    fetchYahooIntraday(`${ticker}.KQ`, range, interval),
+  ]);
+  return ks.length >= kq.length ? ks : kq;
+}
+
 // Yahoo ^지수 → 토스 indices 코드 매핑 (현재가만 토스, 없으면 Yahoo fallback)
 // 차트(스파크라인)는 토스 API 가 인증벽이라 계속 Yahoo 사용.
 const TOSS_INDEX_CODE: Record<string, string> = {
