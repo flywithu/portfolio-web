@@ -383,50 +383,40 @@ export async function verifyKrMarkets(
   return out;
 }
 
-// markets 매개변수: ticker → KOSPI/KOSDAQ. KOSPI → .KS, KOSDAQ → .KQ.
+// 한국 정규장(공식) 종가 — 토스 stock-prices?meta=true 의 close (거래현황 "오늘 종가"와 동일).
+// details.close 는 시간외/NXT 실시간 최신가라 변하지만, meta.close 는 공식 종가로 안정적 →
+// 시간외에 메인(실시간)과 다를 때 "마감 책갈피" 로 정규장 종가를 보여줌.
+// Yahoo .KS/.KQ 는 15~20분 지연·간헐적 stale(과거값) 이라 토스로 교체.
+// markets 매개변수는 호환용으로 유지 (토스는 A 코드만 사용).
 export async function fetchKrRegularPrices(
   tickers: string[],
-  markets?: Map<string, string>,
+  _markets?: Map<string, string>,
 ): Promise<Map<string, KrRegularPrice>> {
   const out = new Map<string, KrRegularPrice>();
   if (tickers.length === 0) return out;
-  const symbols = tickers.map(t => {
-    const m = markets?.get(t);
-    return `${t}.${m === "KOSDAQ" ? "KQ" : "KS"}`;
-  }).join(",");
-  const target = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}`;
+  const codes = tickers
+    .filter(t => /^[\dA-Za-z]{6}$/.test(t))
+    .map(t => `A${t}`)
+    .join(",");
+  if (!codes) return out;
+  const target = `https://wts-info-api.tossinvest.com/api/v3/stock-prices?meta=true&productCodes=${codes}`;
   try {
     const resp = await fetchProxied(target);
     if (!resp.ok) return out;
     const data = await resp.json() as {
-      quoteResponse?: {
-        result?: Array<{
-          symbol: string;
-          regularMarketPrice?: number;
-          regularMarketPreviousClose?: number;
-          regularMarketChangePercent?: number;
-          marketState?: string;
-        }>;
-      };
+      result?: Array<{ productCode?: string; close?: number; base?: number }>;
     };
-    for (const q of (data.quoteResponse?.result ?? [])) {
-      const m = /^(\d{6})\.(KS|KQ)$/.exec(q.symbol);
-      if (!m) continue;
-      const ticker = m[1];
-      const regP = q.regularMarketPrice;
-      const regPrev = q.regularMarketPreviousClose;
-      if (typeof regP !== "number" || !Number.isFinite(regP)) continue;
-      const rawPct = q.regularMarketChangePercent;
-      const regPct = typeof rawPct === "number" && Number.isFinite(rawPct)
-        ? rawPct
-        : (typeof regPrev === "number" && regPrev > 0
-           ? ((regP - regPrev) / regPrev) * 100
-           : 0);
+    for (const r of (data.result ?? [])) {
+      const ticker = (r.productCode ?? "").replace(/^A/, "");
+      if (!/^[\dA-Za-z]{6}$/.test(ticker)) continue;
+      if (typeof r.close !== "number" || !Number.isFinite(r.close)) continue;
+      const base = typeof r.base === "number" ? r.base : 0;
+      const regPct = base > 0 ? ((r.close - base) / base) * 100 : 0;
       out.set(ticker, {
         ticker,
-        regularPrice: regP,
+        regularPrice: r.close,
         regularPct: regPct,
-        marketState: q.marketState ?? "",
+        marketState: "",
       });
     }
   } catch { /* network — return empty */ }
