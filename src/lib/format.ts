@@ -127,16 +127,33 @@ export function fmtKstHHMM(iso?: string): string {
   }).format(new Date(ms));
 }
 
-// 보유 종목 "마감 예정 시간" 라벨 — 토스 tradingEnd 그대로 KST HH:MM.
+// 보유 종목 단일가 "마감 시간" 라벨 — 실제 단일가 종료 시각.
+// tradingEnd 가 미래면 그 값(NXT 20:00), 이미 지났으면(KRX 정규장 15:30) 시간외 단일가 종료 18:00.
 export function krCloseTimeLabel(tradingEnd?: string): string {
-  return fmtKstHHMM(tradingEnd);
+  if (tradingEnd) {
+    const ms = Date.parse(tradingEnd);
+    if (Number.isFinite(ms) && ms > Date.now()) return fmtKstHHMM(tradingEnd);
+  }
+  return "18:00";
 }
 
-// 보유 종목 흐림(마감) 판정 — 토스 거래가능 플래그 기반 (10분 체결 휴리스틱 불필요).
-// KRX·NXT 둘 다 거래 불가(suspended)면 마감. 08:00 이전/20:00 이후/주말은 안전망으로 마감.
-export function isKrHoldingClosed(krxSuspended?: boolean, nxtSuspended?: boolean): boolean {
-  if (krSessionPhase() === "CLOSED") return true;
-  return !!(krxSuspended && nxtSuspended);
+// 보유 종목 흐림(마감) 판정 — 토스 tradingEnd/단일가 신호 기반 (10분 체결 휴리스틱 불필요).
+// 열림: 단일가 세션 중(singlePrice) / tradingEnd 이전(정규·NXT 접속매매).
+// 마감: tradingEnd 지났고 단일가도 아님(다음 세션 전까지). 08:00 이전/20:00 이후/주말 안전망.
+export function isKrHoldingClosed(
+  tradingEnd?: string, nextTradingStart?: string, singlePrice?: boolean,
+): boolean {
+  if (krSessionPhase() === "CLOSED") return true;   // 안전망
+  if (singlePrice) return false;                     // 시간외 단일가 진행 중 → 열림
+  if (tradingEnd) {
+    const end = Date.parse(tradingEnd);
+    if (Number.isFinite(end) && Date.now() >= end) {
+      const start = nextTradingStart ? Date.parse(nextTradingStart) : NaN;
+      // tradingEnd 지났고 다음 세션 시작 전 → 마감
+      if (!(Number.isFinite(start) && Date.now() >= start)) return true;
+    }
+  }
+  return false;
 }
 
 // KST 08:00 ~ 08:59 — 한국 프리장 동시호가 시간 (정규장 09:00 직전).

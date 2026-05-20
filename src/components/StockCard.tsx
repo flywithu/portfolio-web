@@ -534,7 +534,7 @@ export function StockCard({
   }
 
   // 흐림(마감) 판정 — 토스 거래가능 플래그(KRX·NXT 둘 다 suspended = 마감) 기반.
-  const sleeping = isKrHoldingClosed(price.krxSuspended, price.nxtSuspended);
+  const sleeping = isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice);
   const dimmed = sleeping && getDimSleepingEnabled();
 
   // 어제보다 — base (비거래일엔 price 와 동일) 기반. UI 표시용
