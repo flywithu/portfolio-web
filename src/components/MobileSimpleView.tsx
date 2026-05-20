@@ -683,7 +683,12 @@ export function MobileSimpleView() {
                   <div className="pointer-events-auto cursor-pointer"
                        onClick={() => setTodayPnLOpen(o => !o)}
                        title={todayPnLOpen ? "닫기" : "오늘 수익/손해 보기"}>
-                    <TotalRow holdings={groupHoldings} prices={groupPriceMap} />
+                    <TotalRow holdings={groupHoldings} prices={groupPriceMap}
+                              account={activeTab}
+                              aggregated={activeTab === MY_KEY}
+                              onDepositChange={() => {
+                                void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+                              }} />
                   </div>
                 </div>
               </>

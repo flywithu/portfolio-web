@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type { Stock, Memo } from "../types";
+import { getDeposits, replaceAllDeposits } from "./deposits";
 
 interface Peak { ticker: string; price: number; }
 interface ConfigKV { key: string; value: unknown; }
@@ -324,6 +325,7 @@ export interface ExportPayload {
   // 다기기 동기화가 필요한 설정 (로컬-only 설정은 제외)
   settings?: {
     independentGroups?: boolean;
+    deposits?: Record<string, number>;   // 그룹(account)별 예수금
   };
 }
 export async function exportAll(): Promise<ExportPayload> {
@@ -343,7 +345,7 @@ export async function exportAll(): Promise<ExportPayload> {
   // memos — 결정적 정렬 (ticker asc) 으로 직렬화 안정성 확보
   const memosList: Memo[] = Array.from(memos.values())
     .sort((a, b) => a.ticker.localeCompare(b.ticker));
-  // settings — 다기기 동기화 대상 (independent groups mode)
+  // settings — 다기기 동기화 대상 (independent groups mode + 예수금)
   let independentGroups: boolean | undefined;
   try {
     independentGroups = localStorage.getItem("portfolio_independent_groups") === "1";
@@ -355,6 +357,7 @@ export async function exportAll(): Promise<ExportPayload> {
     exported_at: new Date().toISOString(),
     settings: {
       independentGroups,
+      deposits: getDeposits(),
     },
   };
 }
@@ -370,6 +373,7 @@ export function applyImportedSettings(settings?: ExportPayload["settings"]): voi
       );
     } catch { /* noop */ }
   }
+  if (settings.deposits) replaceAllDeposits(settings.deposits);
 }
 
 // 그룹 일괄 삭제 — 해당 그룹의 모든 holdings 삭제 (반환: 삭제 건수)

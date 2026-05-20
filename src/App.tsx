@@ -476,7 +476,10 @@ function Dashboard() {
               })}
             </div>
             <div className="sticky bottom-0 z-40 mt-3 w-full flex flex-wrap items-start gap-2">
-              <TotalRow holdings={visible} prices={priceMap} />
+              <TotalRow holdings={visible} prices={priceMap}
+                        account={activeTab}
+                        aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                        onDepositChange={() => setReloadKey(k => k + 1)} />
               <TodayPnLTable holdings={visible} prices={priceMap} />
               <div className="ml-auto">
                 <WhatIfRow holdings={visible} prices={priceMap} />
