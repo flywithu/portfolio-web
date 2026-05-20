@@ -58,7 +58,12 @@ interface QuoteRow {
   chart?: number[];   // 3개월 일봉 종가 시계열 (배경 sparkline 용)
 }
 
-export function UsMarketTab() {
+interface UsMarketTabProps {
+  // ETF 구성종목 모달의 "한번에 추가" → 전역 검색창으로 전달
+  onRequestSearch?: (q: string) => void;
+}
+
+export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   const yahooSymbols = allYahooSymbols();
   const krEtfs = allKrEtfTickers();
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
@@ -351,7 +356,8 @@ export function UsMarketTab() {
       {etfDialog && (
         <EtfCompositionDialog isOpen={true}
                               ticker={etfDialog.ticker} etfName={etfDialog.name}
-                              onClose={() => setEtfDialog(null)} />
+                              onClose={() => setEtfDialog(null)}
+                              onRequestSearch={onRequestSearch} />
       )}
     </div>
   );

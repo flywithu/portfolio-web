@@ -401,7 +401,10 @@ function Dashboard() {
                }} />
 
         {activeTab === US_MARKET_TAB_KEY ? (
-          <UsMarketTab />
+          <UsMarketTab onRequestSearch={(q) => {
+            setSearchInitQuery(q);
+            setSearchOpen(true);
+          }} />
         ) : activeTab === SECTOR_RANK_TAB_KEY ? (
           <SectorRankingTab onRequestSearch={(q) => {
             setSearchInitQuery(q);
