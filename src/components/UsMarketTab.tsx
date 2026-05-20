@@ -253,6 +253,21 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
               const dimCls = dimEnabled && (sleeping || isClosed) ? "opacity-60" : "";
               return (
                 <div key={p.symbol} className="relative">
+                  {/* ETF 책갈피 — KR ETF (예: 069500.KS) 만. 왼쪽 위. 클릭 시 구성종목 모달 */}
+                  {(() => {
+                    const etfTk = krEtfTicker(p.symbol);
+                    if (!etfTk) return null;
+                    return (
+                      <button onClick={() => setEtfDialog({ ticker: etfTk, name: p.name })}
+                              title="ETF 구성 종목 보기"
+                              className="absolute -top-2 left-1 z-20 px-1.5 py-0 rounded
+                                         text-[10px] font-bold leading-tight
+                                         text-violet-700 bg-violet-100/30 hover:bg-violet-100/60
+                                         border border-violet-300/40">
+                        ETF
+                      </button>
+                    );
+                  })()}
                   {/* 정규장 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경 + 흐림 제외(z-20) */}
                   {showCloseTag && closeVal != null && (
                     <div className="absolute -top-2 right-1 z-20 px-1.5 py-0
@@ -296,20 +311,6 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                         📊
                       </button>
                     )}
-                    {/* ETF 책갈피 — KR ETF (예: 091160.KS) 만. 종목명 옆에 인라인. 클릭 시 구성종목 모달 */}
-                    {(() => {
-                      const etfTk = krEtfTicker(p.symbol);
-                      if (!etfTk) return null;
-                      return (
-                        <button onClick={() => setEtfDialog({ ticker: etfTk, name: p.name })}
-                                title="ETF 구성 종목 보기"
-                                className="ml-1 px-1 py-0.5 rounded text-[10px] font-bold leading-none
-                                           text-violet-700 bg-violet-50/80 hover:bg-violet-100
-                                           border border-violet-200 self-center">
-                          ETF
-                        </button>
-                      );
-                    })()}
                   </div>
                   <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}

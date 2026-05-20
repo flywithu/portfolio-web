@@ -82,6 +82,8 @@ interface TossPriceItem {
   nxtSinglePrice?: boolean;
   krxTradingSuspended?: boolean;
   nxtTradingSuspended?: boolean;
+  high52w?: number;
+  low52w?: number;
 }
 interface TossPriceResponse { result: TossPriceItem[]; }
 
@@ -475,6 +477,8 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
       singlePrice: !!(item.krxSinglePrice || item.nxtSinglePrice),
       krxSuspended: item.krxTradingSuspended,
       nxtSuspended: item.nxtTradingSuspended,
+      high52w: item.high52w,
+      low52w: item.low52w,
     };
   });
 }

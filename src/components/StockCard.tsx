@@ -486,9 +486,8 @@ const WARN_BG: Record<string, string> = {
   투자주의:     "bg-amber-500",
 };
 
-// 손절/트레일링 임계값 (데스크톱 v2 기본 -9.0%)
+// 손절 임계값 (데스크톱 v2 기본 -9.0%)
 const STOP_LOSS_PCT = -9;
-const TRAILING_STOP_PCT = -9;
 
 // 직전 틱 대비 화살표 — 데스크톱 v2 동일 (첫 전환 속빈, 연속 속찬)
 type TickDir = "up" | "down" | undefined;
@@ -496,7 +495,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, krReg, investor, investorHistory, consensus, sector, peak, warning, loading, chart, priceHistory, longHistory,
+  stock, price, krReg, investor, investorHistory, consensus, sector, warning, loading, chart, priceHistory, longHistory,
   memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -562,8 +561,6 @@ export function StockCard({
     ? `직전 거래일 종가 ${price.prevClose.toLocaleString()}원 대비 ${formatSigned(colorDiff)}원 (${colorPct >= 0 ? "+" : ""}${colorPct.toFixed(2)}%) — 현재가 금액색은 ${priceColorName} 입니다`
     : "";
 
-  const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
-
   // 메모 — 목표가/손절가 도달 여부 (현재가 ≥ 목표가 / 현재가 ≤ 손절가)
   const memoTargetReached =
     memo?.targetPrice != null && Number.isFinite(memo.targetPrice) &&
@@ -579,11 +576,6 @@ export function StockCard({
 
   // 손절 — 매수가 대비 -10% 이하 (보유 종목만)
   const isStop = hasPosition && pnlPct <= STOP_LOSS_PCT;
-  // 트레일링 — 피크가 매수가 위로 오른 적 있고, 피크 대비 -10% 이하
-  const peakedAboveBuy = !!(peak && stock.avg_price && peak > stock.avg_price);
-  const isPeakDrop = hasPosition && peakedAboveBuy
-                       && peakPct <= TRAILING_STOP_PCT
-                       && Math.abs(peakPct) >= 0.01;
 
   // 카드 배경색/테두리 — 보유 종목의 손익에 따라 옅은 빨/파
   // (책갈피 pill 도 동일 색 사용 — 하나처럼 보임)
@@ -1328,20 +1320,6 @@ export function StockCard({
                 {g}
               </span>
             ))}
-          </div>
-        )}
-
-        {/* 피크 (보유만, 피크가 현재가보다 위) — 보유 기준 총액 */}
-        {hasPosition && peak && peak > price.price && (
-          <div className="text-xs">
-            <span className="text-[10px] text-gray-500">피크 </span>
-            <span className="text-gray-700 font-medium">
-              {Math.round(peak * stock.shares).toLocaleString()}원
-            </span>{" "}
-            (<span className={`rounded px-0.5
-                               ${isPeakDrop ? "bg-blue-600 text-white font-bold" : ""}`}>
-              {peakPct.toFixed(2)}%
-            </span>)
           </div>
         )}
 
