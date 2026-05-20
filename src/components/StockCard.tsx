@@ -937,8 +937,8 @@ export function StockCard({
               onClick={() => setIntradayOpen(true)}
               title="시간대 패턴 (하루 중 매매 타이밍)"
               className="opacity-70 hover:opacity-100
-                         text-sm leading-none px-0.5 transition-opacity">
-              📈
+                         text-xs leading-none px-0.5 transition-opacity">
+              ⏰
             </button>
           )}
           {onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker) && (

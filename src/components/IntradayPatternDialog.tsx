@@ -176,7 +176,7 @@ export function IntradayPatternDialog({ isOpen, onClose, ticker, stockName }: Pr
                        w-[920px] max-w-[96vw] h-[640px] max-h-[94vh]
                        rounded-t-xl sm:rounded-lg overflow-hidden">
         <header className="px-5 py-3 border-b bg-gray-50 flex items-center shrink-0">
-          <h2 className="text-lg font-bold flex items-center gap-1.5">⏱ 시간대 패턴</h2>
+          <h2 className="text-lg font-bold flex items-center gap-1.5">⏰ 시간대 패턴</h2>
           <span className="ml-3 text-sm text-gray-600 truncate">{stockName} ({ticker})</span>
           <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
