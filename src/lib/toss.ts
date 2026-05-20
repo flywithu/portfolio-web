@@ -26,6 +26,10 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   // 환율
   "DX-Y.NYB": "https://www.tossinvest.com/indices/RGI..DXY",
   "KRW=X":    "https://www.tossinvest.com/indices/exchange-rate",
+  // 미국 국채금리 커브
+  "^FVX":  "https://www.tossinvest.com/indices/ROB.US5YT-RR",
+  "^TNX":  "https://www.tossinvest.com/indices/ROB.US10YT-RR",
+  "^TYX":  "https://www.tossinvest.com/indices/ROB.US30YT-RR",
   // 미국 대표 ETF (토스 종목 페이지)
   "SPY": "https://www.tossinvest.com/stocks/US19930122001",
   "QQQ": "https://www.tossinvest.com/stocks/US19990310001",

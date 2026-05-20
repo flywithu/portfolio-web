@@ -101,8 +101,7 @@ const KR_ORDER: string[] = [
 // 매크로 탭 — 환율/금리 → 미국지수+선물 → 미국 대표 ETF → 원자재 (맨 아래)
 const US_ORDER: string[] = [
   "KRW=X", "DX-Y.NYB",
-  "^TNX",
-  "IEF", "TLT",            // 미국 중기·장기 국채 ETF — 10Y yield 가격 환산
+  "^FVX", "^TNX", "^TYX",   // 미국 국채금리 커브 5/10/30Y (yield, %)
   "^IXIC", "NQ=F",
   "^GSPC", "ES=F",
   "^DJI", "RTY=F",         // 다우존스 + 러셀2000 선물

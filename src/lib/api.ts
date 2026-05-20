@@ -1238,6 +1238,10 @@ const TOSS_INDEX_CODE: Record<string, string> = {
   "RTY=F":  "RFU.RTYc1", // 러셀2000 선물
   "^VIX":   "RGI..VIX",  // VIX 변동성
   "DX-Y.NYB": "RGI..DXY", // 달러 인덱스
+  // 미국 국채금리 커브 (yield, %) — 토스 indices
+  "^FVX":   "ROB.US5YT-RR",  // 미국 5년 금리 (차트 = Yahoo ^FVX)
+  "^TNX":   "ROB.US10YT-RR", // 미국 10년 금리 (차트 = Yahoo ^TNX)
+  "^TYX":   "ROB.US30YT-RR", // 미국 30년 금리 (차트 = Yahoo ^TYX)
 };
 
 // Yahoo 심볼 → 토스 미국 종목 코드 (현재가만 토스, 없으면 Yahoo fallback).
