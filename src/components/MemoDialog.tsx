@@ -132,7 +132,10 @@ export function MemoDialog({
           : ""
       );
     })();
-  }, [isOpen, ticker, hasAvg, avgPrice, curPrice]);
+    // 폼 시딩은 다이얼로그 열림/종목 변경 시에만 — 가격 틱(curPrice/avgPrice)으로 재실행되면
+    // 입력 중인 메모가 초기화되므로 의존성에서 제외 (열린 시점 가격으로 % 시드).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, ticker]);
 
   // 기준이 바뀌면 — 가격은 그대로, % 만 새 기준으로 재계산
   useEffect(() => {
