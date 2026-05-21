@@ -102,9 +102,10 @@ const KR_ORDER: string[] = [
 const US_ORDER: string[] = [
   "KRW=X", "DX-Y.NYB",
   "^FVX", "^TNX", "^TYX",   // 미국 국채금리 커브 5/10/30Y (yield, %)
+  "RTY=F",                 // 러셀2000 선물 (미국30Y 다음)
   "^IXIC", "NQ=F",
   "^GSPC", "ES=F",
-  "^DJI", "RTY=F",         // 다우존스 + 러셀2000 선물
+  "^DJI",
   "SPY", "QQQ",
   "DIA",
   "IWM", "VTI",
