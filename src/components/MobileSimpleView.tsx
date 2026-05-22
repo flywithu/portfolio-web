@@ -75,6 +75,7 @@ import {
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
 import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
+import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
 
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
 const US_KEY = "__us__";  // 미국 (환율·매크로·원자재·미국지수·미국 대표 ETF)
@@ -222,6 +223,15 @@ export function MobileSimpleView() {
     return tabs;
     // settingsOpen 의존 — 설정 모달 닫힐 때 visibility 재평가
   }, [holdings, settingsOpen]);
+
+  // 그룹 폴더 — 폴더에 담긴 그룹은 개별 탭 대신 📁 드롭다운으로 묶음
+  const folders = useMemo(() => getGroupFolders(), [settingsOpen, holdings]);
+  const folderedGroups = useMemo(
+    () => new Set(folders.flatMap(f => f.groups)), [folders]);
+  const countByKey = useMemo(
+    () => new Map(groupTabs.map(t => [t.key, t.count])), [groupTabs]);
+  const presentGroups = useMemo(
+    () => new Set(groupTabs.map(t => t.key)), [groupTabs]);
 
   // 저장된 탭이 더이상 없으면 (그룹 삭제 등) 한국으로 fallback
   useEffect(() => {
@@ -538,6 +548,8 @@ export function MobileSimpleView() {
       <nav className="sticky top-[44px] z-40 bg-white border-b border-gray-200
                        px-2 py-1 flex gap-1 overflow-x-auto whitespace-nowrap">
         {groupTabs.map(t => {
+          // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
+          if (folderedGroups.has(t.key)) return null;
           const active = t.key === activeTab;
           // 시스템 탭(한국/미국)은 길게 누르기 무시
           const editable = t.key !== US_KEY && t.key !== KR_KEY;
@@ -576,6 +588,31 @@ export function MobileSimpleView() {
                 </span>
               )}
             </button>
+          );
+        })}
+        {/* 📁 폴더 드롭다운 — 폴더에 담긴 그룹 묶음 */}
+        {folders.map(folder => {
+          const members = folder.groups.filter(g => presentGroups.has(g))
+                                .sort((a, b) => a.localeCompare(b, "ko"));
+          if (members.length === 0) return null;
+          const current = members.includes(activeTab) ? activeTab : members[0];
+          const folderActive = members.includes(activeTab);
+          return (
+            <span key={`folder_${folder.name}`}
+                  className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-2
+                              ${folderActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+              📁{folder.name}
+              <select value={current}
+                      onChange={e => setActiveTab(e.target.value)}
+                      className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
+                                  ${folderActive ? "text-white" : "text-gray-700"}`}>
+                {members.map(g => (
+                  <option key={g} value={g} className="text-gray-800">
+                    {g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}
+                  </option>
+                ))}
+              </select>
+            </span>
           );
         })}
       </nav>
@@ -850,7 +887,10 @@ export function MobileSimpleView() {
       {settingsOpen && (
         <SettingsModal proxyUrl={proxyUrl} setProxyUrl={setProxyUrl}
                        savedMsg={savedMsg} setSavedMsg={setSavedMsg}
-                       onClose={() => setSettingsOpen(false)} />
+                       onClose={() => setSettingsOpen(false)}
+                       groups={Array.from(new Set(
+                         holdings.map(h => normalizeAccount(h.account)).filter(a => a && a !== "관심ETF")
+                       )).sort()} />
       )}
 
       {/* 종목 검색 / 추가 */}
@@ -1016,16 +1056,18 @@ interface SettingsModalProps {
   savedMsg: string;
   setSavedMsg: (v: string) => void;
   onClose: () => void;
+  groups: string[];   // 폴더 관리용 사용자 그룹 목록
 }
 
 function SettingsModal({
-  proxyUrl, setProxyUrl, savedMsg, setSavedMsg, onClose,
+  proxyUrl, setProxyUrl, savedMsg, setSavedMsg, onClose, groups: mgmtGroups,
 }: SettingsModalProps) {
   const downOnBackdropRef = useRef(false);
   const queryClient = useQueryClient();
-  const [raw, setRaw] = useState("");
   const [busy, setBusy] = useState(false);
   const [dataMsg, setDataMsg] = useState("");
+  const [folderDraft, setFolderDraft] = useState<GroupFolder[]>([]);
+  const [newFolderName, setNewFolderName] = useState("");
   const [pollMs, setPollMs] = useState(getPersonalPollMs());
   const [syncStateLocal, setSyncStateLocal] = useState(getSyncState());
   const [syncBusyLocal, setSyncBusyLocal] = useState(false);
@@ -1036,8 +1078,8 @@ function SettingsModal({
   // + 토큰 만료 감지 시 자동 logout
   useEffect(() => {
     void (async () => {
+      setFolderDraft(getGroupFolders());
       const data = await exportAll();
-      setRaw(JSON.stringify(data, null, 2));
       setDataMsg(`현재: 종목 ${data.holdings.length}건`);
 
       // 로그인 상태 검증 → 진짜 만료 시 자동 logout (설정 안에서만 표시)
@@ -1074,50 +1116,75 @@ function SettingsModal({
     location.reload();
   };
 
-  const result = detectPortfolioJson(raw);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(raw);
-      setDataMsg("✅ 클립보드 복사됨");
-    } catch {
-      setDataMsg("❌ 복사 실패 — textarea 직접 선택해서 복사");
-    }
+  // 파일로 저장 — 현재 데이터를 .json 다운로드
+  const handleDownloadFile = async () => {
+    const data = await exportAll();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `portfolio_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDataMsg("💾 파일로 저장됨");
   };
 
-  const handlePaste = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      setRaw(text);
-      setDataMsg("📥 클립보드에서 가져옴 — [적용] 누르면 덮어쓰기");
-    } catch {
-      setDataMsg("❌ 클립보드 읽기 실패 — textarea 에 직접 붙여넣어 주세요");
-    }
+  // 파일에서 불러오기 — 파싱 → 확인 → 전체 덮어쓰기
+  const handleLoadFile = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      let parsed;
+      try { parsed = detectPortfolioJson(await f.text()); }
+      catch { window.alert("❌ 파일 읽기 실패"); return; }
+      if (!parsed || parsed.kind === "error") {
+        window.alert(`❌ 불러올 수 없는 파일입니다\n${parsed?.kind === "error" ? parsed.error : ""}`);
+        return;
+      }
+      if (!window.confirm(
+        "이 파일로 덮어쓸까요?\n현재 보유·예수금·그룹·폴더·탭 등 모든 데이터/설정이 교체됩니다."
+      )) return;
+      setBusy(true);
+      try {
+        if (parsed.kind === "holdings" || parsed.kind === "combined") await replaceAllHoldings(parsed.stocks);
+        if (parsed.kind === "peaks" || parsed.kind === "combined") await replaceAllPeaks(parsed.peaks);
+        if (parsed.kind === "holdings" || parsed.kind === "combined") {
+          applyImportedSettings(parsed.settings);
+          if (parsed.memos) await replaceAllMemos(parsed.memos);
+        }
+        onClose();
+        location.reload();
+      } catch (e) {
+        window.alert(`❌ 적용 실패: ${e instanceof Error ? e.message : ""}`);
+        setBusy(false);
+      }
+    };
+    input.click();
   };
 
-  const handleApply = async () => {
-    if (!result || result.kind === "error") return;
-    setBusy(true);
-    try {
-      if (result.kind === "holdings" || result.kind === "combined") {
-        await replaceAllHoldings(result.stocks);
-      }
-      if (result.kind === "peaks" || result.kind === "combined") {
-        await replaceAllPeaks(result.peaks);
-      }
-      if (result.kind === "holdings" || result.kind === "combined") {
-        applyImportedSettings(result.settings);   // 예수금·그룹모드 복원
-        if (result.memos) await replaceAllMemos(result.memos);   // 메모 복원
-      }
-      setDataMsg("💾 적용 완료");
-      onClose();
-      location.reload();
-    } catch (e) {
-      setDataMsg(`❌ 저장 실패: ${e instanceof Error ? e.message : ""}`);
-    } finally {
-      setBusy(false);
-    }
+  // 폴더 관리 — 즉시 저장
+  const persistFolders = (next: GroupFolder[]) => {
+    setFolderDraft(next);
+    setGroupFolders(next);
   };
+  const addFolder = () => {
+    const n = newFolderName.trim();
+    if (!n || folderDraft.some(f => f.name === n)) return;
+    persistFolders([...folderDraft, { name: n, groups: [] }]);
+    setNewFolderName("");
+  };
+  const toggleGroupInFolder = (folderName: string, group: string, checked: boolean) => {
+    persistFolders(folderDraft.map(f => {
+      if (f.name === folderName) {
+        return { ...f, groups: checked ? Array.from(new Set([...f.groups, group])) : f.groups.filter(g => g !== group) };
+      }
+      return checked ? { ...f, groups: f.groups.filter(g => g !== group) } : f;
+    }));
+  };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center
@@ -1160,12 +1227,10 @@ function SettingsModal({
           {/* 0) Google Drive 동기화 */}
           <div className="border border-gray-200 rounded p-3 bg-emerald-50/40 space-y-1.5">
             <div className="text-xs font-bold text-gray-700">
-              💾 Google Drive 동기화 (선택)
+              💾 Google Drive 동기화
             </div>
             <div className="text-[11px] text-gray-500 leading-relaxed">
-              내 Google Drive 의 숨김 폴더에 자동 백업하는 기능입니다.<br />
-              (여러 기기에서 같은 종목(그룹) 데이터를 사용할 수 있습니다.)<br />
-              별도로 사용자의 정보를 서버에 저장하지는 않습니다.
+              내 드라이브에 수동으로 업로드/다운로드해 여러 기기에서 공유합니다.
             </div>
             {syncStateLocal === "unconfigured" && (
               <button disabled={syncBusyLocal}
@@ -1266,6 +1331,23 @@ function SettingsModal({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 파일 백업 — GD 아래 (PC 동일 위치) */}
+          <div className="border border-gray-200 rounded p-3 space-y-2">
+            <label className="text-xs font-bold text-gray-700 block">📁 파일 백업 (전체 데이터·설정)</label>
+            <div className="flex gap-1.5">
+              <button onClick={() => void handleDownloadFile()}
+                      className="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded">
+                💾 파일로 저장
+              </button>
+              <button onClick={handleLoadFile} disabled={busy}
+                      className="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-40
+                                 text-gray-700 text-xs rounded">
+                📂 파일 불러오기
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-500">{dataMsg || "보유·예수금·그룹·폴더·탭 등 .json 백업/복원 (불러오기 = 전체 덮어쓰기)"}</p>
           </div>
 
           {/* 1) 전용 프록시 URL */}
@@ -1375,67 +1457,42 @@ function SettingsModal({
             </div>
           </div>
 
-          {/* 2) 포트폴리오 데이터 import/export */}
-          <div className="border border-gray-200 rounded p-3 space-y-2">
-            <label className="text-xs font-bold text-gray-700 block">
-              💼 포트폴리오 데이터 (JSON)
-            </label>
-            <p className="text-[11px] text-gray-500">{dataMsg || "holdings + peaks 통합 JSON"}</p>
-            <textarea
-              value={raw}
-              onChange={e => setRaw(e.target.value)}
-              placeholder='{"holdings": [...], "peaks": {...}}'
-              spellCheck={false}
-              className="w-full h-40 p-2 border border-gray-300 rounded
-                         font-mono text-[11px] resize-none
-                         focus:outline-none focus:border-blue-400" />
-
-            {/* 미리보기 */}
-            {result && result.kind === "error" && (
-              <div className="p-2 bg-red-50 border border-red-200 rounded
-                              text-[11px] text-red-700">
-                ✗ {result.error}
+          {/* 그룹 폴더 관리 */}
+          {mgmtGroups.length > 0 && (
+            <div className="border border-gray-200 rounded p-3 space-y-2">
+              <label className="text-xs font-bold text-gray-700 block">📁 그룹 폴더</label>
+              {folderDraft.map(f => (
+                <div key={f.name} className="border border-gray-200 rounded p-2">
+                  <div className="flex items-center mb-1">
+                    <span className="text-xs font-bold text-gray-800">📁 {f.name}</span>
+                    <button onClick={() => persistFolders(folderDraft.filter(x => x.name !== f.name))}
+                            className="ml-auto text-[10px] text-rose-500">삭제</button>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {mgmtGroups.map(g => (
+                      <label key={g} className="flex items-center gap-1">
+                        <input type="checkbox" checked={f.groups.includes(g)}
+                               onChange={e => toggleGroupInFolder(f.name, g, e.target.checked)}
+                               className="w-3.5 h-3.5 accent-blue-600" />
+                        <span className="text-[11px] text-gray-700">{g}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center gap-1.5">
+                <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+                       placeholder="새 폴더 이름"
+                       className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs
+                                  focus:outline-none focus:border-blue-400" />
+                <button onClick={addFolder}
+                        className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-medium">추가</button>
               </div>
-            )}
-            {result && result.kind === "holdings" && (
-              <div className="p-2 bg-blue-50 border border-blue-200 rounded
-                              text-[11px] text-blue-800">
-                ✓ 종목 {result.stocks.length}건
+              <div className="text-[10px] text-gray-500">
+                폴더에 담은 그룹은 상단 탭에서 📁 드롭다운으로 묶여 보입니다. (모달 닫을 때 반영)
               </div>
-            )}
-            {result && result.kind === "peaks" && (
-              <div className="p-2 bg-blue-50 border border-blue-200 rounded
-                              text-[11px] text-blue-800">
-                ✓ 피크 {Object.keys(result.peaks).length}건
-              </div>
-            )}
-            {result && result.kind === "combined" && (
-              <div className="p-2 bg-blue-50 border border-blue-200 rounded
-                              text-[11px] text-blue-800">
-                ✓ 종목 {result.stocks.length}건 + 피크 {Object.keys(result.peaks).length}건
-              </div>
-            )}
-
-            <div className="flex gap-1.5">
-              <button onClick={() => void handleCopy()}
-                      className="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200
-                                 text-gray-700 text-xs rounded">
-                📋 복사
-              </button>
-              <button onClick={() => void handlePaste()}
-                      className="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200
-                                 text-gray-700 text-xs rounded">
-                📥 붙여넣기
-              </button>
-              <button onClick={() => void handleApply()}
-                      disabled={!result || result.kind === "error" || busy}
-                      className="flex-1 px-2 py-1.5 bg-rose-600 hover:bg-rose-700
-                                 disabled:bg-gray-300
-                                 text-white text-xs rounded font-bold">
-                {busy ? "..." : "💾 적용"}
-              </button>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
