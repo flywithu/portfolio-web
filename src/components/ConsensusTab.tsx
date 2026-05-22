@@ -65,7 +65,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   const reportQs = useQueries({
     queries: tickers.map(t => ({
       queryKey: ["consensus-reports", t],
-      queryFn: () => fetchConsensusReports(t),
+      queryFn: () => fetchConsensusReports(t, 15),
       staleTime: 30 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -87,7 +87,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         ? (avgTarget / price - 1) * 100 : null;
       const repTime = parseRepDate(reps[0]?.date);
       const repsShown = cutoff === 0
-        ? reps.slice(0, 5)
+        ? reps   // 전체 — 가져온 리포트 모두
         : reps.filter(r => parseRepDate(r.date) >= cutoff);
       return {
         ticker: t, name: nameByTicker.get(t) ?? t, groups: groupsByTicker.get(t) ?? [],
@@ -211,10 +211,14 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   <div className="mt-1 space-y-0.5 border-t border-gray-100 pt-1">
                     {it.repsShown.map((r, ri) => {
                       const rt = parseRepDate(r.date);
-                      const recent = rt > 0 && Date.now() - rt < 2 * 24 * 3600 * 1000;   // 최근 1~2일
+                      const recent = rt > 0 && Date.now() - rt < 2 * 24 * 3600 * 1000;       // 최근 1~2일
+                      const withinWeek = rt > 0 && Date.now() - rt <= 7 * 24 * 3600 * 1000;   // 1주일 이내
+                      const withinMonth = rt > 0 && Date.now() - rt <= 30 * 24 * 3600 * 1000; // 1개월 이내
                       return (
                       <div key={ri} className={`flex items-baseline gap-1.5 text-[11px] tabular-nums
-                                                ${recent ? "bg-yellow-100/60 rounded font-bold" : ""}`}>
+                                                ${recent ? "bg-yellow-100/60 rounded font-bold"
+                                                  : withinWeek ? "bg-gray-100 rounded font-bold"
+                                                  : withinMonth ? "bg-gray-100 rounded text-gray-400" : ""}`}>
                         <span className="text-gray-400 shrink-0">{r.date.slice(3)}</span>
                         <span className="text-gray-500 shrink-0">{r.broker}</span>
                         {r.opinion && <span className="text-violet-600 shrink-0">{r.opinion}</span>}
