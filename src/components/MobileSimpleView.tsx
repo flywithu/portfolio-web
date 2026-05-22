@@ -232,6 +232,15 @@ export function MobileSimpleView() {
     () => new Map(groupTabs.map(t => [t.key, t.count])), [groupTabs]);
   const presentGroups = useMemo(
     () => new Set(groupTabs.map(t => t.key)), [groupTabs]);
+  // 화면에 보이는 탭 순서(스와이프 이동용) — 비폴더 탭들 + 폴더별 멤버(이름순)
+  const navKeys = useMemo(() => {
+    const keys: string[] = [];
+    for (const t of groupTabs) if (!folderedGroups.has(t.key)) keys.push(t.key);
+    for (const f of folders) {
+      keys.push(...f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko")));
+    }
+    return keys;
+  }, [groupTabs, folderedGroups, folders, presentGroups]);
 
   // 저장된 탭이 더이상 없으면 (그룹 삭제 등) 한국으로 fallback
   useEffect(() => {
@@ -450,10 +459,10 @@ export function MobileSimpleView() {
     const dy = e.changedTouches[0].clientY - touchStart.current.y;
     touchStart.current = null;
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
-    const idx = groupTabs.findIndex(t => t.key === activeTab);
+    const idx = navKeys.indexOf(activeTab);
     if (idx === -1) return;
-    if (dx < 0 && idx < groupTabs.length - 1) setActiveTab(groupTabs[idx + 1].key);
-    if (dx > 0 && idx > 0) setActiveTab(groupTabs[idx - 1].key);
+    if (dx < 0 && idx < navKeys.length - 1) setActiveTab(navKeys[idx + 1]);
+    if (dx > 0 && idx > 0) setActiveTab(navKeys[idx - 1]);
   };
 
   // ─── Tier 0 (대시보드 4개) ───
