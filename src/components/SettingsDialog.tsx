@@ -329,7 +329,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
 
-        <div className="px-5 py-3 space-y-3 flex-1 flex flex-col min-h-0">
+        <div className="px-5 py-3 space-y-3 flex-1 flex flex-col min-h-0 overflow-y-auto">
           {/* Google Drive 동기화 */}
           <div className="border border-gray-200 rounded p-2.5 bg-emerald-50/40 space-y-1.5">
             <div className="text-xs font-bold text-gray-700">

@@ -3,6 +3,7 @@ import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
+import { Tooltip } from "./Tooltip";
 import { formatSigned, signColor, isEtfByName } from "../lib/format";
 import { handleTossLinkClick, openExternal } from "../lib/toss";
 
@@ -309,6 +310,9 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
 
             const groups = holdingGroups.get(tNum) ?? [];
             const isHeld = groups.length > 0;
+            // 그룹 3개 이상이면 2개만 보이고 "외 N개"
+            const shownGroups = groups.length >= 3 ? groups.slice(0, 2) : groups;
+            const moreGroups = groups.length - shownGroups.length;
             const tabBg = colorDiff > 0 ? "bg-rose-50 border-rose-300"
               : colorDiff < 0 ? "bg-blue-50/70 border-blue-300"
               : "bg-white border-gray-300";
@@ -337,13 +341,6 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                     </button>
                   </div>
                   <div className="flex items-end gap-0.5">
-                    {isHeld && groups.map(g => (
-                      <span key={g} title={`보유 그룹: ${g}`}
-                            className="px-1.5 py-0.5 rounded-t-md shadow-sm text-[10px] font-bold leading-none
-                                       bg-emerald-100 text-emerald-800 border-t border-l border-r border-emerald-300">
-                        {g}
-                      </span>
-                    ))}
                     {onRequestSearch && isStandard && (
                       <button onClick={e => { e.preventDefault(); e.stopPropagation();
                                               onRequestSearch(tNum); }}
@@ -409,6 +406,34 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                             ({formatSigned(dayDiff)}원)
                           </span>
                         </div>
+                        {/* 보유 그룹 — % 아래. 3개 이상이면 "외 N개" */}
+                        {isHeld && (
+                          <div className="flex flex-wrap items-center gap-1 pl-6 mt-1">
+                            {shownGroups.map(g => (
+                              <span key={g} title={`보유 그룹: ${g}`}
+                                    className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none
+                                               bg-emerald-100/30 text-emerald-700/80 border border-emerald-300/30">
+                                {g}
+                              </span>
+                            ))}
+                            {moreGroups > 0 && (
+                              <Tooltip content={
+                                <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                  {groups.slice(shownGroups.length).map(g => (
+                                    <span key={g} className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none
+                                                              bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                      {g}
+                                    </span>
+                                  ))}
+                                </div>
+                              }>
+                                <span className="text-[10px] font-bold text-emerald-700 cursor-help">
+                                  외 {moreGroups}개
+                                </span>
+                              </Tooltip>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
