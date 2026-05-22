@@ -154,8 +154,9 @@ export function sortHoldings(
     // sleeping 우선 (항상 맨 아래)
     const pa = prices.get(a.ticker);
     const pb = prices.get(b.ticker);
-    const aSleep = !pa || pa.base <= 0 || isHoldingSleeping(pa.trade_dt);
-    const bSleep = !pb || pb.base <= 0 || isHoldingSleeping(pb.trade_dt);
+    // 시간외 단일가(NXT 등) 진행 중이면 거래중으로 간주 — 맨 아래로 강등 안 함
+    const aSleep = !pa || pa.base <= 0 || (isHoldingSleeping(pa.trade_dt) && !pa.singlePrice);
+    const bSleep = !pb || pb.base <= 0 || (isHoldingSleeping(pb.trade_dt) && !pb.singlePrice);
     if (aSleep !== bSleep) return aSleep ? 1 : -1;
 
     // 메인 정렬 키
