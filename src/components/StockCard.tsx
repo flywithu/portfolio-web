@@ -27,7 +27,6 @@ interface Props {
   investorHistory?: Investor[] | null;   // 60일 수급 (신호 계산용)
   consensus?: Consensus | null;
   sector?: string;
-  peak?: number;
   warning?: string;
   loading?: boolean;
   chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열 (3개월)

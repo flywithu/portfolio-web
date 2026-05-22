@@ -151,7 +151,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     })();
     void (async () => {
       const data = await exportAll();
-      setStatusMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
+      setStatusMsg(`현재: 종목 ${data.holdings.length}건`);
     })();
   }, [isOpen]);
 

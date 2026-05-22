@@ -341,8 +341,8 @@ export interface ExportPayload {
   };
 }
 export async function exportAll(): Promise<ExportPayload> {
-  const [stocks, peaks, memos] = await Promise.all([
-    loadHoldings(), loadPeaks(), loadMemos(),
+  const [stocks, memos] = await Promise.all([
+    loadHoldings(), loadMemos(),
   ]);
   // id 필드 (내부 PK) 제거 + 관심ETF 그룹 제외 (v2 동일 — 미국증시 섹터 매핑용 내부 데이터)
   const cleanHoldings = stocks
@@ -352,8 +352,8 @@ export async function exportAll(): Promise<ExportPayload> {
       delete (rest as { id?: string }).id;
       return rest;
     });
+  // 피크가는 더 이상 사용 안 함 (API 고/저가로 대체) — 새 백업엔 미포함
   const peaksObj: Record<string, number> = {};
-  peaks.forEach((v, k) => { peaksObj[k] = v; });
   // memos — 결정적 정렬 (ticker asc) 으로 직렬화 안정성 확보
   const memosList: Memo[] = Array.from(memos.values())
     .sort((a, b) => a.ticker.localeCompare(b.ticker));

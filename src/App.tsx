@@ -5,7 +5,7 @@ import {
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
   fetchInvestorHistorySafe,
 } from "./lib/api";
-import { loadHoldings, loadPeaks, loadMemos, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding } from "./lib/db";
+import { loadHoldings, loadMemos, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY } from "./components/Tabs";
@@ -73,7 +73,6 @@ const queryClient = new QueryClient({
 
 function Dashboard() {
   const [holdings, setHoldings] = useState<Stock[]>([]);
-  const [peaks, setPeaks] = useState<Map<string, number>>(new Map());
   const [memos, setMemos] = useState<Map<string, Memo>>(new Map());
   const [activeTab, setActiveTab] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -106,11 +105,10 @@ function Dashboard() {
   // IndexedDB 로드 — 마이그레이션은 AppRoot 에서 1회 완료 후 진입하므로 여기선 단순 로드
   useEffect(() => {
     void (async () => {
-      const [h, p, m] = await Promise.all([loadHoldings(), loadPeaks(), loadMemos()]);
+      const [h, m] = await Promise.all([loadHoldings(), loadMemos()]);
       // eslint-disable-next-line no-console
-      console.log(`[v3 load] holdings=${h.length}, peaks=${p.size}, memos=${m.size}`);
+      console.log(`[v3 load] holdings=${h.length}, memos=${m.size}`);
       setHoldings(h);
-      setPeaks(p);
       setMemos(m);
     })();
   }, [reloadKey]);
@@ -199,17 +197,6 @@ function Dashboard() {
     staleTime: 30_000,
   });
 
-  // 가격 갱신 시 피크가 forward-only 업데이트 (저장된 피크 < 현재가면 갱신)
-  useEffect(() => {
-    if (!prices || prices.length === 0) return;
-    const priceMap = new Map(prices.map(p => [p.ticker, p.price]));
-    void updatePeaksForward(priceMap).then(updated => {
-      if (updated > 0) {
-        // peaks 갱신됐으면 메모리 상 peaks 도 동기화
-        void loadPeaks().then(setPeaks);
-      }
-    });
-  }, [prices]);
 
   // 갱신 시각 글로벌 보고
   useEffect(() => {
@@ -519,7 +506,6 @@ function Dashboard() {
                   warning={warningMap.get(stock.ticker)}
                   sector={naverMap.get(stock.ticker)?.sector}
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}
-                  peak={peaks.get(stock.ticker)}
                   chart={chartMap.get(stock.ticker)}
                   priceHistory={priceHistoryMap.get(stock.ticker)}
                   longHistory={longHistoryMap.get(stock.ticker)}

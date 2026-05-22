@@ -47,7 +47,6 @@ interface Props {
   stock: Stock;
   price?: Price;
   krReg?: KrRegInfo;          // Yahoo .KS 정규장 종가 — 책갈피 표시용
-  peak?: number;
   sector?: string;
   warning?: string;
   chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열

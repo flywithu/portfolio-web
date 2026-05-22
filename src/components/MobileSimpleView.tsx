@@ -47,7 +47,7 @@ import { forceUpdate } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
-  exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks, loadMemos,
+  exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadMemos,
   deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup, applyImportedSettings, replaceAllMemos,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
@@ -177,11 +177,6 @@ export function MobileSimpleView() {
   const { data: holdings = [] } = useQuery({
     queryKey: ["m-holdings"],
     queryFn: loadHoldings,
-    refetchOnWindowFocus: false,
-  });
-  const { data: peaks } = useQuery({
-    queryKey: ["m-peaks"],
-    queryFn: loadPeaks,
     refetchOnWindowFocus: false,
   });
   const { data: memos } = useQuery({
@@ -611,7 +606,6 @@ export function MobileSimpleView() {
                                stock={s}
                                price={groupPriceMap.get(s.ticker)}
                                krReg={krRegMap?.get(s.ticker)}
-                               peak={peaks?.get(s.ticker)}
                                sector={naverInfos.data?.get(s.ticker)?.sector}
                                warning={warningMap.get(s.ticker) || undefined}
                                chart={groupChartMap.get(s.ticker)}
@@ -638,7 +632,6 @@ export function MobileSimpleView() {
                                    await deleteAllRowsForTicker(st.ticker);
                                  }
                                  void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
-                                 void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
                                })} />
               );
@@ -867,7 +860,6 @@ export function MobileSimpleView() {
         initialQuery={searchInitQuery}
         onAdded={() => {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
-          void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
         }} />
 
@@ -896,7 +888,6 @@ export function MobileSimpleView() {
         curPrice={editing ? groupPriceMap.get(editing.ticker)?.price : undefined}
         onChanged={() => {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
-          void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
         }} />
 
@@ -1047,7 +1038,7 @@ function SettingsModal({
     void (async () => {
       const data = await exportAll();
       setRaw(JSON.stringify(data, null, 2));
-      setDataMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
+      setDataMsg(`현재: 종목 ${data.holdings.length}건`);
 
       // 로그인 상태 검증 → 진짜 만료 시 자동 logout (설정 안에서만 표시)
       const initial = getSyncState();
@@ -1189,7 +1180,6 @@ function SettingsModal({
                     const downloaded = await downloadFromDrive();
                     if (downloaded) {
                       void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
-                      void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
                       setDataMsg("✅ Drive 가져옴 (자동 sync OFF)");
                     } else {
                       setSyncBusyMsgLocal("첫 업로드 중...");
@@ -1246,7 +1236,6 @@ function SettingsModal({
                         const ok = await downloadFromDrive();
                         if (ok) {
                           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
-                          void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
                           setLastSyncedAtLocal(getLastSyncedAt());
                           setDataMsg("✅ 다운로드");
                         } else { setDataMsg("⚠️ Drive 데이터 없음"); }
