@@ -651,15 +651,33 @@ export function MobileSimpleView() {
           {groupHoldings.length > 0 && (() => {
             const hasHoldings = groupHoldings.some(s => s.shares > 0);
             if (!hasHoldings) {
-              // 관심종목만 — WhatIfRow 만 단독 노출
+              // 보유 0 — TotalRow(예수금/총자산) 항상, 샀더라면(WhatIfRow)은 클릭 시 (보유 있을 때와 동일)
               return (
-                <div className="fixed bottom-0 left-0 right-0 z-40
-                                 pb-2 px-3 flex flex-col items-center gap-2
-                                 pointer-events-none">
-                  <div className="pointer-events-auto">
-                    <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
+                <>
+                  {todayPnLOpen && (
+                    <div className="fixed inset-0 z-30" onClick={() => setTodayPnLOpen(false)} />
+                  )}
+                  <div className="fixed bottom-0 left-0 right-0 z-40
+                                   pb-2 px-3 flex flex-col items-center gap-2
+                                   pointer-events-none">
+                    {todayPnLOpen && (
+                      <div className="pointer-events-auto cursor-pointer"
+                           onClick={() => setTodayPnLOpen(false)}>
+                        <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
+                      </div>
+                    )}
+                    <div className="pointer-events-auto cursor-pointer"
+                         onClick={() => setTodayPnLOpen(o => !o)}
+                         title={todayPnLOpen ? "닫기" : "샀더라면 보기"}>
+                      <TotalRow holdings={groupHoldings} prices={groupPriceMap}
+                                account={activeTab}
+                                aggregated={activeTab === MY_KEY}
+                                onDepositChange={() => {
+                                  void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+                                }} />
+                    </div>
                   </div>
-                </div>
+                </>
               );
             }
             return (
