@@ -31,6 +31,7 @@ import { forceUpdate } from "./components/VersionBadge";
 import { NewVersionToast } from "./components/NewVersionToast";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
 import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
+import { useTossMaintenance, fmtUntil } from "./lib/tossMaintenance";
 import {
   sortHoldings, loadSortKey, loadSortDir, saveSortKey, saveSortDir,
   type SortKey, type SortDirection,
@@ -100,7 +101,10 @@ function Dashboard() {
   // 설정 변경 시 reloadKey 증가 → BASE_REFRESH_MS / usePersonalProxy 재계산
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey]);
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
-  const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
+  const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
+  // 토스 점검 중이면 폴링 백오프 (5분마다 재확인 → 점검 끝나면 자동 복구)
+  const tossMaint = useTossMaintenance();
+  const REFRESH_MS = tossMaint.active ? 300_000 : adaptiveRefreshMs;
 
   // IndexedDB 로드 — 마이그레이션은 AppRoot 에서 1회 완료 후 진입하므로 여기선 단순 로드
   useEffect(() => {
@@ -342,6 +346,12 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <NewVersionToast />
+      {tossMaint.active && (
+        <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-xs
+                        px-4 py-1.5 text-center">
+          🚧 토스증권 점검 중 — 시세 갱신이 일시 중단됩니다{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""}. 점검 종료 후 자동 복구됩니다.
+        </div>
+      )}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto flex items-center
                          gap-3 px-6 py-3">

@@ -1,6 +1,7 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getPersonalProxyUrl } from "./proxyConfig";
+import { setTossMaintenance, parseTossMaintenance } from "./tossMaintenance";
 
 // 공개 4-way 라운드 로빈 (Cloudflare + Vercel + Deno + Render)
 const PUBLIC_PROXY_URLS: string[] = [
@@ -45,20 +46,23 @@ export async function fetchProxied(
                    .sort(() => Math.random() - 0.5);
   const order = [...healthy, ...down];
   let lastErr: unknown;
+  let lastResp: Response | undefined;
   for (const base of order) {
     try {
       const resp = await fetch(buildProxyUrl(base, targetUrl), init);
-      if (resp.ok) {
-        reportProxySuccess(base);
-        return resp;
-      }
-      reportProxyFailure(base);
+      // 응답을 돌려받았다 = 프록시(워커)는 살아있음. 타깃 소스의 4xx/5xx 는
+      // 프록시 다운으로 치지 않음 (특정 소스 에러로 "모두 다운" 오판 방지).
+      reportProxySuccess(base);
+      if (resp.ok) return resp;
+      lastResp = resp;   // 비-ok 응답 보관 — 호출측이 status 보고 판단 (예: 토스 490 점검)
       lastErr = new Error(`HTTP ${resp.status} from ${base}`);
     } catch (e) {
+      // 네트워크 에러(연결 자체 실패) 만 프록시 다운으로 집계
       reportProxyFailure(base);
       lastErr = e;
     }
   }
+  if (lastResp) return lastResp;   // 모두 비-ok 면 마지막 응답 반환 (호출측에서 처리)
   throw lastErr instanceof Error ? lastErr : new Error("All proxies failed");
 }
 
@@ -438,8 +442,18 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   const codes = tickers.map(t => `A${t}`).join(",");
   const target = `https://wts-info-api.tossinvest.com/api/v3/stock-prices/details?productCodes=${codes}`;
   const resp = await fetchProxied(target);
-  if (!resp.ok) throw new Error(`Toss price fetch failed: ${resp.status}`);
+  if (!resp.ok) {
+    // 토스 점검(490 unavailable.agency) 감지 → 점검 상태로 표시
+    if (resp.status === 490) {
+      try {
+        const m = parseTossMaintenance(await resp.clone().json());
+        if (m) { setTossMaintenance(m); throw new Error("toss-maintenance"); }
+      } catch (e) { if (e instanceof Error && e.message === "toss-maintenance") throw e; }
+    }
+    throw new Error(`Toss price fetch failed: ${resp.status}`);
+  }
   const data = await resp.json() as TossPriceResponse;
+  setTossMaintenance(null);   // 정상 응답 → 점검 해제
   // 비거래일·정규장 시작 전 처리 — base = close → 어제대비 0
   // 판정: 마지막 체결의 KST 날짜가 "오늘 KST 날짜" 와 다르면 오늘 거래가 없음
   // (주말·공휴일·노동절·정규장 시작 전 모두 이 조건에 자동 부합).

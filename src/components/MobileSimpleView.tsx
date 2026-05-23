@@ -21,6 +21,7 @@ import {
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { useTossMaintenance, fmtUntil } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { normalizeAccount } from "../lib/account";
 import type { MarketIndexKey } from "../lib/api";
@@ -172,7 +173,9 @@ export function MobileSimpleView() {
 
   // PC 동일 자동 갱신 — 전용 프록시 시 5/10/30/60초 / 공개 10초 + 다운 시 자동 증가
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), []);
-  const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
+  const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
+  const tossMaint = useTossMaintenance();   // 토스 점검 중이면 폴링 백오프
+  const REFRESH_MS = tossMaint.active ? 300_000 : adaptiveRefreshMs;
 
   // 보유 종목 로드 (그룹 탭 라벨 + 그룹 종목 표시)
   const { data: holdings = [] } = useQuery({
@@ -503,6 +506,12 @@ export function MobileSimpleView() {
          onTouchStart={handleTouchStart}
          onTouchEnd={handleTouchEnd}>
       <NewVersionToast />
+      {tossMaint.active && (
+        <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-[11px]
+                        px-3 py-1.5 text-center leading-tight">
+          🚧 토스증권 점검 중 — 시세 갱신 일시 중단{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""}
+        </div>
+      )}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200
                           px-3 py-2 flex items-center gap-1">
         <h1 className="text-sm font-bold text-gray-800 shrink-0">📈</h1>
