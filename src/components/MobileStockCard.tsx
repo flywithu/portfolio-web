@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor } from "../lib/api";
@@ -108,6 +108,12 @@ export function MobileStockCard({
   // 흐림(마감) 판정 — 토스 거래가능 플래그(KRX·NXT 둘 다 suspended = 마감) 기반.
   const sleeping = isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice);
   const dimmed = sleeping && getDimSleepingEnabled();
+  // 마지막 거래 시각 (잠자는 카드 갱신 책갈피용)
+  const tradeSec = price.trade_dt ? Math.floor(Date.parse(price.trade_dt) / 1000) : undefined;
+  const agoLabel = sleeping ? fmtAgo(tradeSec) : "";
+  // 마감 책갈피(좌상단) 표시 여부 — 있으면 갱신 책갈피는 자리 양보
+  const showCloseTag = !!(krReg && sleeping && krReg.regularPrice !== price.price
+    && price.price > 0 && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15);
   const dayDiff = price.price - price.base;
   const dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
   // 색 결정용 — 직전 거래일 종가 대비 (장마감 기준)
@@ -334,23 +340,29 @@ export function MobileStockCard({
       <div className="relative w-full h-full">
       {/* 책갈피 — 마감 종목: 마감가 / 거래중 종목: 마감 예정 시간(토스 tradingEnd).
           가격 박스 바깥(상위 wrapper 자식)에 두어 overflow:hidden 에 잘리지 않게. */}
-      {krReg && sleeping && krReg.regularPrice !== price.price
-            && price.price > 0
-            && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15 && (
+      {/* 갱신 책갈피 — 잠자는 종목 마지막 거래 상대시각. 좌상단(보유주수 대칭), 마감 책갈피 없을 때만 */}
+      {agoLabel && !showCloseTag && (
+        <div className="absolute -top-2 left-1 z-10 bg-white/70 border border-gray-200
+                        rounded px-1.5 py-0.5 text-[10px] leading-tight whitespace-nowrap
+                        text-gray-900">
+          {agoLabel}
+        </div>
+      )}
+      {showCloseTag && (
         <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
                          border rounded text-[10px] leading-tight whitespace-nowrap
-                         ${krReg.regularPct > 0 ? "bg-rose-100/20 border-rose-300/20"
-                           : krReg.regularPct < 0 ? "bg-blue-100/20 border-blue-300/20"
+                         ${krReg!.regularPct > 0 ? "bg-rose-100/20 border-rose-300/20"
+                           : krReg!.regularPct < 0 ? "bg-blue-100/20 border-blue-300/20"
                            : "bg-white/20 border-gray-300/20"}`}>
           <span className="text-gray-500">마감 </span>
           <span className="text-gray-800 tabular-nums">
-            {Math.round(krReg.regularPrice).toLocaleString()}
+            {Math.round(krReg!.regularPrice).toLocaleString()}
           </span>
           <span className={`tabular-nums ml-1 font-bold
-                            ${krReg.regularPct > 0 ? "text-rose-600"
-                              : krReg.regularPct < 0 ? "text-blue-600"
+                            ${krReg!.regularPct > 0 ? "text-rose-600"
+                              : krReg!.regularPct < 0 ? "text-blue-600"
                               : "text-gray-700"}`}>
-            ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
+            ({krReg!.regularPct >= 0 ? "+" : ""}{krReg!.regularPct.toFixed(2)}%)
           </span>
         </div>
       )}
