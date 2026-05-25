@@ -18,7 +18,7 @@ import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { signColor } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
-import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo, fetchTossEstimate } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo, fetchTossEstimate, fetchNaverNews } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
@@ -224,6 +224,56 @@ function ShareholderSection({ shareholders }: { shareholders: Shareholder[] }) {
   );
 }
 
+// "YYYYMMDDHHmm" → "MM/DD HH:mm"
+function fmtNewsTime(s?: string): string {
+  if (!s || s.length < 12) return "";
+  return `${s.slice(4, 6)}/${s.slice(6, 8)} ${s.slice(8, 10)}:${s.slice(10, 12)}`;
+}
+
+function NewsSection({ ticker }: { ticker: string }) {
+  const { data: news, isLoading } = useQuery({
+    queryKey: ["naver-news", ticker],
+    queryFn: () => fetchNaverNews(ticker, 12),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  return (
+    <section className="mt-4 bg-gray-50 rounded p-3 border border-gray-200">
+      <header className="mb-2">
+        <h3 className="font-bold text-gray-700">📰 뉴스</h3>
+        <p className="text-xs text-gray-400">네이버 증권 — 최신순</p>
+      </header>
+      {isLoading ? (
+        <div className="text-xs text-gray-400 py-2">불러오는 중…</div>
+      ) : !news || news.length === 0 ? (
+        <div className="text-xs text-gray-400 py-2">관련 뉴스 없음</div>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {news.map(n => (
+            <li key={n.id}>
+              <a href={n.url} target="_blank" rel="noopener noreferrer"
+                 className="flex gap-2 py-1.5 group">
+                {n.image && (
+                  <img src={n.image} alt="" loading="lazy"
+                       className="w-14 h-10 object-cover rounded shrink-0 bg-gray-100" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-gray-800 leading-snug line-clamp-2 group-hover:text-blue-600">
+                    {n.title}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-gray-400">
+                    {n.press}{n.press && n.datetime ? " · " : ""}{fmtNewsTime(n.datetime)}
+                  </div>
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function ValuationModal({
   isOpen, onClose, ticker, name, curPrice, myAvgPrice, entryPrice,
 }: Props) {
@@ -403,6 +453,9 @@ export function ValuationModal({
                                   targetPrice={targetPrice}
                                   myAvgPrice={myAvgPrice}
                                   entryPrice={entryPrice} />
+
+          {/* 종목 뉴스 (네이버) */}
+          <NewsSection ticker={ticker} />
 
           {/* 외부 링크 */}
           <section className="mt-4 flex flex-wrap gap-2 text-xs">

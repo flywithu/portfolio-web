@@ -3,13 +3,18 @@
 // 상승여력/정렬 기준 = 가장 최근(목표가 있는) 리포트. 같은 날 여러 건도 모두 표시.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchInvestorHistorySafe, fetchKrPriceHistory } from "../lib/api";
+import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchInvestorHistorySafe, fetchKrPriceHistory, fetchNaverNews } from "../lib/api";
 import { getTossMaintenance } from "../lib/tossMaintenance";
 import { fetchConsensusReports, fetchMajorShareholders, type Shareholder } from "../lib/fundamentals";
 import { openTossStock } from "../lib/toss";
 import { Tooltip } from "./Tooltip";
 import type { Investor } from "../types";
 
+// 뉴스 시각 "YYYYMMDDHHmm" → "MM/DD HH:mm"
+function fmtNewsTime(s?: string): string {
+  if (!s || s.length < 12) return "";
+  return `${s.slice(4, 6)}/${s.slice(6, 8)} ${s.slice(8, 10)}:${s.slice(10, 12)}`;
+}
 // 최근 N일 누적 순매수 (외국인/기관/연기금)
 function sumLast(arr: Investor[] | null | undefined, key: "외국인" | "기관" | "연기금", n: number): number {
   if (!arr || arr.length === 0) return 0;
@@ -139,6 +144,20 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       refetchOnWindowFocus: false,
     })),
   });
+  // 종목 뉴스 (네이버) — 카드 하단 표시. ValuationModal 과 캐시 공유.
+  const newsQs = useQueries({
+    queries: tickers.map(t => ({
+      queryKey: ["naver-news", t],
+      queryFn: () => fetchNaverNews(t, 10),
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const newsByTicker = useMemo(
+    () => new Map(tickers.map((t, i) => [t, newsQs[i]?.data ?? []])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tickers, newsQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(",")],
+  );
   const anyLoading = naverQs.some(q => q.isLoading) || reportQs.some(q => q.isLoading)
                   || shQs.some(q => q.isLoading);
 
@@ -389,7 +408,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                 </div>
                 {it.reps.length > 0 && (
                   <div className="mt-0.5 space-y-0.5">
-                    {it.reps.map((r, ri) => {
+                    {it.reps.slice(0, 5).map((r, ri) => {
                       const rt = parseRepDate(r.date);
                       const recent = rt > 0 && Date.now() - rt < 2 * 24 * 3600 * 1000;
                       const withinWeek = rt > 0 && Date.now() - rt <= 7 * 24 * 3600 * 1000;
@@ -451,6 +470,32 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
 
                 {/* 검색기준 섹션이 맨 위 (순서는 view 별) */}
                 {ordered[0]}{ordered[1]}{ordered[2]}
+
+                {/* 뉴스 (네이버) — 이미지 없이 제목·언론사·시각 */}
+                {(() => {
+                  const news = newsByTicker.get(it.ticker) ?? [];
+                  if (news.length === 0) return null;
+                  return (
+                    <div className="mt-1 px-1.5 py-1 border border-gray-200 rounded">
+                      <div className="text-[10px] text-gray-400 mb-0.5">📰 뉴스</div>
+                      <ul className="divide-y divide-gray-100">
+                        {news.slice(0, 5).map(n => (
+                          <li key={n.id}>
+                            <a href={n.url} target="_blank" rel="noopener noreferrer"
+                               className="block py-0.5 group">
+                              <div className="text-[11px] text-gray-700 leading-snug line-clamp-1 group-hover:text-blue-600">
+                                {n.title}
+                              </div>
+                              <div className="text-[9px] text-gray-400">
+                                {n.press}{n.press && n.datetime ? " · " : ""}{fmtNewsTime(n.datetime)}
+                              </div>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

@@ -1658,6 +1658,61 @@ export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
   }
 }
 
+// ─── 종목 뉴스 — 네이버 모바일 증권 (m.stock.naver) ───
+export interface NaverNews {
+  id: string;
+  title: string;
+  press: string;        // 언론사
+  datetime: string;     // YYYYMMDDHHmm (KST)
+  url: string;          // 기사 링크
+  image?: string;       // 썸네일
+}
+
+// HTML 엔티티(&quot; 등) 디코딩
+function decodeHtmlEntities(s: string): string {
+  if (!s || !/&/.test(s)) return s;
+  try {
+    return new DOMParser().parseFromString(s, "text/html").body.textContent || s;
+  } catch {
+    return s;
+  }
+}
+
+export async function fetchNaverNews(ticker: string, size = 10): Promise<NaverNews[]> {
+  const target = `https://m.stock.naver.com/api/news/stock/${ticker}?pageSize=${size}&page=1`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const groups = await resp.json() as Array<{ items?: Array<{
+      officeId?: string; articleId?: string; officeName?: string;
+      datetime?: string; title?: string; titleFull?: string;
+      imageOriginLink?: string; mobileNewsUrl?: string;
+    }> }>;
+    const seen = new Set<string>();
+    const out: NaverNews[] = [];
+    for (const g of groups ?? []) {
+      for (const it of g.items ?? []) {
+        if (!it.title || !it.officeId || !it.articleId) continue;
+        const id = `${it.officeId}-${it.articleId}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push({
+          id,
+          title: decodeHtmlEntities(it.titleFull || it.title),
+          press: it.officeName ?? "",
+          datetime: it.datetime ?? "",
+          url: it.mobileNewsUrl
+            || `https://n.news.naver.com/mnews/article/${it.officeId}/${it.articleId}`,
+          image: it.imageOriginLink,
+        });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 // ─── 종목 검색 — 네이버 자동완성 (KOR 6자리만) ───
 export interface SearchResult {
   ticker: string;
