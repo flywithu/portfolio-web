@@ -161,13 +161,16 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       const nps = npsHolderOf(shQs[i]?.data);
       const npsPct = nps?.pct ?? null;
       const npsAmount = (nps?.shares ?? 0) * (price ?? 0);
-      // 변동폭(스윙) — 최근 N거래일 일별 저가/고가의 평균.
-      // 밴드 = 평균저가~평균고가, 변동폭% = (평균고가-평균저가)/평균저가 ×100.
+      // 변동폭(스윙) — 변동폭% = 일별 저가/고가 평균 기준 (평균고가-평균저가)/평균저가.
+      // 밴드 = 기간 내 실제 최저가~최고가.
       const chart = chartQs[i]?.data ?? [];
       let lowSum = 0, highSum = 0, cnt = 0;
+      let rangeLow: number | null = null, rangeHigh: number | null = null;
       for (const p of chart.slice(-volDays)) {
         if (p.low != null && p.high != null && p.low > 0) {
           lowSum += p.low; highSum += p.high; cnt++;
+          if (rangeLow == null || p.low < rangeLow) rangeLow = p.low;
+          if (rangeHigh == null || p.high > rangeHigh) rangeHigh = p.high;
         }
       }
       const avgLow = cnt > 0 ? lowSum / cnt : null;
@@ -183,7 +186,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         price, reps, repsShown, avgTarget, upside, repTime, loading,
         opinion: con?.opinion, score: con?.score,
         holders, npsPct, npsAmount,
-        vol, foreign60, inst60, pension60, avgLow, avgHigh,
+        vol, foreign60, inst60, pension60, rangeLow, rangeHigh,
       };
     });
     // 모든 종목 표시 — 검색기준 정렬만 적용 (값 없는 종목은 아래로)
@@ -262,7 +265,9 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     if (sortKey === "foreign60") return `최근 ${volDays}일 외국인 순매수 수량 합`;
     if (sortKey === "inst60") return `최근 ${volDays}일 기관 순매수 수량 합`;
     if (sortKey === "pension60") return `최근 ${volDays}일 연기금 순매수 수량 합`;
-    return `최근 ${volDays}일 일별 저가/고가 평균 기준 변동폭(%)`;
+    return volDays === 1
+      ? "어제 저가~고가 변동폭(%)"
+      : `최근 ${volDays}일 일별 저가/고가 평균 기준 변동폭(%)`;
   })();
 
   return (
@@ -338,12 +343,12 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
               return (
                 <div className="mt-1 grid grid-cols-4 gap-1 text-[11px] tabular-nums">
                   <div className={`text-center ${box(aVol)}`}>
-                    <div className={lblCls(aVol)}>변동폭({volDays}일)</div>
+                    <div className={lblCls(aVol)}>변동폭({volDays === 1 ? "1일" : `${volDays}일평균`})</div>
                     <b className={`text-fuchsia-600 ${aVol ? "text-base" : ""}`}>{it.vol != null ? `${it.vol.toFixed(2)}%` : "—"}</b>
-                    {it.avgLow && it.avgHigh ? (
+                    {it.rangeLow && it.rangeHigh ? (
                       <div className="text-[9px] leading-tight">
-                        <span className="text-blue-600">{Math.round(it.avgLow).toLocaleString()}</span>
-                        {"~"}<span className="text-rose-600">{Math.round(it.avgHigh).toLocaleString()}</span>
+                        <span className="text-blue-600">{Math.round(it.rangeLow).toLocaleString()}</span>
+                        {"~"}<span className="text-rose-600">{Math.round(it.rangeHigh).toLocaleString()}</span>
                       </div>
                     ) : null}
                   </div>
