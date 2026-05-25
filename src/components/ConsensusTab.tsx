@@ -161,15 +161,19 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       const nps = npsHolderOf(shQs[i]?.data);
       const npsPct = nps?.pct ?? null;
       const npsAmount = (nps?.shares ?? 0) * (price ?? 0);
-      // 변동율(스윙) — 최근 N거래일 실제 거래가 변동폭: (기간 최고가-최저가)/최저가 ×100
+      // 변동폭(스윙) — 최근 N거래일 일별 저가/고가의 평균.
+      // 밴드 = 평균저가~평균고가, 변동폭% = (평균고가-평균저가)/평균저가 ×100.
       const chart = chartQs[i]?.data ?? [];
-      let dayLow: number | null = null, dayHigh: number | null = null;
+      let lowSum = 0, highSum = 0, cnt = 0;
       for (const p of chart.slice(-volDays)) {
-        if (p.low != null && p.low > 0 && (dayLow == null || p.low < dayLow)) dayLow = p.low;
-        if (p.high != null && (dayHigh == null || p.high > dayHigh)) dayHigh = p.high;
+        if (p.low != null && p.high != null && p.low > 0) {
+          lowSum += p.low; highSum += p.high; cnt++;
+        }
       }
-      const vol = (dayLow != null && dayHigh != null && dayLow > 0)
-        ? (dayHigh - dayLow) / dayLow * 100 : null;
+      const avgLow = cnt > 0 ? lowSum / cnt : null;
+      const avgHigh = cnt > 0 ? highSum / cnt : null;
+      const vol = (avgLow != null && avgHigh != null && avgLow > 0)
+        ? (avgHigh - avgLow) / avgLow * 100 : null;
       const inv = invQs[i]?.data ?? null;
       const foreign60 = sumLast(inv, "외국인", volDays);
       const inst60 = sumLast(inv, "기관", volDays);
@@ -179,7 +183,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         price, reps, repsShown, avgTarget, upside, repTime, loading,
         opinion: con?.opinion, score: con?.score,
         holders, npsPct, npsAmount,
-        vol, foreign60, inst60, pension60, dayLow, dayHigh,
+        vol, foreign60, inst60, pension60, avgLow, avgHigh,
       };
     });
     // 모든 종목 표시 — 검색기준 정렬만 적용 (값 없는 종목은 아래로)
@@ -249,6 +253,18 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     </>}
   </>);
 
+  // 선택한 정렬 기준 설명 — 우측 상단
+  const sortDesc = (() => {
+    if (view === "consensus")
+      return sortKey === "upside" ? "현재가 대비 평균 목표주가 상승여력(%)" : "최근 리포트 발행일 순";
+    if (view === "pension")
+      return sortKey === "npsAmount" ? "국민연금 보유 평가금액(주식수×현재가)" : "국민연금 보유 지분율(%)";
+    if (sortKey === "foreign60") return `최근 ${volDays}일 외국인 순매수 수량 합`;
+    if (sortKey === "inst60") return `최근 ${volDays}일 기관 순매수 수량 합`;
+    if (sortKey === "pension60") return `최근 ${volDays}일 연기금 순매수 수량 합`;
+    return `최근 ${volDays}일 일별 저가/고가 평균 기준 변동폭(%)`;
+  })();
+
   return (
     <div className="space-y-2">
       {/* 책갈피 — 검색기준 (왼쪽 상단) */}
@@ -267,6 +283,8 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       <div className="flex sm:hidden items-center justify-end gap-1 flex-wrap px-1 -mt-1">
         {sortControls}
       </div>
+      {/* 선택 기준 설명 — 우측 상단 */}
+      <div className="text-right text-[10px] text-gray-400 px-1 -mt-1">{sortDesc}</div>
 
       {displayed.length === 0 ? (
         <div className="h-32 flex flex-col items-center justify-center text-gray-400 text-sm gap-1">
@@ -322,10 +340,10 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   <div className={`text-center ${box(aVol)}`}>
                     <div className={lblCls(aVol)}>변동폭({volDays}일)</div>
                     <b className={`text-fuchsia-600 ${aVol ? "text-base" : ""}`}>{it.vol != null ? `${it.vol.toFixed(2)}%` : "—"}</b>
-                    {it.dayLow && it.dayHigh ? (
+                    {it.avgLow && it.avgHigh ? (
                       <div className="text-[9px] leading-tight">
-                        <span className="text-blue-600">{Math.round(it.dayLow).toLocaleString()}</span>
-                        {"~"}<span className="text-rose-600">{Math.round(it.dayHigh).toLocaleString()}</span>
+                        <span className="text-blue-600">{Math.round(it.avgLow).toLocaleString()}</span>
+                        {"~"}<span className="text-rose-600">{Math.round(it.avgHigh).toLocaleString()}</span>
                       </div>
                     ) : null}
                   </div>
