@@ -211,7 +211,10 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     // 모든 종목 표시 — 검색기준 정렬만 적용 (값 없는 종목은 아래로)
     return rows.sort((a, b) => {
       switch (sortKey) {
-        case "date": return b.repTime - a.repTime;
+        case "date": {   // 최신순 — 동일 날짜는 상승여력순 2차 정렬
+          const d = b.repTime - a.repTime;
+          return d !== 0 ? d : (b.upside ?? -1e9) - (a.upside ?? -1e9);
+        }
         case "upside": return (b.upside ?? -1e9) - (a.upside ?? -1e9);
         case "npsPct": return (b.npsPct ?? -1) - (a.npsPct ?? -1);
         case "npsAmount": return b.npsAmount - a.npsAmount;
