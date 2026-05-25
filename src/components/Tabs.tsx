@@ -169,8 +169,8 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
   }
-  // 컨센서스 상승여력 — 내주식 옆. 보유 종목 있을 때만.
-  if (showConsensus && uniqHeld.size > 0) {
+  // 컨센서스 — 내주식 옆. 설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시).
+  if (showConsensus) {
     tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스", emoji: "🎯", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순

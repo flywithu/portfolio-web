@@ -225,6 +225,32 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   const emph = (active: boolean) =>
     active ? "ring-1 ring-blue-300 bg-blue-50/40 rounded" : "";
 
+  // 정렬/기간 컨트롤 — 데스크톱은 책갈피 우측 인라인, 모바일은 책갈피 아래 줄
+  const sortControls = (<>
+    {view === "consensus" && <>
+      <button className={btn(sortKey === "upside")} onClick={() => setSortKey("upside")}>상승여력순</button>
+      <button className={btn(sortKey === "date")} onClick={() => setSortKey("date")}>최신순</button>
+    </>}
+    {view === "pension" && <>
+      <button className={btn(sortKey === "npsPct")} onClick={() => setSortKey("npsPct")}>비율순</button>
+      <button className={btn(sortKey === "npsAmount")} onClick={() => setSortKey("npsAmount")}>금액순</button>
+    </>}
+    {view === "screener" && <>
+      <span className="text-[10px] text-gray-400">기간</span>
+      {[7, 30, 90].map(d => (
+        <button key={d} className={btn(volDays === d)} onClick={() => setVolDays(d)}>{d}일</button>
+      ))}
+      {/* 모바일 — 기간 아래로 정렬 줄바꿈 */}
+      <div className="basis-full sm:hidden" />
+      <span className="text-[10px] text-gray-400 ml-1">정렬</span>
+      <button className={btn(sortKey === "vol")} onClick={() => setSortKey("vol")}>변동율(%)</button>
+      <span className="text-[10px] text-gray-400 ml-1">순매수</span>
+      <button className={btn(sortKey === "foreign60")} onClick={() => setSortKey("foreign60")}>외국인</button>
+      <button className={btn(sortKey === "inst60")} onClick={() => setSortKey("inst60")}>기관</button>
+      <button className={btn(sortKey === "pension60")} onClick={() => setSortKey("pension60")}>연기금</button>
+    </>}
+  </>);
+
   return (
     <div className="space-y-2">
       {/* 책갈피 — 검색기준 (왼쪽 상단) */}
@@ -234,33 +260,22 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         {subTab("screener", "📊 변동율")}
         <span className="ml-2 mb-1 text-xs text-gray-500">{displayed.length}종목</span>
         {anyLoading && <span className="mb-1 text-xs text-gray-400">불러오는 중…</span>}
-        <div className="ml-auto mb-1 flex items-center gap-1 flex-wrap">
-          {view === "consensus" && <>
-            <button className={btn(sortKey === "upside")} onClick={() => setSortKey("upside")}>상승여력순</button>
-            <button className={btn(sortKey === "date")} onClick={() => setSortKey("date")}>최신순</button>
-          </>}
-          {view === "pension" && <>
-            <button className={btn(sortKey === "npsPct")} onClick={() => setSortKey("npsPct")}>비율순</button>
-            <button className={btn(sortKey === "npsAmount")} onClick={() => setSortKey("npsAmount")}>금액순</button>
-          </>}
-          {view === "screener" && <>
-            <span className="text-[10px] text-gray-400">기간</span>
-            {[7, 30, 90].map(d => (
-              <button key={d} className={btn(volDays === d)} onClick={() => setVolDays(d)}>{d}일</button>
-            ))}
-            <span className="text-[10px] text-gray-400 ml-1">정렬</span>
-            <button className={btn(sortKey === "vol")} onClick={() => setSortKey("vol")}>변동율(%)</button>
-            <span className="text-[10px] text-gray-400 ml-1">순매수</span>
-            <button className={btn(sortKey === "foreign60")} onClick={() => setSortKey("foreign60")}>외국인</button>
-            <button className={btn(sortKey === "inst60")} onClick={() => setSortKey("inst60")}>기관</button>
-            <button className={btn(sortKey === "pension60")} onClick={() => setSortKey("pension60")}>연기금</button>
-          </>}
+        {/* 데스크톱 — 인라인 우측 */}
+        <div className="ml-auto mb-1 hidden sm:flex items-center gap-1 flex-wrap">
+          {sortControls}
         </div>
+      </div>
+      {/* 모바일 — 책갈피 아래 줄, 오른쪽 정렬 */}
+      <div className="flex sm:hidden items-center justify-end gap-1 flex-wrap px-1 -mt-1">
+        {sortControls}
       </div>
 
       {displayed.length === 0 ? (
-        <div className="h-32 flex items-center justify-center text-gray-400 text-sm">
-          {anyLoading ? "불러오는 중…" : "표시할 종목이 없습니다."}
+        <div className="h-32 flex flex-col items-center justify-center text-gray-400 text-sm gap-1">
+          {anyLoading ? "불러오는 중…" : <>
+            <span>표시할 종목이 없습니다.</span>
+            <span className="text-xs text-gray-300">관심·보유 종목(한국)을 추가하면 컨센서스가 표시됩니다.</span>
+          </>}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">

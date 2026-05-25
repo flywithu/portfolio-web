@@ -59,6 +59,8 @@ import { TotalRow } from "./TotalRow";
 import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
+import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
+import { CONSENSUS_TAB_KEY as CONSENSUS_KEY } from "./Tabs";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { MobileTodayPnLLayer } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
@@ -159,7 +161,7 @@ export function MobileSimpleView() {
     return localStorage.getItem(TAB_KEY) ?? KR_KEY;
   });
   const isSystemTab = activeTab === KR_KEY || activeTab === US_KEY
-    || activeTab === SEMI_KEY || activeTab === SECTOR_KEY;
+    || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -218,6 +220,10 @@ export function MobileSimpleView() {
     if (vis.myStocks && uniqHeld.size > 0) {
       tabs.push({ key: MY_KEY, label: "📦내주식", count: uniqHeld.size });
     }
+    // 컨센서스 — 설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시)
+    if (vis.consensus) {
+      tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스", count: 0 });
+    }
     // "보유" 도 일반 사용자 그룹과 동일하게 취급 — 별도 분기 없음
     const userGroups = Array.from(counts.keys())
       .filter(k => !["", "관심ETF"].includes(k))
@@ -246,6 +252,26 @@ export function MobileSimpleView() {
     }
     return keys;
   }, [groupTabs, folderedGroups, folders, presentGroups]);
+
+  // 컨센서스 탭 — 한국 6자리 보유 종목(중복 제거) + 속한 그룹들 (PC와 동일)
+  const consensusItems = useMemo<ConsensusItem[]>(() => {
+    const groupsBy = new Map<string, string[]>();
+    for (const s of holdings) {
+      const acc = s.account || "";
+      if (!acc) continue;
+      const arr = groupsBy.get(s.ticker) ?? [];
+      if (!arr.includes(acc)) arr.push(acc);
+      groupsBy.set(s.ticker, arr);
+    }
+    const seen = new Set<string>();
+    const out: ConsensusItem[] = [];
+    for (const s of holdings) {
+      if (!/^\d{6}$/.test(s.ticker) || seen.has(s.ticker)) continue;
+      seen.add(s.ticker);
+      out.push({ ticker: s.ticker, name: s.name, groups: groupsBy.get(s.ticker) ?? [] });
+    }
+    return out;
+  }, [holdings]);
 
   // 저장된 탭이 더이상 없으면 (그룹 삭제 등) 한국으로 fallback
   useEffect(() => {
@@ -582,7 +608,7 @@ export function MobileSimpleView() {
           if (folderedGroups.has(t.key)) return null;
           const active = t.key === activeTab;
           // 시스템 탭(한국/미국)은 길게 누르기 무시
-          const editable = t.key !== US_KEY && t.key !== KR_KEY;
+          const editable = t.key !== US_KEY && t.key !== KR_KEY && t.key !== CONSENSUS_KEY;
           const startLongPress = () => {
             if (!editable) return;
             longPressTimer.current = window.setTimeout(() => {
@@ -777,6 +803,17 @@ export function MobileSimpleView() {
       {isSystemTab && (() => {
         if (activeTab === SEMI_KEY) {
           return <div className="px-2 py-2"><SemiCheckTab /></div>;
+        }
+        if (activeTab === CONSENSUS_KEY) {
+          return <div className="px-1 py-2">
+            <ConsensusTab items={consensusItems}
+                          onOpenValuation={setValuationTicker}
+                          onSelectGroup={setActiveTab}
+                          onEdit={(ticker) => {
+                            const s = holdings.find(h => h.ticker === ticker);
+                            if (s) setEditing(s);
+                          }} />
+          </div>;
         }
         if (activeTab === SECTOR_KEY) {
           return <div className="px-2 py-2">
