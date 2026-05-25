@@ -3,7 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchInvestingChart, isInvestingIndex } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
-import { isSymbolSleeping } from "../lib/format";
+import { isSymbolSleeping, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
@@ -207,7 +207,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
       {/* ─── Tier 0 — 비슷한 지수끼리 그룹별 줄 분리 ─── */}
       <div className="space-y-2">
         {T0_GROUPS.map((group, gi) => (
-          <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+          <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-x-2 gap-y-4">
             {group.map(symbol => {
               const p = tier0.find(x => x.symbol === symbol);
               if (!p) return null;
@@ -256,7 +256,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
               // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용
               const dimCls = dimEnabled && (sleeping || isClosed) ? "opacity-60" : "";
               return (
-                <div key={p.symbol} className="relative">
+                <div key={p.symbol} className="relative h-full">
                   {/* ETF 책갈피 — KR ETF (예: 069500.KS) 만. 왼쪽 위. 클릭 시 구성종목 모달 */}
                   {(() => {
                     const etfTk = krEtfTicker(p.symbol);
@@ -287,7 +287,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                       )}
                     </div>
                   )}
-                  <div className={`relative overflow-hidden flex flex-col gap-0.5
+                  <div className={`relative overflow-hidden h-full flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5 ${bg}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={400} height={80}
@@ -321,7 +321,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                   </div>
                   {p.symbol === "VKOSPI" && effPrice == null && hasPersonalProxy ? (
                     /* 개인 워커가 investing 미허용 → 값 자리에 업데이트 안내 (높이는 가격 줄과 동일) */
-                    <div className="relative z-10 flex items-center mt-1 min-h-[1.75rem]">
+                    <div className="relative z-10 flex items-center mt-auto min-h-[1.75rem]">
                       <a href={WORKER_UPDATE_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                          title="개인 워커가 구버전이라 V-KOSPI 미표시 — 업데이트 가이드"
                          className="text-[12px] font-bold text-amber-700 underline hover:text-amber-900">
@@ -329,7 +329,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                       </a>
                     </div>
                   ) : (
-                  <div className={`relative z-10 flex items-baseline mt-1 ${dimCls}`}>
+                  <div className={`relative z-10 flex items-baseline mt-auto ${dimCls}`}>
                     <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                       {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
                     </span>
@@ -341,6 +341,13 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                   </div>
                   )}
                   </div>
+                  {sleeping && fmtAgo(q?.regularMarketTime) && (
+                    <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
+                                    text-[9px] leading-tight whitespace-nowrap
+                                    text-gray-500 bg-gray-100 border border-gray-300/60">
+                      {fmtAgo(q?.regularMarketTime)}
+                    </div>
+                  )}
                 </div>
               );
             })}

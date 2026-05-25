@@ -14,7 +14,7 @@ import {
 import {
   US_PAIRS,
 } from "../lib/usMarketData";
-import { isSymbolSleeping } from "../lib/format";
+import { isSymbolSleeping, fmtAgo } from "../lib/format";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
   getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS,
@@ -827,7 +827,7 @@ export function MobileSimpleView() {
         // 한국 탭은 KOSPI/KOSDAQ 카드와 짝(미국 ETF/한국 ETF 페어)
         // — Yahoo 티커 또는 KR ETF .KS 지원
         return (
-          <div className="px-3 py-2 grid grid-cols-2 gap-2">
+          <div className="px-3 py-2 grid grid-cols-2 gap-x-2 gap-y-4">
             {order.map(symbol => {
               const p = tier0.find(x => x.symbol === symbol);
               if (!p) return null;
@@ -868,7 +868,7 @@ export function MobileSimpleView() {
               // 마감 책갈피는 노란 배경(살짝 투명) + 흐림 제외 → dim 은 콘텐츠 자식에만
               const dimCls = dimEnabled && (sleeping || isClosed) ? "opacity-60" : "";
               return (
-                <div key={p.symbol} className="relative">
+                <div key={p.symbol} className="relative h-full">
                   {/* ETF 책갈피 — KR ETF (예: 069500.KS) 만. 왼쪽 위. 클릭 시 구성종목 모달 */}
                   {(() => {
                     const etfTk = krEtfTicker(p.symbol);
@@ -899,7 +899,7 @@ export function MobileSimpleView() {
                       )}
                     </div>
                   )}
-                  <div className={`relative overflow-hidden flex flex-col gap-0.5
+                  <div className={`relative overflow-hidden h-full flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5 ${bg}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={300} height={70}
@@ -930,7 +930,7 @@ export function MobileSimpleView() {
                   <div className={`relative text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
                   </div>
-                  <div className={`relative flex items-baseline mt-1 ${dimCls}`}>
+                  <div className={`relative flex items-baseline mt-auto ${dimCls}`}>
                     <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                       {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
                     </span>
@@ -941,6 +941,13 @@ export function MobileSimpleView() {
                     </span>
                   </div>
                   </div>
+                  {sleeping && fmtAgo(q?.regularMarketTime) && (
+                    <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
+                                    text-[9px] leading-tight whitespace-nowrap
+                                    text-gray-500 bg-gray-100 border border-gray-300/60">
+                      {fmtAgo(q?.regularMarketTime)}
+                    </div>
+                  )}
                 </div>
               );
             })}

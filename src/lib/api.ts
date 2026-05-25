@@ -1133,6 +1133,7 @@ export interface UsIndex {
   pct: number;
   currency?: string;
   tradeDate: string;       // KST 날짜 (YYYY-MM-DD) — 마지막 거래 시각 기준
+  regularMarketTime?: number;  // 마지막 거래 시각 (unix sec) — 카드별 "갱신" 표시용
   marketState: string;     // REGULAR / PRE / POST / CLOSED / PREPRE / POSTPOST
   // 시간외 (after-hours) — POST 마켓 상태가 아닌 때도 직전 시간외 가격 보존
   postPrice?: number;
@@ -1254,7 +1255,7 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
 
     return {
       symbol, name, price, prev, prevClose, diff, pct,
-      currency: p.currency, tradeDate, marketState: state,
+      currency: p.currency, tradeDate, regularMarketTime: p.regularMarketTime, marketState: state,
       postPrice, postPct, regularPrice, regularPct,
     };
   } catch {

@@ -128,6 +128,18 @@ export function fmtKstHHMM(iso?: string): string {
   }).format(new Date(ms));
 }
 
+// 유닉스 초(unix sec) → "3일 3시간전 갱신" 상대시간 — 잠자는 지수 카드 마지막 거래 표시용
+export function fmtAgo(sec?: number): string {
+  if (!sec || !Number.isFinite(sec)) return "";
+  const diffMin = Math.floor((Date.now() - sec * 1000) / 60000);
+  if (diffMin < 60) return "";   // 1시간 미만(최근 갱신)은 표시 안 함
+  const hr = Math.floor(diffMin / 60);
+  if (hr < 24) return `${hr}시간전 갱신`;
+  const day = Math.floor(hr / 24);
+  const remHr = hr % 24;
+  return remHr > 0 ? `${day}일 ${remHr}시간전 갱신` : `${day}일전 갱신`;
+}
+
 // 보유 종목 단일가 "마감 시간" 라벨 — 실제 단일가 종료 시각.
 // tradingEnd 가 미래면 그 값(NXT 20:00), 이미 지났으면(KRX 정규장 15:30) 시간외 단일가 종료 18:00.
 export function krCloseTimeLabel(tradingEnd?: string): string {

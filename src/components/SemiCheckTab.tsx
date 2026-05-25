@@ -10,7 +10,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
-import { isSymbolSleeping } from "../lib/format";
+import { isSymbolSleeping, fmtAgo } from "../lib/format";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
@@ -107,7 +107,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
   const regSign = regPct == null ? "text-gray-700"
     : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {/* 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
       {q && sleeping && closeVal != null && (
         <div className="absolute -top-2 right-1 z-20 px-1.5 py-0
@@ -123,7 +123,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
           )}
         </div>
       )}
-      <div className={`relative overflow-hidden
+      <div className={`relative overflow-hidden h-full
                      flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
       <Sparkline data={chart} width={400} height={80}
                  color={chart.length > 1
@@ -137,7 +137,8 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
          target="_blank" rel="noopener noreferrer"
          onClick={e => handleTossLinkClick(e, quoteUrl(symbol))}
          title={`${name} 자세히 보기`}
-         className={`relative z-10 text-base font-bold text-gray-900 truncate hover:underline ${dimCls}`}>
+         className={`relative z-10 text-base font-bold truncate hover:underline ${dimCls}
+                     ${symbol.endsWith("=F") ? "text-amber-700" : "text-gray-900"}`}>
         {name}
       </a>
       {desc && (
@@ -145,7 +146,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
           {desc}
         </div>
       )}
-      <div className={`relative z-10 flex items-baseline mt-1 ${dimCls}`}>
+      <div className={`relative z-10 flex items-baseline mt-auto ${dimCls}`}>
         <span className={`flex-1 text-left text-sm tabular-nums ${cls}`}>
           {effPrice == null ? "—"
             : effPrice < 1000 ? effPrice.toFixed(2)
@@ -156,6 +157,13 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
         </span>
       </div>
       </div>
+      {sleeping && fmtAgo(q?.regularMarketTime) && (
+        <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
+                        text-[9px] leading-tight whitespace-nowrap
+                        text-gray-500 bg-gray-100 border border-gray-300/60">
+          {fmtAgo(q?.regularMarketTime)}
+        </div>
+      )}
     </div>
   );
 }
@@ -357,7 +365,7 @@ export function SemiCheckTab() {
               <span className="text-[11px] text-gray-500">· {sig.stepLabel}</span>
               <h3 className="text-[13px] font-semibold text-gray-800">{sig.title}</h3>
             </header>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-x-2 gap-y-4">
               {sig.symbols.map(symbol => (
                 <Mini key={symbol}
                       symbol={symbol}
