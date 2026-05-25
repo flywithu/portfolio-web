@@ -87,6 +87,25 @@ function nowInTz(tz: string): { hour: number; minute: number; weekday: number } 
   return { hour, minute: m, weekday: dayMap[dayName] ?? 0 };
 }
 
+// NYSE/NASDAQ 정규장 휴장일 (ET 날짜, YYYY-MM-DD). 조기폐장(반일)은 제외 — 정규시간만 단축.
+const US_MARKET_HOLIDAYS = new Set<string>([
+  // 2025
+  "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18", "2025-05-26",
+  "2025-06-19", "2025-07-04", "2025-09-01", "2025-11-27", "2025-12-25",
+  // 2026
+  "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
+  "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+  // 2027
+  "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26", "2027-05-31",
+  "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
+]);
+// 특정 timezone 의 현재 날짜 "YYYY-MM-DD" (en-CA = ISO 형식)
+function dateStrInTz(tz: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+
 // 시장 정규장 시간 여부 — 흐림(dim) 판정용. 정규장 지나면 흐림(시간외 현재가는 그대로 표시).
 // - KR: 09:00-15:30 KST 정규장
 // - US / US_INDEX: 09:30-16:00 ET 정규장
@@ -101,6 +120,9 @@ export function isMarketOpen(market: Market): boolean {
   if (!tz) return true;
   const t = nowInTz(tz);
   if (t.weekday === 0 || t.weekday === 6) return false;
+  // 미국 정규장 휴장일 (메모리얼데이 등) — 평일이어도 휴장
+  if ((market === "US" || market === "US_INDEX")
+      && US_MARKET_HOLIDAYS.has(dateStrInTz(tz))) return false;
   const hhmm = t.hour * 60 + t.minute;
   switch (market) {
     // 정규장 기준 — 정규시간 지나면 흐림(현재가는 시간외도 그대로 표시).
