@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, fmtAgo } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor } from "../lib/api";
@@ -41,6 +41,7 @@ interface KrRegInfo {
   regularPct: number;
   tradingEnd?: string;
   nextTradingStart?: string;
+  exchange?: string;
 }
 
 interface Props {
@@ -108,6 +109,8 @@ export function MobileStockCard({
   // 흐림(마감) 판정 — 토스 거래가능 플래그(KRX·NXT 둘 다 suspended = 마감) 기반.
   const sleeping = isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice);
   const dimmed = sleeping && getDimSleepingEnabled();
+  // 시간외 포함 최종 매매 마감 임박(기본 30분 이내) — 남은 분. 아니면 null.
+  const closeImminentMin = !sleeping ? krCloseImminentMin(krReg?.exchange, krReg?.tradingEnd) : null;
   // 마지막 거래 시각 (잠자는 카드 갱신 책갈피용)
   const tradeSec = price.trade_dt ? Math.floor(Date.parse(price.trade_dt) / 1000) : undefined;
   const agoLabel = sleeping ? fmtAgo(tradeSec) : "";
@@ -366,13 +369,22 @@ export function MobileStockCard({
           </span>
         </div>
       )}
-      {!sleeping && price.singlePrice && price.price > 0 && (
+      {!sleeping && price.singlePrice && price.price > 0 && closeImminentMin == null && (
         <div className="absolute -top-2 left-1 z-10 px-1.5 py-0
                         border rounded text-[10px] leading-tight whitespace-nowrap
                         bg-yellow-100/30 border-yellow-300/30">
           <span className="text-gray-500">마감 </span>
           <span className="text-gray-700 tabular-nums">{krCloseTimeLabel(krReg?.tradingEnd)}</span>
           <span className="text-gray-500"> (단일가)</span>
+        </div>
+      )}
+      {/* 마감 임박 — 시간외 포함 최종 매매 마감(NXT 20:00 / KRX 18:00)까지 30분 이내 강조 */}
+      {closeImminentMin != null && (
+        <div className="absolute -top-2 left-1 z-10 px-1.5 py-0
+                        border rounded text-[10px] leading-tight whitespace-nowrap
+                        bg-amber-100 border-amber-400 animate-pulse">
+          <span className="text-amber-700 font-bold tabular-nums">마감 {closeImminentMin}분전</span>
+          <span className="text-gray-500 tabular-nums"> · {krFinalCloseHHMM(krReg?.exchange)}</span>
         </div>
       )}
       {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}

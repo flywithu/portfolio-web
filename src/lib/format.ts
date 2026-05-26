@@ -191,6 +191,37 @@ export function isKrHoldingClosed(
   return false;
 }
 
+// 종목별 "실제 매매 마감 시각"(시간외 포함) — 토스 exchange 필드 기반.
+//   integrated = NXT+KRX 통합거래 → NXT 접속매매 20:00 까지 매매 가능
+//   krx        = KRX 전용         → 시간외 단일가 18:00 까지 매매 가능
+// 정규장 마감(15:30)이 아니라 "더 이상 사거나 팔 수 없는" 최종 시각 기준.
+export function krFinalCloseHHMM(exchange?: string): string {
+  return exchange === "integrated" ? "20:00" : "18:00";
+}
+
+// 최종 매매 마감까지 남은 분(KST). withinMin 이내일 때만 숫자, 아니면 null → "임박" 강조용.
+//   - 휴장일 오탐 방지: tradingEnd 가 오늘(KST 거래일)일 때만 동작.
+//     휴장일엔 tradingEnd 가 직전 거래일이라 날짜 불일치 → null.
+//   - 주말도 null.
+export function krCloseImminentMin(
+  exchange?: string, tradingEnd?: string, withinMin = 30,
+): number | null {
+  if (!tradingEnd) return null;
+  const endMs = Date.parse(tradingEnd);
+  if (!Number.isFinite(endMs)) return null;
+  const t = nowInTz("Asia/Seoul");
+  if (t.weekday === 0 || t.weekday === 6) return null;
+  // tradingEnd 의 KST 날짜가 오늘이어야 — 휴장일/미거래 종목 제외
+  const endDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date(endMs));
+  if (endDate !== dateStrInTz("Asia/Seoul")) return null;
+  const closeMin = exchange === "integrated" ? 20 * 60 : 18 * 60;
+  const remain = closeMin - (t.hour * 60 + t.minute);
+  if (remain <= 0 || remain > withinMin) return null;
+  return remain;
+}
+
 // KST 08:00 ~ 08:59 — 한국 프리장 동시호가 시간 (정규장 09:00 직전).
 // 이 시점부터 새 거래일 — "어제보다" 가격은 0 으로 초기화 (전일 종가 기준 차이 의미 없음).
 // Toss API 의 base 가 09:00 이후에야 새 거래일 종가로 갱신되므로 우리가 강제 처리.

@@ -374,6 +374,7 @@ export interface KrRegularPrice {
   marketState: string;
   tradingEnd?: string;      // 이번/직전 세션 종료 시각 (ISO) — 종목별(정규장 15:30 or NXT 20:00)
   nextTradingStart?: string; // 다음 세션 시작 시각 (ISO)
+  exchange?: string;        // "integrated"(NXT+KRX 통합 → 시간외 20:00) | "krx"(KRX 전용 → 시간외 단일가 18:00)
 }
 // 토스 stock-infos API 의 market.code (KSP=KOSPI, KSQ=KOSDAQ) 로 정확한 거래소 판별.
 // Stock.market 이 잘못 저장된 경우(6자리 코드 검색 시 무조건 "KOSPI" 였음)를 자동 교정.
@@ -416,7 +417,7 @@ export async function fetchKrRegularPrices(
     const resp = await fetchProxied(target);
     if (!resp.ok) return out;
     const data = await resp.json() as {
-      result?: Array<{ productCode?: string; close?: number; base?: number; tradingEnd?: string; nextTradingStart?: string }>;
+      result?: Array<{ productCode?: string; close?: number; base?: number; tradingEnd?: string; nextTradingStart?: string; exchange?: string }>;
     };
     for (const r of (data.result ?? [])) {
       const ticker = (r.productCode ?? "").replace(/^A/, "");
@@ -431,6 +432,7 @@ export async function fetchKrRegularPrices(
         marketState: "",
         tradingEnd: r.tradingEnd,
         nextTradingStart: r.nextTradingStart,
+        exchange: r.exchange,
       });
     }
   } catch { /* network — return empty */ }
