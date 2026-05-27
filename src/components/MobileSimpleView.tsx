@@ -14,7 +14,7 @@ import {
 import {
   US_PAIRS,
 } from "../lib/usMarketData";
-import { isSymbolSleeping, fmtAgo } from "../lib/format";
+import { isSymbolSleeping, fmtAgo, nowKstDateStr } from "../lib/format";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
   getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
@@ -329,6 +329,30 @@ export function MobileSimpleView() {
     refetchInterval: REFRESH_MS,
   });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
+
+  // 브라우저 탭 제목 — 오늘 손익 있으면 금액만(예: "+30,600(+1.35%)"), 없으면 "portfolio-web"
+  useEffect(() => {
+    const today = nowKstDateStr();
+    let cur = 0, yest = 0;
+    for (const s of groupHoldingsUnsorted) {
+      if (s.shares <= 0) continue;
+      const p = groupPriceMap.get(s.ticker);
+      if (!p) continue;
+      const c = p.price || s.avg_price;
+      const base = s.buy_date === today ? s.avg_price : (p.base || c);
+      cur += c * s.shares;
+      yest += base * s.shares;
+    }
+    if (yest > 0 && cur > 0) {
+      const diff = Math.round(cur - yest);
+      const pct = ((cur - yest) / yest) * 100;
+      document.title = `${diff >= 0 ? "+" : ""}${diff.toLocaleString()}(${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+    } else {
+      document.title = "portfolio-web";
+    }
+    // groupPriceMap 은 매 렌더 새 Map → 의존성은 groupPrices(쿼리 데이터)로
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupHoldingsUnsorted, groupPrices]);
 
   // 한국 종목 거래소 자동 검증 — Toss stock-infos API (24h localStorage 캐시) — PC 동일 로직
   const krxOnlyTickers = groupTickers.filter(t => /^\d{6}$/.test(t));

@@ -16,6 +16,7 @@ import { getTabVisibility } from "./lib/tabVisibility";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
+import { nowKstDateStr } from "./lib/format";
 import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FeedbackDialog } from "./components/FeedbackDialog";
@@ -286,6 +287,28 @@ function Dashboard() {
     () => new Map((prices ?? []).map(p => [p.ticker, p])),
     [prices]
   );
+
+  // 브라우저 탭 제목 — 오늘 손익 있으면 금액만(예: "+30,600(+1.35%)"), 없으면 "portfolio-web"
+  useEffect(() => {
+    const today = nowKstDateStr();
+    let cur = 0, yest = 0;
+    for (const s of visible) {
+      if (s.shares <= 0) continue;
+      const p = priceMap.get(s.ticker);
+      if (!p) continue;
+      const c = p.price || s.avg_price;
+      const base = s.buy_date === today ? s.avg_price : (p.base || c);
+      cur += c * s.shares;
+      yest += base * s.shares;
+    }
+    if (yest > 0 && cur > 0) {
+      const diff = Math.round(cur - yest);
+      const pct = ((cur - yest) / yest) * 100;
+      document.title = `${diff >= 0 ? "+" : ""}${diff.toLocaleString()}(${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+    } else {
+      document.title = "portfolio-web";
+    }
+  }, [visible, priceMap]);
   const investorMap = useMemo(
     () => new Map(investorQs.map((q, i) =>
       [krxTickers[i], q.data ? pickTodayInvestor(q.data) : null]
