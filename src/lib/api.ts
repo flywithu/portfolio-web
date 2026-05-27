@@ -3,13 +3,14 @@ import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStat
 import { getPersonalProxyUrl } from "./proxyConfig";
 import { setTossMaintenance, parseTossMaintenance, setNaverFallback, getTossMaintenance } from "./tossMaintenance";
 
-// 공개 라운드 로빈 (Cloudflare + Vercel + Deno + Render + Netlify)
+// 공개 라운드 로빈 (Cloudflare + Vercel + Deno + Render + Netlify + Supabase)
 const PUBLIC_PROXY_URLS: string[] = [
   import.meta.env.VITE_PROXY_URL,
   import.meta.env.VITE_PROXY_URL_2,
   import.meta.env.VITE_PROXY_URL_3,
   import.meta.env.VITE_PROXY_URL_4,
   import.meta.env.VITE_PROXY_URL_5,
+  import.meta.env.VITE_PROXY_URL_6,
 ].filter(Boolean) as string[];
 if (PUBLIC_PROXY_URLS.length === 0) PUBLIC_PROXY_URLS.push("http://localhost:8787");
 
