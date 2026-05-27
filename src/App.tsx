@@ -527,7 +527,13 @@ function Dashboard() {
                             onToggleDir={sortHandlers.onToggleDir} />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-              {sortedVisible.map(stock => {
+              {sortedVisible
+                // 가격이 한 번도 안 들어온 종목(KRX300 처럼 유효하지 않은 코드)은 숨김.
+                // 단 ① 첫 로딩(prices 미정) ② 전체 실패(priceMap 비어있음) 시엔 모두 표시.
+                .filter(stock =>
+                  prices === undefined || priceMap.size === 0 || priceMap.has(stock.ticker)
+                )
+                .map(stock => {
                 // 합산 그룹 row — 실제 holdings 가 아니라 가상으로 합쳐진 항목.
                 // 수정/삭제는 실제 그룹 탭에서만 가능 (어느 그룹을 수정할지 모호).
                 const isAggregated = activeTab === MY_STOCKS_TAB_KEY;

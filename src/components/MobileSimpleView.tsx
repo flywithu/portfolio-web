@@ -691,7 +691,13 @@ export function MobileSimpleView() {
                 이 그룹에는 종목이 없습니다
               </div>
             )}
-            {groupHoldings.map(s => {
+            {groupHoldings
+              // 가격이 한 번도 안 들어온 종목(KRX300 처럼 유효하지 않은 코드)은 숨김.
+              // 단 첫 로딩(groupPrices 미정)/전체 실패(맵 비어있음) 시엔 모두 표시.
+              .filter(s =>
+                groupPrices === undefined || groupPriceMap.size === 0 || groupPriceMap.has(s.ticker)
+              )
+              .map(s => {
               // 합산 그룹 row — 수정/삭제 비활성 (실제 그룹 탭에서만 수정 가능)
               const isAggregated = activeTab === MY_KEY;
               return (

@@ -100,7 +100,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
         setStatusMsg("검색 중...");
         try {
           const codes = Array.from(new Set(
-            (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
+            (q.match(/\b\d{6}\b/g) ?? []).map(c => c.toUpperCase())
           ));
           let stocks: SearchResult[];
           if (codes.length > 0) {
@@ -247,7 +247,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     setStatusMsg("검색 중...");
     try {
       const codes = Array.from(new Set(
-        (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
+        (q.match(/\b\d{6}\b/g) ?? []).map(c => c.toUpperCase())
       ));
       let stocks: SearchResult[];
       if (codes.length > 0) {
