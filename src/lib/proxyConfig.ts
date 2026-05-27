@@ -29,9 +29,10 @@ export function setPersonalProxyUrl(url: string | null) {
 }
 
 // 폴링 주기 — 전용 프록시 사용 시 5/10/30/60초 선택 가능
-// 공개 프록시는 항상 10초 (rate limit 보호)
+// 공개 프록시는 30초 (무료 워커 호출 한도 보호 — 24h 폴링이라 호출수가 병목).
+// 더 빠른 갱신이 필요하면 설정에서 개인 프록시 등록(5/10초).
 export const POLL_OPTIONS = [5_000, 10_000, 30_000, 60_000] as const;
-export const DEFAULT_PUBLIC_POLL_MS = 10_000;
+export const DEFAULT_PUBLIC_POLL_MS = 30_000;
 
 // ─── 개인 프록시 기능별 호환성 검증 ─────────────────────────
 // 기능마다 조건이 다름 → 별도 검사 (한 status 로 합치지 않음):

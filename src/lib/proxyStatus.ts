@@ -98,15 +98,32 @@ export function resetProxyStats(): void {
   listeners.forEach(fn => fn(lastState));
 }
 
-// React 훅 — 프록시 다운 수에 따라 폴링 간격 자동 증가 (부하 완화)
-// 예: base 10초, 1개 다운 → 20초, 2개 다운 → 30초
+// React 훅 — 폴링 간격 자동 조절 (무료 워커 부하 완화)
+//  1) 프록시 다운 수만큼 간격 증가 (예: base 30초, 1개 다운 → 60초)
+//  2) 양 시장(한국·미국) 모두 마감 시 60초로 throttle — 단, 공개(무료) 프록시일 때만.
+//     개인 프록시 사용자는 본인이 설정한 주기를 그대로 유지.
 import { useEffect, useState } from "react";
+import { getPersonalProxyUrl } from "./proxyConfig";
+import { isAnyMarketActive } from "./format";
+
+const MARKET_CLOSED_MIN_MS = 60_000;
+
 export function useAdaptiveRefreshMs(baseMs: number): number {
   const [ms, setMs] = useState(baseMs);
   useEffect(() => {
-    return subscribeProxyStatus(s => {
-      setMs(baseMs + s.downHosts.length * baseMs);
-    });
+    let downCount = getProxyState().downHosts.length;
+    const compute = () => {
+      // 공개 프록시 + 양 시장 마감 → 최소 60초 (개인 프록시는 base 유지)
+      const closedThrottle =
+        !getPersonalProxyUrl() && !isAnyMarketActive() ? MARKET_CLOSED_MIN_MS : 0;
+      const effBase = Math.max(baseMs, closedThrottle);
+      setMs(effBase + downCount * effBase);
+    };
+    const unsub = subscribeProxyStatus(s => { downCount = s.downHosts.length; compute(); });
+    compute();
+    // 시장 개장/마감 전환 감지 — 1분마다 재평가
+    const timer = setInterval(compute, 60_000);
+    return () => { unsub(); clearInterval(timer); };
   }, [baseMs]);
   return ms;
 }

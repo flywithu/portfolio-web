@@ -9,6 +9,7 @@ import {
   upsertHoldingToGroup, syncAllRowsForTicker,
 } from "../lib/db";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { getEffectivePollMs } from "../lib/proxyConfig";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { Stock, Price } from "../types";
 import { signColor, isEtfByName } from "../lib/format";
@@ -149,7 +150,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     });
   };
 
-  const REFRESH_MS = useAdaptiveRefreshMs(10_000);
+  const REFRESH_MS = useAdaptiveRefreshMs(getEffectivePollMs());
   const tickers = results.map(r => r.ticker);
   const { data: prices } = useQuery({
     queryKey: ["search-prices", tickers],

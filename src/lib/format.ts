@@ -245,6 +245,19 @@ export function krSessionPhase(): KrPhase {
   return "CLOSED";
 }
 
+// 한국·미국 시장이 하나라도 활동 중인지 — 폴링 throttle 판정용.
+//   KR: 프리장~시간외(08:00–20:00 KST, krSessionPhase) 중이면 활동.
+//   US: 프리마켓~애프터마켓(04:00–20:00 ET) 평일·비휴장일이면 활동.
+// 둘 다 아니면(주말/휴장/심야 ECN 시간대) 비활동 → 폴링 늦춤.
+export function isAnyMarketActive(): boolean {
+  if (krSessionPhase() !== "CLOSED") return true;
+  const t = nowInTz("America/New_York");
+  if (t.weekday === 0 || t.weekday === 6) return false;
+  if (US_MARKET_HOLIDAYS.has(dateStrInTz("America/New_York"))) return false;
+  const m = t.hour * 60 + t.minute;
+  return 4 * 60 <= m && m < 20 * 60;
+}
+
 // 종목명 prefix 로 ETF 판단 — 한국 ETF 발행사 prefix 매칭 (정확도 95%+).
 // 예: "KODEX 200", "TIGER 반도체", "K-방산", "ACE 미국S&P500"
 const ETF_NAME_PATTERNS = [

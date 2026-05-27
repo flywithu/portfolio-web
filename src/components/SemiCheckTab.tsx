@@ -9,7 +9,7 @@ import { Sparkline } from "./Sparkline";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
-import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { getDimSleepingEnabled, getEffectivePollMs } from "../lib/proxyConfig";
 import { isSymbolSleeping, fmtAgo } from "../lib/format";
 import type { UsIndex } from "../lib/api";
 
@@ -171,7 +171,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
 export function SemiCheckTab() {
   const yahooSymbols = allYahooSymbols();
   // 가격 데이터: 앱 기본 폴링 주기와 동일 (UsMarketTab 과 캐시 공유)
-  const REFRESH_MS = useAdaptiveRefreshMs(10_000);
+  const REFRESH_MS = useAdaptiveRefreshMs(getEffectivePollMs());
   const { data: usMap, dataUpdatedAt } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
     queryFn: () => fetchYahooBatch(yahooSymbols),
