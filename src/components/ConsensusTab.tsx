@@ -7,6 +7,7 @@ import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchInvestorHistory
 import { getTossMaintenance } from "../lib/tossMaintenance";
 import { fetchConsensusReports, fetchMajorShareholders, type Shareholder } from "../lib/fundamentals";
 import { openTossStock } from "../lib/toss";
+import { signColor, formatSigned } from "../lib/format";
 import { Tooltip } from "./Tooltip";
 import type { Investor } from "../types";
 
@@ -26,6 +27,14 @@ function fmtSharesK(v: number): string {
   if (a >= 1e8) return `${sign}${(a / 1e8).toFixed(1)}억`;
   if (a >= 1e4) return `${sign}${Math.round(a / 1e4).toLocaleString()}만`;
   return `${sign}${a.toLocaleString()}`;
+}
+// 금액(원) 부호 표기 — 조/억/만
+function fmtAmtK(won: number): string {
+  const a = Math.abs(won), sign = won < 0 ? "-" : won > 0 ? "+" : "";
+  if (a >= 1e12) return `${sign}${(a / 1e12).toFixed(1)}조`;
+  if (a >= 1e8) return `${sign}${Math.round(a / 1e8).toLocaleString()}억`;
+  if (a >= 1e4) return `${sign}${Math.round(a / 1e4).toLocaleString()}만`;
+  return `${sign}${Math.round(a).toLocaleString()}`;
 }
 
 // 주요주주에서 국민연금/연기금 추출
@@ -72,6 +81,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [period, setPeriod] = useState<Period>("1w");
   const [volDays, setVolDays] = useState(7);   // 변동율·수급 공통 기간(거래일)
+  const [flowMode, setFlowMode] = useState<"shares" | "amount">("shares");  // 수급 정렬·표시 단위
   // sub탭 전환 시 기본 정렬 리셋
   useEffect(() => {
     setSortKey(DEFAULT_SORT[view]);
@@ -97,6 +107,11 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   });
   const priceByTicker = useMemo(
     () => new Map((prices ?? []).map(p => [p.ticker, p.price])),
+    [prices],
+  );
+  // 현재가 등락(전일종가 대비) — 색·% 표시용. 전체 Price 객체 보관.
+  const priceObjByTicker = useMemo(
+    () => new Map((prices ?? []).map(p => [p.ticker, p])),
     [prices],
   );
 
@@ -171,6 +186,10 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       const reps = reportQs[i]?.data ?? [];
       const loading = (naverQs[i]?.isLoading ?? false) || (reportQs[i]?.isLoading ?? false);
       const price = priceByTicker.get(t);
+      // 현재가 등락 — 직전 거래일 종가 대비 (비거래일에도 마지막 거래 변화 반영)
+      const pObj = priceObjByTicker.get(t);
+      const priceDiff = pObj && pObj.prevClose > 0 ? pObj.price - pObj.prevClose : 0;
+      const pricePct = pObj && pObj.prevClose > 0 ? (priceDiff / pObj.prevClose) * 100 : 0;
       const avgTarget = con?.target;
       const upside = avgTarget && avgTarget > 0 && price && price > 0
         ? (avgTarget / price - 1) * 100 : null;
@@ -201,13 +220,16 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       const foreign60 = sumLast(inv, "외국인", volDays);
       const inst60 = sumLast(inv, "기관", volDays);
       const pension60 = sumLast(inv, "연기금", volDays);
+      // 금액 = 순매수 수량 × 현재가
+      const p0 = price ?? 0;
+      const forAmt = foreign60 * p0, insAmt = inst60 * p0, penAmt = pension60 * p0;
       return {
         ticker: t, name: nameByTicker.get(t) ?? t, groups: groupsByTicker.get(t) ?? [],
         sector,
-        price, reps, repsShown, avgTarget, upside, repTime, loading,
+        price, priceDiff, pricePct, reps, repsShown, avgTarget, upside, repTime, loading,
         opinion: con?.opinion, score: con?.score,
         holders, npsPct, npsAmount,
-        vol, foreign60, inst60, pension60, rangeLow, rangeHigh,
+        vol, foreign60, inst60, pension60, forAmt, insAmt, penAmt, rangeLow, rangeHigh,
       };
     });
     // 모든 종목 표시 — 검색기준 정렬만 적용 (값 없는 종목은 아래로)
@@ -221,9 +243,9 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         case "npsPct": return (b.npsPct ?? -1) - (a.npsPct ?? -1);
         case "npsAmount": return b.npsAmount - a.npsAmount;
         case "vol": return (b.vol ?? -1) - (a.vol ?? -1);   // 변동폭 큰 순
-        case "foreign60": return b.foreign60 - a.foreign60;
-        case "inst60": return b.inst60 - a.inst60;
-        case "pension60": return b.pension60 - a.pension60;
+        case "foreign60": return flowMode === "amount" ? b.forAmt - a.forAmt : b.foreign60 - a.foreign60;
+        case "inst60": return flowMode === "amount" ? b.insAmt - a.insAmt : b.inst60 - a.inst60;
+        case "pension60": return flowMode === "amount" ? b.penAmt - a.penAmt : b.pension60 - a.pension60;
         default: return 0;
       }
     });
@@ -234,7 +256,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       shQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(","),
       chartQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(","),
       invQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(","),
-      priceByTicker, nameByTicker, groupsByTicker, period, sortKey, volDays]);
+      priceByTicker, nameByTicker, groupsByTicker, period, sortKey, volDays, flowMode]);
 
   const btn = (active: boolean) =>
     `px-2.5 py-1 rounded-full text-xs font-bold border transition ${
@@ -274,6 +296,8 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       <span className="text-[10px] text-gray-400 ml-1">정렬</span>
       <button className={btn(sortKey === "vol")} onClick={() => setSortKey("vol")}>변동폭(%)</button>
       <span className="text-[10px] text-gray-400 ml-1">순매수</span>
+      <button className={btn(flowMode === "shares")} onClick={() => setFlowMode("shares")}>수량</button>
+      <button className={btn(flowMode === "amount")} onClick={() => setFlowMode("amount")}>금액</button>
       <button className={btn(sortKey === "foreign60")} onClick={() => setSortKey("foreign60")}>외국인</button>
       <button className={btn(sortKey === "inst60")} onClick={() => setSortKey("inst60")}>기관</button>
       <button className={btn(sortKey === "pension60")} onClick={() => setSortKey("pension60")}>연기금</button>
@@ -286,9 +310,10 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       return sortKey === "upside" ? "현재가 대비 평균 목표주가 상승여력(%)" : "최근 리포트 발행일 순";
     if (view === "pension")
       return sortKey === "npsAmount" ? "국민연금 보유 평가금액(주식수×현재가)" : "국민연금 보유 지분율(%)";
-    if (sortKey === "foreign60") return `최근 ${volDays}일 외국인 순매수 수량 합`;
-    if (sortKey === "inst60") return `최근 ${volDays}일 기관 순매수 수량 합`;
-    if (sortKey === "pension60") return `최근 ${volDays}일 연기금 순매수 수량 합`;
+    const unit = flowMode === "amount" ? "금액(수량×현재가)" : "수량";
+    if (sortKey === "foreign60") return `최근 ${volDays}일 외국인 순매수 ${unit} 합`;
+    if (sortKey === "inst60") return `최근 ${volDays}일 기관 순매수 ${unit} 합`;
+    if (sortKey === "pension60") return `최근 ${volDays}일 연기금 순매수 ${unit} 합`;
     return volDays === 1
       ? "어제 저가~고가 변동폭(%)"
       : `최근 ${volDays}일 일별 저가/고가 평균 기준 변동폭(%)`;
@@ -364,6 +389,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
               const aFor = view === "screener" && sortKey === "foreign60";
               const aIns = view === "screener" && sortKey === "inst60";
               const aPen = view === "screener" && sortKey === "pension60";
+              const isAmt = flowMode === "amount";
               return (
                 <div className="mt-1 grid grid-cols-4 gap-1 text-[11px] tabular-nums">
                   <div className={`text-center ${box(aVol)}`}>
@@ -378,15 +404,15 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   </div>
                   <div className={`text-center ${box(aFor)}`}>
                     <div className={lblCls(aFor)}>외국인</div>
-                    <b className={`${flowCls(it.foreign60)} ${aFor ? "text-base" : ""}`}>{fmtSharesK(it.foreign60)}<span className="text-[9px] font-normal text-gray-400">주</span></b>
+                    <b className={`${flowCls(it.foreign60)} ${aFor ? "text-base" : ""}`}>{isAmt ? fmtAmtK(it.forAmt) : <>{fmtSharesK(it.foreign60)}<span className="text-[9px] font-normal text-gray-400">주</span></>}</b>
                   </div>
                   <div className={`text-center ${box(aIns)}`}>
                     <div className={lblCls(aIns)}>기관</div>
-                    <b className={`${flowCls(it.inst60)} ${aIns ? "text-base" : ""}`}>{fmtSharesK(it.inst60)}<span className="text-[9px] font-normal text-gray-400">주</span></b>
+                    <b className={`${flowCls(it.inst60)} ${aIns ? "text-base" : ""}`}>{isAmt ? fmtAmtK(it.insAmt) : <>{fmtSharesK(it.inst60)}<span className="text-[9px] font-normal text-gray-400">주</span></>}</b>
                   </div>
                   <div className={`text-center ${box(aPen)}`}>
                     <div className={lblCls(aPen)}>연기금</div>
-                    <b className={`${flowCls(it.pension60)} ${aPen ? "text-base" : ""}`}>{fmtSharesK(it.pension60)}<span className="text-[9px] font-normal text-gray-400">주</span></b>
+                    <b className={`${flowCls(it.pension60)} ${aPen ? "text-base" : ""}`}>{isAmt ? fmtAmtK(it.penAmt) : <>{fmtSharesK(it.pension60)}<span className="text-[9px] font-normal text-gray-400">주</span></>}</b>
                   </div>
                 </div>
               );
@@ -473,7 +499,13 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   )}
                 </div>
                 <div className="text-[13px] tabular-nums text-gray-600 mt-0.5">
-                  현재 <b className="text-blue-600">{it.price ? Math.round(it.price).toLocaleString() : "—"}</b>원
+                  현재 <b className={it.price && it.pricePct !== 0 ? signColor(it.pricePct) : "text-gray-600"}>{it.price ? Math.round(it.price).toLocaleString() : "—"}</b>원
+                  {it.price && it.pricePct !== 0 ? (
+                    <span className={`ml-1 font-bold ${signColor(it.pricePct)}`}>
+                      {it.pricePct >= 0 ? "+" : ""}{it.pricePct.toFixed(2)}%
+                      <span className="ml-1 font-normal">({formatSigned(Math.round(it.priceDiff))})</span>
+                    </span>
+                  ) : null}
                 </div>
 
                 {/* 검색기준 섹션이 맨 위 (순서는 view 별) */}
