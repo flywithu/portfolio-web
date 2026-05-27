@@ -1811,8 +1811,8 @@ export async function searchTossAutoComplete(
       let code = (it.productCode ?? "").replace(/^A/, "")
               || it.symbol || it.ticker || it.code || "";
       code = code.trim();
-      // 한국 종목·ETF 는 6자리 숫자. 영문 포함 코드(예: KRX300 지수명)는 검색 결과에서 제외.
-      if (!/^\d{6}$/.test(code)) continue;
+      // 한국 종목·ETF — 6자리 숫자 또는 영숫자(신형 KRX 코드, 예: 단일종목레버리지 ETF "0192L0").
+      if (!/^[\dA-Za-z]{6}$/.test(code)) continue;
       const nation = it.nationCode || it.countryCode;
       if (nation && nation !== "KOR") continue;
       // 한국 ETF/주식만 (market KSP/KSQ/KNX) — 다른 시장은 검색 결과에서 제외
@@ -1848,8 +1848,8 @@ export async function searchNaverAutoComplete(
     const out: SearchResult[] = [];
     for (const it of items) {
       const code = (it.code ?? "").trim();
-      // 한국 종목·ETF 는 6자리 숫자. 영문 포함 코드(예: KRX300 지수명)는 제외.
-      if (!/^\d{6}$/.test(code)) continue;
+      // 한국 종목·ETF — 6자리 숫자 또는 영숫자(신형 KRX 코드).
+      if (!/^[\dA-Za-z]{6}$/.test(code)) continue;
       if (it.nationCode && it.nationCode !== "KOR") continue;
       out.push({
         ticker: code,

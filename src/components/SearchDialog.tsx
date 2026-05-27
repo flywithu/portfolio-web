@@ -100,18 +100,18 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
         setStatusMsg("검색 중...");
         try {
           const codes = Array.from(new Set(
-            (q.match(/\b\d{6}\b/g) ?? []).map(c => c.toUpperCase())
+            (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
           ));
-          let stocks: SearchResult[];
+          let stocks: SearchResult[] = [];
           if (codes.length > 0) {
-            const names = await Promise.all(
-              codes.map(c => fetchStockName(c).then(n => n ?? c))
-            );
-            stocks = codes.map((c, i) => ({
-              ticker: c, name: names[i], market: "KOSPI",
-            }));
-          } else {
-            // 토스 우선 (자음 매칭 + 부분 매칭 강함), 0건이면 네이버
+            // 직접코드: 실제 종목명이 있는 코드만 채택 (KRX300 같은 지수명/가짜 제외)
+            const names = await Promise.all(codes.map(c => fetchStockName(c)));
+            stocks = codes
+              .map((c, i) => ({ ticker: c, name: names[i] ?? "", market: "KOSPI" }))
+              .filter(s => s.name);
+          }
+          // 코드 직접조회가 0건(가짜 코드 등)이면 자동완성으로 — 토스 우선, 0건이면 네이버
+          if (stocks.length === 0) {
             stocks = await searchTossAutoComplete(q);
             if (stocks.length === 0) {
               stocks = await searchNaverAutoComplete(q);
@@ -247,17 +247,18 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     setStatusMsg("검색 중...");
     try {
       const codes = Array.from(new Set(
-        (q.match(/\b\d{6}\b/g) ?? []).map(c => c.toUpperCase())
+        (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
       ));
-      let stocks: SearchResult[];
+      let stocks: SearchResult[] = [];
       if (codes.length > 0) {
-        const names = await Promise.all(
-          codes.map(c => fetchStockName(c).then(n => n ?? c))
-        );
-        stocks = codes.map((c, i) => ({
-          ticker: c, name: names[i], market: "KOSPI",
-        }));
-      } else {
+        // 직접코드: 실제 종목명이 있는 코드만 채택 (KRX300 같은 지수명/가짜 제외)
+        const names = await Promise.all(codes.map(c => fetchStockName(c)));
+        stocks = codes
+          .map((c, i) => ({ ticker: c, name: names[i] ?? "", market: "KOSPI" }))
+          .filter(s => s.name);
+      }
+      // 코드 직접조회가 0건(가짜 코드 등)이면 자동완성으로 폴백
+      if (stocks.length === 0) {
         stocks = await searchTossAutoComplete(q);
         if (stocks.length === 0) {
           stocks = await searchNaverAutoComplete(q);
