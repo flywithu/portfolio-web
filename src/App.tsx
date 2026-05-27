@@ -176,6 +176,7 @@ function Dashboard() {
     },
     enabled: krxTickers.length > 0,
     refetchInterval: REFRESH_MS,
+    refetchIntervalInBackground: true,   // 탭 비활성(백그라운드)에도 폴링 → 탭 제목 손익 계속 갱신
   });
 
   // 한국 종목 거래소 자동 검증 — 토스 stock-infos API 사용 (market.code: KSP/KSQ).

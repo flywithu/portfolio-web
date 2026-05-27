@@ -327,6 +327,7 @@ export function MobileSimpleView() {
     },
     enabled: !isSystemTab && groupTickers.length > 0,
     refetchInterval: REFRESH_MS,
+    refetchIntervalInBackground: true,   // 백그라운드에도 폴링 → 탭 제목 손익 계속 갱신
   });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
 
