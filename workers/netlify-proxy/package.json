@@ -1,0 +1,9 @@
+{
+  "name": "portfolio-netlify-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Netlify Edge Function CORS proxy — no build, no framework",
+  "scripts": {
+    "build": "true"
+  }
+}
