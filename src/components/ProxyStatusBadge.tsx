@@ -31,13 +31,13 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
   if (state.health === "down") {
     statusMsg = {
       emoji: "❌",
-      text: `프록시 모두 다운 (${state.total}/${state.total}) — 갱신 중지`,
+      text: `공용 프록시 모두 사용량 소진 (${state.total}/${state.total}) — 갱신 중지`,
       color: "text-rose-700",
     };
   } else if (state.health === "degraded") {
     statusMsg = {
       emoji: "⚠️",
-      text: `프록시 ${state.downHosts.length}/${state.total} 다운으로 갱신시간을 ${intervalSec}초로 변경합니다`,
+      text: `공용 프록시 ${state.downHosts.length}/${state.total} 사용량 소진 — 갱신 ${intervalSec}초로 늦춤`,
       color: "text-amber-700",
     };
   } else if (usePersonalProxy) {
@@ -53,24 +53,24 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
     <span className="flex items-center gap-2 shrink-0 flex-wrap">
       {statusMsg && (
         <span title={state.health !== "ok"
-                ? `다운: ${state.downHosts.join(", ")} — 정상 서버로 자동 fallback`
-                : "공개 4-way 대신 본인 전용 Cloudflare Worker 사용 중"}
+                ? `사용량 소진/응답없음: ${state.downHosts.join(", ")} — 정상 서버로 자동 fallback`
+                : "공용 프록시 대신 본인 전용 Cloudflare Worker 사용 중"}
               className={`text-[11px] ${statusMsg.color}`}>
           {statusMsg.emoji} {statusMsg.text}
         </span>
       )}
       {!usePersonalProxy && (
-        <span title="본인 전용 Cloudflare Worker 배포 시 100k req/일 전용 + 폴링 주기 선택 가능"
+        <span title="본인 전용 Cloudflare Worker 무료 배포(카드 불필요, 100k req/일) + 폴링 주기 선택 가능"
               className="text-[11px] text-gray-500">
           💡{" "}
           <button onClick={onOpenSettings}
                   className="text-blue-600 hover:underline font-medium">
             ⚙️ 설정
           </button>
-          에서 전용 프록시 추가 시 5초 갱신 가능{" "}
+          에서 <b className="text-emerald-600">무료</b> 프록시 추가 시 5초 갱신 가능{" "}
           <a href={GUIDE_URL} target="_blank" rel="noopener noreferrer"
              className="text-blue-600 hover:underline">
-            [배포 가이드]
+            [추가방법]
           </a>
         </span>
       )}
