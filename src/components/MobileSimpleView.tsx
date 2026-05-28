@@ -7,7 +7,7 @@ import {
 import { SortSelector, makeSortHandlers } from "./SortSelector";
 import { AuxBatchToggle } from "./AuxBatchToggle";
 import {
-  fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory,
+  fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures,
   fetchKrRegularPrices, verifyKrMarkets,
   fetchYahooChart, fetchKrPriceHistory,
 } from "../lib/api";
@@ -36,6 +36,9 @@ function krEtfTicker(symbol: string): string | null {
 
 // Toss / Yahoo 외부 링크 (UsMarketTab 와 동일 규칙)
 function quoteUrl(symbol: string): string {
+  // 야간선물 — yasun.gg
+  if (symbol === "^KS200N") return "https://yasun.gg/kospi200";
+  if (symbol === "^KQ150N") return "https://yasun.gg/kosdaq150";
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
   const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
@@ -89,9 +92,10 @@ const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 
 // 섹터 탭 — KOSPI/KOSDAQ + EWY/VIX(한국 sentiment) + 섹터 페어
 const KR_ORDER: string[] = [
-  "^KS11", "069500.KS",
-  "^KQ11",
-  "VKOSPI", "^VIX", "EWY", // 공포(V-KOSPI·VIX) + 외국인 투심
+  "^KS200N", "^KS11",          // KOSPI200 야간선물 | KOSPI
+  "^KQ150N", "^KQ11",          // KOSDAQ150 야간선물 | KOSDAQ
+  "VKOSPI", "069500.KS",       // V-KOSPI | KODEX 200
+  "EWY", "^VIX",               // 외국인 투심(EWY) | 공포(VIX)
   "SMH", "091160.KS",     // 반도체 (필반·필반선물은 반도체 탭으로 이동 — 지수에서 제외)
   "PAVE", "117700.KS",    // 건설/인프라
   "LIT", "305720.KS",     // 2차전지
@@ -530,18 +534,40 @@ export function MobileSimpleView() {
     return m;
   }, [holdings]);
 
-  // Yahoo: 본물 + 선물 평탄화 (선행지수만 — ETF 제외)
-  const yahooSymbols = US_PAIRS.flatMap(p =>
-    p.future
+  // Yahoo: 본물 + 선물 평탄화 (선행지수만 — ETF 제외). 야간선물(^KS200N/^KQ150N)은 yasun 별도.
+  const YASUN_VIRTUAL = new Set<string>(["^KS200N", "^KQ150N"]);
+  const yahooSymbols = US_PAIRS.flatMap(p => {
+    if (YASUN_VIRTUAL.has(p.symbol)) return [];
+    return p.future
       ? [{ symbol: p.symbol, name: p.name }, { symbol: p.future, name: `${p.name} 선물` }]
-      : [{ symbol: p.symbol, name: p.name }]
-  );
+      : [{ symbol: p.symbol, name: p.name }];
+  });
 
-  const { data: usMap, isFetching, dataUpdatedAt: usAt } = useQuery({
+  const { data: usMapRaw, isFetching, dataUpdatedAt: usAt } = useQuery({
     queryKey: ["m-yahoo"],
     queryFn: () => fetchYahooBatch(yahooSymbols),
     refetchInterval: REFRESH_MS,
   });
+
+  // 야간선물 (yasun.gg) — 별도 fetch, usMap 에 병합
+  const NIGHT_SYMS = ["^KS200N", "^KQ150N"] as const;
+  const nightQs = useQueries({
+    queries: NIGHT_SYMS.map(sym => ({
+      queryKey: ["m-yasun-night", sym],
+      queryFn: () => fetchYasunNightFutures(sym),
+      refetchInterval: REFRESH_MS,
+      staleTime: 60_000,
+    })),
+  });
+  const usMap = new Map(usMapRaw ?? []);
+  const nightClosesMap = new Map<string, number[]>();
+  for (let i = 0; i < NIGHT_SYMS.length; i++) {
+    const d = nightQs[i]?.data;
+    if (d) {
+      usMap.set(NIGHT_SYMS[i], d.index);
+      nightClosesMap.set(NIGHT_SYMS[i], d.closes);
+    }
+  }
 
   // 활성 탭에 맞는 마지막 갱신 시각 (RefreshIndicator 사용)
   const lastAt = isSystemTab ? usAt : (groupAt ?? 0);
@@ -584,6 +610,9 @@ export function MobileSimpleView() {
   const t0ChartByIndex = new Map(tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []]));
   const t0ChartMap = new Map(
     tier0.map(p => {
+      // 야간선물 — yasun 캔들 close 시계열
+      const yasunCloses = nightClosesMap.get(p.symbol);
+      if (yasunCloses && yasunCloses.length > 1) return [p.symbol, yasunCloses];
       const own = t0ChartByIndex.get(p.symbol) ?? [];
       if (own.length > 1) return [p.symbol, own];
       const fb = SPARKLINE_FALLBACK[p.symbol];
@@ -918,7 +947,7 @@ export function MobileSimpleView() {
                    ? ((effPrice - effBase) / effBase) * 100
                    : null);
               const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
-              const isFuture = p.symbol.endsWith("=F");
+              const isFuture = p.symbol.endsWith("=F") || p.symbol === "^KS200N" || p.symbol === "^KQ150N";
               const bg = sleeping && dimEnabled
                 ? "bg-gray-100 border-gray-300"
                 : cdiff > 0 ? "bg-rose-50 border-rose-200"
