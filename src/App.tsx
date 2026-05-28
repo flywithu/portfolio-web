@@ -542,8 +542,10 @@ function Dashboard() {
           )
         ) : (
           <>
-            {/* 정렬 옵션 + 심플 보기 + 추가지표 일괄 토글 */}
-            <div className="flex items-center justify-end gap-2 mb-2">
+            {/* 정렬 옵션 + 심플 보기 + 추가지표 일괄 토글 — sticky 로 스크롤 중에도 접근 */}
+            <div className="sticky top-14 z-20 bg-white/95 backdrop-blur
+                            flex items-center justify-end gap-2 mb-2 py-1.5
+                            -mx-3 px-3 border-b border-gray-200">
               <button onClick={() => setSimpleOpen(true)}
                       title="심플 보기 — 현재가만 한눈에 (팝업)"
                       className="px-2.5 py-1 rounded text-xs font-bold border transition

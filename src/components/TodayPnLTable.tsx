@@ -125,7 +125,10 @@ function MiniTable({
         className={`px-2 py-1 ${headerBg} ${colorClass} font-semibold
                     text-[11px] border-b border-gray-200 flex justify-between
                     items-center cursor-pointer hover:brightness-95`}>
-        <span>{title}</span>
+        <span>
+          {title}
+          <span className="ml-1 text-gray-500 font-normal text-[10px]">{rows.length}종목</span>
+        </span>
         <span className="text-gray-400 text-[10px] leading-none">
           {open ? "▼" : "▲"}
         </span>
@@ -207,6 +210,7 @@ function MobileSection({
       <div className={`px-2 py-1 ${headerBg} ${colorClass} font-semibold
                         text-xs border-b border-gray-200`}>
         {title}
+        <span className="ml-1 text-gray-500 font-normal text-[10px]">{rows.length}종목</span>
       </div>
       {rows.length === 0 ? (
         <div className="px-2 py-2 text-gray-400 text-xs">없음</div>
