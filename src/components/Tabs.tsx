@@ -1,5 +1,6 @@
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
+import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { TabVisibility } from "../lib/tabVisibility";
 import type { GroupFolder } from "../lib/groupFolders";
 
@@ -189,10 +190,34 @@ export function filterByTab(holdings: Stock[], tabKey: string): Stock[] {
   return holdings.filter(s => normalizeAccount(s.account) === tabKey);
 }
 
-// 합산 — 같은 ticker 의 shares 합 + 가중평균 avg_price.
-// 수량 있는 holdings 만 합산 (관심종목/수량 0 제외).
-// buy_date: 가장 이른 매수일. market: 첫 발견 값.
+// 합산 — 모드별 처리:
+//  · 독립 보유 ON(다중 계좌): 같은 ticker 가 그룹별로 서로 다른 보유 → shares 합·가중평균 avg_price.
+//  · 독립 보유 OFF(sync, 기본): 같은 ticker 는 모든 그룹에서 동일 값(동기화) → 첫 발견 하나만 채택.
+//    (모든 그룹에서 같은 값이라 합산하면 그룹 수만큼 부풀려져 나옴 — 버그 원인이었음)
+// 수량 있는 holdings 만 (관심종목/수량 0 제외). buy_date: 가장 이른 매수일.
 function aggregateHoldings(holdings: Stock[]): Stock[] {
+  const independent = getIndependentGroupsMode();
+  if (!independent) {
+    // sync 모드 — ticker 별 첫 발견만 채택. 매수일은 가장 이른 것으로 보정.
+    const seen = new Map<string, Stock>();
+    const earliest = new Map<string, string>();
+    for (const h of holdings) {
+      if (!(h.shares > 0) || !(h.avg_price > 0)) continue;
+      if (!seen.has(h.ticker)) seen.set(h.ticker, h);
+      if (h.buy_date) {
+        const prev = earliest.get(h.ticker);
+        if (!prev || h.buy_date < prev) earliest.set(h.ticker, h.buy_date);
+      }
+    }
+    return Array.from(seen, ([ticker, h]) => ({
+      ticker, name: h.name, shares: h.shares, avg_price: h.avg_price,
+      invested: Math.round(h.shares * h.avg_price),
+      buy_date: earliest.get(ticker) ?? h.buy_date,
+      market: h.market,
+      account: MY_STOCKS_TAB_KEY,
+    }));
+  }
+  // 독립 보유 모드 — 그룹별 합산
   interface Acc {
     name: string; shares: number; investedSum: number;
     firstDate?: string; market?: string;
@@ -224,6 +249,6 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
     invested: Math.round(v.investedSum),
     buy_date: v.firstDate,
     market: v.market,
-    account: MY_STOCKS_TAB_KEY,   // 합산 row 식별자 — UI 분기용
+    account: MY_STOCKS_TAB_KEY,
   }));
 }
