@@ -285,7 +285,29 @@ export function MobileSimpleView() {
   const groupHoldingsUnsorted = useMemo(() => {
     if (isSystemTab) return [];
     if (activeTab === MY_KEY) {
-      // 합산 — 같은 ticker shares 합 + 가중평균 avg_price (수량>0 만)
+      // 합산 — 모드별:
+      //  · 독립 ON(다중 계좌): ticker별 shares 합·가중평균 평단
+      //  · 독립 OFF(sync 기본): 같은 종목이 모든 그룹에 동기화돼 있으므로 첫 발견 하나만 채택
+      //    (합산하면 그룹 수만큼 부풀려져 표시되던 버그)
+      const independent = getIndependentGroupsMode();
+      if (!independent) {
+        const seen = new Map<string, Stock>();
+        const earliest = new Map<string, string>();
+        for (const h of holdings) {
+          if (!(h.shares > 0) || !(h.avg_price > 0)) continue;
+          if (!seen.has(h.ticker)) seen.set(h.ticker, h);
+          if (h.buy_date) {
+            const prev = earliest.get(h.ticker);
+            if (!prev || h.buy_date < prev) earliest.set(h.ticker, h.buy_date);
+          }
+        }
+        return Array.from(seen, ([ticker, h]) => ({
+          ticker, name: h.name, shares: h.shares, avg_price: h.avg_price,
+          invested: Math.round(h.shares * h.avg_price),
+          buy_date: earliest.get(ticker) ?? h.buy_date,
+          market: h.market, account: MY_KEY,
+        } as Stock));
+      }
       interface Acc { name: string; shares: number; investedSum: number; firstDate?: string; market?: string }
       const m = new Map<string, Acc>();
       for (const h of holdings) {
