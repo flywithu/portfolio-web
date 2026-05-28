@@ -336,11 +336,12 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                   <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
                   </div>
-                  {p.symbol === "VKOSPI" && effPrice == null && hasPersonalProxy ? (
-                    /* 개인 워커가 investing 미허용 → 값 자리에 업데이트 안내 (높이는 가격 줄과 동일) */
+                  {(p.symbol === "VKOSPI" || p.symbol === "^KS200N" || p.symbol === "^KQ150N")
+                    && effPrice == null && hasPersonalProxy ? (
+                    /* 개인 워커 구버전 — investing(VKOSPI) 또는 yasun.gg(야선) 화이트리스트 누락 */
                     <div className="relative z-10 flex items-center mt-auto min-h-[1.75rem]">
                       <a href={WORKER_UPDATE_GUIDE_URL} target="_blank" rel="noopener noreferrer"
-                         title="개인 워커가 구버전이라 V-KOSPI 미표시 — 업데이트 가이드"
+                         title={`개인 워커가 구버전이라 ${p.name} 미표시 — 업데이트 가이드`}
                          className="text-[12px] font-bold text-amber-700 underline hover:text-amber-900">
                         ⚠️ 워커 업데이트 ↗
                       </a>

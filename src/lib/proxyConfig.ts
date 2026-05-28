@@ -46,6 +46,7 @@ export type PersonalProxyStatus = "ok" | "outdated" | "no-personal" | "error";
 
 let cachedPostStatus: { url: string; status: PersonalProxyStatus } | null = null;
 let cachedInvestStatus: { url: string; status: PersonalProxyStatus } | null = null;
+let cachedYasunStatus: { url: string; status: PersonalProxyStatus } | null = null;
 
 // POST 지원 검사 (컨센서스 예상치) — 구버전(405) 판정. 지난번과 동일.
 export async function checkPersonalProxyPostSupport(): Promise<PersonalProxyStatus> {
@@ -98,9 +99,36 @@ export async function checkPersonalProxyInvestingSupport(): Promise<PersonalProx
   }
 }
 
+// yasun.gg 호스트 허용 검사 (코스피200/코스닥150 야간선물) — 구버전 워커 화이트리스트엔 없음.
+export async function checkPersonalProxyYasunSupport(): Promise<PersonalProxyStatus> {
+  const personal = getPersonalProxyUrl();
+  if (!personal) { cachedYasunStatus = null; return "no-personal"; }
+  if (cachedYasunStatus && cachedYasunStatus.url === personal) return cachedYasunStatus.status;
+  try {
+    const target = "https://yasun.gg/api/candles?symbol=%5EKS200&interval=1m&limit=5&session=night";
+    const r = await fetch(`${personal}/?url=${encodeURIComponent(target)}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    let status: PersonalProxyStatus;
+    if (r.status === 403 && (await r.text().catch(() => "")).includes("Host not allowed")) {
+      status = "outdated";          // 워커 화이트리스트에 yasun.gg 없음
+    } else if (r.ok) {
+      status = "ok";
+    } else {
+      status = "error";
+    }
+    cachedYasunStatus = { url: personal, status };
+    return status;
+  } catch {
+    cachedYasunStatus = { url: personal, status: "error" };
+    return "error";
+  }
+}
+
 // 워커 URL 변경/해제 시 캐시 무효화
 export function invalidatePersonalProxyStatusCache(): void {
   cachedPostStatus = null;
+  cachedYasunStatus = null;
   cachedInvestStatus = null;
 }
 

@@ -16,6 +16,7 @@ const ALLOWED_HOSTS = new Set<string>([
   "query1.finance.yahoo.com",
   "query2.finance.yahoo.com",
   "api.investing.com",        // VKOSPI 등 — investing financialdata chart API
+  "yasun.gg",                 // 코스피200/코스닥150 야간선물 1분봉 캔들
 ]);
 
 // 응답 캐시 TTL (초). 클라이언트 5초 폴링이라 캐시는 짧게.
@@ -138,6 +139,9 @@ export default {
     } else if (targetUrl.hostname.includes("naver")) {
       headers["Referer"] = "https://finance.naver.com/";
       headers["Accept-Language"] = "ko-KR,ko;q=0.9";
+    } else if (targetUrl.hostname.includes("yasun.gg")) {
+      headers["Referer"] = "https://yasun.gg/";
+      headers["Accept"] = "application/json";
     } else if (targetUrl.hostname.includes("investing")) {
       // investing financialdata API — domain-id 필수, 브라우저 UA/Referer 로 Cloudflare 통과 시도
       headers["domain-id"] = "www";
