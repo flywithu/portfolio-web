@@ -47,7 +47,7 @@ export function isEarlyMorningKst(): boolean {
 // ─────────── 시장 시간 판정 (데스크톱 v1/v2 동일 로직) ───────────
 
 // 심볼 → 시장 분류
-export type Market = "KR" | "US" | "US_INDEX" | "JP" | "OTHER";
+export type Market = "KR" | "KR_NIGHT" | "US" | "US_INDEX" | "JP" | "OTHER";
 
 export function marketOfSymbol(symbol: string): Market {
   if (!symbol) return "OTHER";
@@ -66,6 +66,8 @@ export function marketOfSymbol(symbol: string): Market {
   //   ^VIX = 변동성지수, ^TNX/^FVX/^TYX/^IRX = 미 국채 만기별 yield
   if (symbol === "^VIX" || symbol === "^TNX" || symbol === "^FVX"
       || symbol === "^TYX" || symbol === "^IRX") return "US";
+  // 한국 야간선물 (yasun.gg) — 18:00~05:00 KST 거래 시간만 활성, 그 외 흐림.
+  if (symbol === "^KS200N" || symbol === "^KQ150N") return "KR_NIGHT";
   // ^ 로 시작 = 미국 정규장 지수 (^GSPC, ^IXIC, ^DJI, ^SOX 등 — 정규장만)
   if (symbol.startsWith("^")) return "US_INDEX";
   return "US";
@@ -113,17 +115,24 @@ function dateStrInTz(tz: string): string {
 // - OTHER: 항상 열림 (환율/선물/암호화폐 등 24h — 흐림 없음)
 export function isMarketOpen(market: Market): boolean {
   const TZ_MAP: Record<Market, string | null> = {
-    KR: "Asia/Seoul", US: "America/New_York",
+    KR: "Asia/Seoul", KR_NIGHT: "Asia/Seoul", US: "America/New_York",
     US_INDEX: "America/New_York", JP: "Asia/Tokyo", OTHER: null,
   };
   const tz = TZ_MAP[market];
   if (!tz) return true;
   const t = nowInTz(tz);
-  if (t.weekday === 0 || t.weekday === 6) return false;
   // 미국 정규장 휴장일 (메모리얼데이 등) — 평일이어도 휴장
   if ((market === "US" || market === "US_INDEX")
       && US_MARKET_HOLIDAYS.has(dateStrInTz(tz))) return false;
   const hhmm = t.hour * 60 + t.minute;
+  // 한국 야간선물 — 평일 야간(월~금 18:00~24:00) + 다음날 새벽(화~토 00:00~05:00).
+  //   일요일·월 새벽은 휴장. 토 05:00 이후~일요일 전체 흐림.
+  if (market === "KR_NIGHT") {
+    const nightStart   = t.weekday >= 1 && t.weekday <= 5 && hhmm >= 18 * 60;   // 월~금 18:00+
+    const earlyMorning = t.weekday >= 2 && t.weekday <= 6 && hhmm < 5 * 60;      // 화~토 00:00~04:59
+    return nightStart || earlyMorning;
+  }
+  if (t.weekday === 0 || t.weekday === 6) return false;
   switch (market) {
     // 정규장 기준 — 정규시간 지나면 흐림(현재가는 시간외도 그대로 표시).
     // 선물·환율·암호화폐(OTHER)는 24h 라 흐림 없음(default true).
