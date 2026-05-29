@@ -11,6 +11,7 @@ import {
   invalidatePersonalProxyStatusCache,
   type PersonalProxyStatus,
 } from "../lib/proxyConfig";
+import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { resetProxyStats } from "../lib/proxyStatus";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
@@ -573,6 +574,20 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시)
                 </span>
               )}
+            </div>
+
+            {/* 이 브라우저 호출량 — 일자별 카운터 (cache 히트 제외, 실제 네트워크 호출만) */}
+            <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-600">
+              <span className="text-gray-500">이 브라우저 호출</span>
+              <span className="tabular-nums">
+                오늘 <b className="text-gray-800">{getTodayProxyCalls().toLocaleString()}</b>회
+              </span>
+              <span className="tabular-nums">
+                최근 7일 <b className="text-gray-800">{getRecentProxyCalls(7).toLocaleString()}</b>회
+              </span>
+              <span className="text-[10px] text-gray-400">
+                {proxyUrl ? "(전용 프록시 호출수)" : "(공개 프록시 합계)"}
+              </span>
             </div>
 
             {/* 장 마감 종목 흐리게 표시 */}

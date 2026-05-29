@@ -15,6 +15,7 @@ import {
   US_PAIRS,
 } from "../lib/usMarketData";
 import { isSymbolSleeping, fmtAgo, nowKstDateStr } from "../lib/format";
+import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
   getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
@@ -1579,6 +1580,17 @@ function SettingsModal({
                   (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시)
                 </span>
               )}
+            </div>
+
+            {/* 이 브라우저 호출량 — 일자별 (cache 히트 제외) */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-gray-600">
+              <span className="text-gray-500">이 브라우저 호출</span>
+              <span className="tabular-nums">
+                오늘 <b className="text-gray-800">{getTodayProxyCalls().toLocaleString()}</b>회
+              </span>
+              <span className="tabular-nums">
+                최근 7일 <b className="text-gray-800">{getRecentProxyCalls(7).toLocaleString()}</b>회
+              </span>
             </div>
 
             {/* 장 마감 종목 흐리게 표시 */}

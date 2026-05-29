@@ -1,6 +1,10 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getPersonalProxyUrl } from "./proxyConfig";
+import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
+
+// 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
+cleanupOldProxyCalls();
 import { setTossMaintenance, parseTossMaintenance, setNaverFallback, getTossMaintenance } from "./tossMaintenance";
 
 // 공개 라운드 로빈 (Cloudflare + Vercel + Deno + Render + Netlify + Supabase)
@@ -40,6 +44,8 @@ function buildProxyUrl(base: string, targetUrl: string): string {
 export async function fetchProxied(
   targetUrl: string, init?: RequestInit,
 ): Promise<Response> {
+  // 호출 카운트 — 이 브라우저 일자별 (논리적 fetch 1회로 집계, 재시도 무관)
+  incrementProxyCall();
   const urls = getProxyUrls();
   // 건강(=down 아님) 우선, down은 후순위. 그 안에서는 랜덤 (부하 분산)
   const healthy = urls.filter(u => !isProxyDown(u))
