@@ -14,6 +14,7 @@ import {
 import {
   US_PAIRS,
 } from "../lib/usMarketData";
+import { Settings } from "lucide-react";
 import { isSymbolSleeping, fmtAgo, nowKstDateStr } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
@@ -800,6 +801,7 @@ export function MobileSimpleView() {
                                price={groupPriceMap.get(s.ticker)}
                                krReg={krRegMap?.get(s.ticker)}
                                sector={naverInfos.data?.get(s.ticker)?.sector}
+                               market={krMarketMap.get(s.ticker)}
                                warning={warningMap.get(s.ticker) || undefined}
                                chart={groupChartMap.get(s.ticker)}
                                investorHistory={investorHistoryMap.get(s.ticker)}
@@ -1189,7 +1191,7 @@ export function MobileSimpleView() {
               }}
               className="w-full px-4 py-3.5 text-left text-sm
                          hover:bg-gray-50 border-b flex items-center gap-3">
-              <span className="text-lg">✏️</span>
+              <Settings size={18} strokeWidth={2.2} className="text-slate-700" />
               <span>이름 변경</span>
             </button>
             <button

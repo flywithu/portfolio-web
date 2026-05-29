@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Lightbulb } from "lucide-react";
+import { StickyNote } from "lucide-react";
 import type { Memo, MemoColor, MemoPriceBasis } from "../types";
 import { getMemo, upsertMemo, deleteMemo } from "../lib/db";
 import {
@@ -232,7 +232,7 @@ export function MemoDialog({
                        max-h-[90vh] overflow-y-auto">
         <header className="px-5 py-3 border-b bg-gray-50 flex items-center">
           <h2 className="text-lg font-bold flex items-center gap-1.5">
-            <Lightbulb size={18} strokeWidth={2} fill="currentColor" className="text-amber-400" />
+            <StickyNote size={18} strokeWidth={2} fill="currentColor" className="text-amber-500" />
             메모
           </h2>
           {stockName && (

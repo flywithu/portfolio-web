@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Settings } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings, replaceAllMemos,
@@ -325,7 +326,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
           </div>
         )}
         <header className="px-5 py-3 border-b bg-gray-50 flex items-center gap-3">
-          <h2 className="text-lg font-bold shrink-0">⚙️ 설정</h2>
+          <h2 className="text-lg font-bold shrink-0 inline-flex items-center gap-1.5">
+            <Settings size={18} strokeWidth={2.2} className="text-slate-700" /> 설정
+          </h2>
           <span className="text-xs text-gray-500 truncate">{statusMsg}</span>
           {/* 개발이력 — GitHub commit 로그 (외부 링크: 새 탭).
               헤더 우측에 border 박스 + ↗ 으로 외부 링크임을 명시 */}

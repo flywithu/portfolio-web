@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Settings } from "lucide-react";
 import type { Stock } from "../types";
 import {
   syncAllRowsForTicker, deleteAllRowsForTicker,
@@ -219,7 +220,9 @@ export function EditHoldingDialog({
                        rounded-t-xl sm:rounded-lg
                        max-h-[90vh] overflow-y-auto">
         <header className="px-5 py-3 border-b bg-gray-50 flex items-center">
-          <h2 className="text-lg font-bold">✏️ 보유 수정</h2>
+          <h2 className="text-lg font-bold inline-flex items-center gap-1.5">
+            <Settings size={18} strokeWidth={2.2} className="text-slate-700" /> 보유 수정
+          </h2>
           <span className="ml-3 text-sm text-gray-600 truncate">
             {stock.name} ({stock.ticker})
             {stock.account && <span className="text-amber-600 ml-1">— {stock.account}</span>}
@@ -255,7 +258,7 @@ export function EditHoldingDialog({
           <div className="flex gap-1">
             {tabBtn("buy", "➕ 추가매수")}
             {tabBtn("sell", "➖ 매도")}
-            {tabBtn("edit", "✏️ 직접수정")}
+            {tabBtn("edit", "⚙️ 직접수정")}
           </div>
 
           <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200

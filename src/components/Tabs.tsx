@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
 import { getIndependentGroupsMode } from "../lib/groupMode";
@@ -73,8 +74,9 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }:
                     type="button"
                     onClick={e => { e.stopPropagation(); handleRename(t.key, t.label); }}
                     title="그룹명 변경"
-                    className="text-[10px] leading-none px-0.5">
-                    ✏️
+                    className="inline-flex items-center leading-none px-0.5
+                               text-slate-500 hover:text-slate-800">
+                    <Settings size={12} strokeWidth={2.2} />
                   </button>
                 )}
                 {onDelete && (

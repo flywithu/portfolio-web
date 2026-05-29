@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Lightbulb } from "lucide-react";
+import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, fmtAgo } from "../lib/format";
@@ -28,6 +28,7 @@ interface Props {
   investorHistory?: Investor[] | null;   // 60일 수급 (신호 계산용)
   consensus?: Consensus | null;
   sector?: string;
+  market?: "KOSPI" | "KOSDAQ" | string;   // 거래소 — KSP/KSQ 책갈피
   warning?: string;
   loading?: boolean;
   chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열 (3개월)
@@ -496,7 +497,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, krReg, investor, investorHistory, consensus, sector, warning, loading, chart, priceHistory, longHistory,
+  stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, priceHistory, longHistory,
   memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -848,7 +849,7 @@ export function StockCard({
             <Tooltip content={
               <>
                 <div className="font-bold mb-1 flex items-center gap-1">
-                  <Lightbulb size={12} strokeWidth={2} fill="currentColor" className="text-amber-400" />
+                  <StickyNote size={12} strokeWidth={2} className="text-amber-500" />
                   메모
                 </div>
                 {memo.text && (
@@ -924,6 +925,17 @@ export function StockCard({
               ETF
             </button>
           )}
+          {/* 거래소 책갈피 — KSP(코스피)/KSQ(코스닥). ETF 와 같은 자리 스타일 */}
+          {(market === "KOSPI" || market === "KOSDAQ") && (
+            <span title={market}
+                  className={`px-1 py-0 rounded text-[10px] font-bold leading-none self-center
+                              opacity-40 hover:opacity-100 transition border
+                              ${market === "KOSPI"
+                                ? "text-blue-700 bg-blue-50 border-blue-200"
+                                : "text-emerald-700 bg-emerald-50 border-emerald-200"}`}>
+              {market === "KOSPI" ? "KSP" : "KSQ"}
+            </span>
+          )}
           {/* 액션 버튼 — 항상 노출 (메모 있으면 전구 노랑/켜짐, 없으면 회색/꺼짐) */}
           {onOpenMemo && (
             <button
@@ -932,11 +944,10 @@ export function StockCard({
               title={memo ? "메모 보기/수정" : "메모 추가"}
               className={`group/lb px-0.5 transition inline-flex items-center
                           ${memo
-                            ? "text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.85)]"
-                            : "text-slate-400 opacity-60 hover:opacity-100 hover:text-amber-400 hover:drop-shadow-[0_0_5px_rgba(251,191,36,0.95)]"}`}>
-              <Lightbulb size={16} strokeWidth={2.2}
-                         fill={memo ? "currentColor" : "none"}
-                         className={memo ? "" : "group-hover/lb:fill-current transition-colors"} />
+                            ? "text-amber-500 drop-shadow-[0_0_3px_rgba(251,191,36,0.7)]"
+                            : "text-slate-400 opacity-60 hover:opacity-100 hover:text-amber-500"}`}>
+              <StickyNote size={16} strokeWidth={2.2}
+                          fill={memo ? "currentColor" : "none"} />
             </button>
           )}
           {/^\d{6}$/.test(stock.ticker) && (
@@ -964,9 +975,10 @@ export function StockCard({
               type="button"
               onClick={() => onEdit(stock)}
               title="수정"
-              className="opacity-60 hover:opacity-100
-                         text-xs leading-none px-0.5 transition-opacity">
-              ✏️
+              className="opacity-60 hover:opacity-100 inline-flex items-center
+                         text-slate-600 hover:text-slate-900
+                         px-0.5 transition-opacity">
+              <Settings size={14} strokeWidth={2.2} />
             </button>
           )}
           {onDelete && (

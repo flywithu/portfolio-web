@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lightbulb } from "lucide-react";
+import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
@@ -49,6 +49,7 @@ interface Props {
   price?: Price;
   krReg?: KrRegInfo;          // Yahoo .KS 정규장 종가 — 책갈피 표시용
   sector?: string;
+  market?: "KOSPI" | "KOSDAQ" | string;
   warning?: string;
   chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열
   investorHistory?: Investor[] | null;   // 60일 수급 (AuxIndicators 외국인/기관/연기금)
@@ -228,17 +229,27 @@ export function MobileStockCard({
               ETF
             </button>
           )}
+          {/* 거래소 책갈피 — KSP(코스피)/KSQ(코스닥) */}
+          {(market === "KOSPI" || market === "KOSDAQ") && (
+            <span title={market}
+                  className={`px-1.5 py-0.5 rounded text-xs font-bold leading-none self-center
+                              opacity-40 border
+                              ${market === "KOSPI"
+                                ? "text-blue-700 bg-blue-50 border-blue-200"
+                                : "text-emerald-700 bg-emerald-50 border-emerald-200"}`}>
+              {market === "KOSPI" ? "KSP" : "KSQ"}
+            </span>
+          )}
           {onOpenMemo && (
             <button onClick={() => onOpenMemo(stock.ticker)}
                     title={memo ? "메모 보기/수정" : "메모 추가"}
-                    className={`px-2 py-1 rounded text-xs leading-none
-                                bg-gray-100 hover:bg-gray-200
-                                inline-flex items-center
+                    className={`px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
+                                inline-flex items-center leading-none
                                 ${memo
-                                  ? "text-amber-400 drop-shadow-[0_0_3px_rgba(251,191,36,0.7)]"
-                                  : "text-slate-400"}`}>
-              <Lightbulb size={14} strokeWidth={2}
-                         fill={memo ? "currentColor" : "none"} />
+                                  ? "text-amber-500 drop-shadow-[0_0_3px_rgba(251,191,36,0.7)]"
+                                  : "text-slate-500"}`}>
+              <StickyNote size={14} strokeWidth={2.2}
+                          fill={memo ? "currentColor" : "none"} />
             </button>
           )}
           {onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker) && (
@@ -253,8 +264,8 @@ export function MobileStockCard({
             <button onClick={() => onEdit(stock)}
                     title="수정 / 매수 / 매도"
                     className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
-                               text-xs leading-none">
-              ✏️
+                               text-gray-700 inline-flex items-center leading-none">
+              <Settings size={14} strokeWidth={2.2} />
             </button>
           )}
           {onDelete && (

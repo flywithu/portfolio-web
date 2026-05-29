@@ -592,6 +592,7 @@ function Dashboard() {
                   investorHistory={investorHistoryMap.get(stock.ticker)}
                   warning={warningMap.get(stock.ticker)}
                   sector={naverMap.get(stock.ticker)?.sector}
+                  market={krMarketMap.get(stock.ticker)}
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}
                   chart={chartMap.get(stock.ticker)}
                   priceHistory={priceHistoryMap.get(stock.ticker)}
