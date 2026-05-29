@@ -1613,6 +1613,7 @@ function SettingsModal({
                   { key: "sectorRank" as const, label: "🏷 섹터" },
                   { key: "semiCheck" as const, label: "🔧 반도체" },
                   { key: "myStocks" as const, label: "📦 내주식" },
+                  { key: "consensus" as const, label: "🎯 컨센서스" },
                 ]).map(({ key, label }) => (
                   <label key={key} className="flex items-center gap-1.5 cursor-pointer select-none">
                     <input type="checkbox" defaultChecked={getTabVisibility()[key]}
