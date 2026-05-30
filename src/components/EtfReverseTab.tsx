@@ -379,21 +379,28 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition }: Props) {
             {excluded.size > 0 && ` · 제외 ${excluded.size}개 적용`} ·
             비중합 내림차순
           </div>
-          <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
+          {/* 3 컬럼 그리드 — 카드형 띄워 배치, 좁은 화면은 1/2 단 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-2
+                          max-h-[70vh] overflow-y-auto bg-gray-50">
             {results.map(r => (
               <button key={r.etfCode}
                       onClick={() => onOpenEtfComposition?.(r.etfCode, r.etfName)}
-                      className="w-full px-3 py-2 text-left hover:bg-amber-50/40 transition flex items-baseline gap-3">
-                <span className="text-xs text-gray-500 font-mono tabular-nums shrink-0">
+                      className="px-2.5 py-1.5 text-left transition
+                                 bg-white border border-gray-200 rounded-md shadow-sm
+                                 hover:border-amber-300 hover:bg-amber-50/40 hover:shadow
+                                 flex items-baseline gap-2 min-w-0">
+                <span className="text-[10px] text-gray-500 font-mono tabular-nums shrink-0">
                   {r.etfCode}
                 </span>
                 <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">
                   {r.etfName}
                 </span>
-                <span className="text-[11px] text-gray-500 shrink-0">
-                  {r.hitCount}/{included.size}
-                </span>
-                <span className="font-bold tabular-nums text-rose-600 text-sm shrink-0">
+                {included.size > 1 && (
+                  <span className="text-[10px] text-gray-500 shrink-0">
+                    {r.hitCount}/{included.size}
+                  </span>
+                )}
+                <span className="font-bold tabular-nums text-rose-600 text-xs shrink-0">
                   {r.totalRatio.toFixed(2)}%
                 </span>
               </button>
