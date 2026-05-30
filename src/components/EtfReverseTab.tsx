@@ -382,29 +382,51 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition }: Props) {
           {/* 3 컬럼 그리드 — 카드형 띄워 배치, 좁은 화면은 1/2 단 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-2
                           max-h-[70vh] overflow-y-auto bg-gray-50">
-            {results.map(r => (
-              <button key={r.etfCode}
-                      onClick={() => onOpenEtfComposition?.(r.etfCode, r.etfName)}
-                      className="px-2.5 py-1.5 text-left transition
-                                 bg-white border border-gray-200 rounded-md shadow-sm
-                                 hover:border-amber-300 hover:bg-amber-50/40 hover:shadow
-                                 flex items-baseline gap-2 min-w-0">
-                <span className="text-[10px] text-gray-500 font-mono tabular-nums shrink-0">
-                  {r.etfCode}
-                </span>
-                <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">
-                  {r.etfName}
-                </span>
-                {included.size > 1 && (
-                  <span className="text-[10px] text-gray-500 shrink-0">
-                    {r.hitCount}/{included.size}
-                  </span>
-                )}
-                <span className="font-bold tabular-nums text-rose-600 text-xs shrink-0">
-                  {r.totalRatio.toFixed(2)}%
-                </span>
-              </button>
-            ))}
+            {results.map(r => {
+              // 포함 종목별 비중 분해 (포함 2개 이상일 때만 표시)
+              const breakdownItems = included.size > 1
+                ? [...included]
+                    .filter(t => r.perTicker[t] !== undefined)
+                    .sort((a, b) => r.perTicker[b] - r.perTicker[a])
+                    .map(t => ({ name: nameOf(t), ratio: r.perTicker[t] }))
+                : null;
+              return (
+                <button key={r.etfCode}
+                        onClick={() => onOpenEtfComposition?.(r.etfCode, r.etfName)}
+                        className="px-2.5 py-1.5 text-left transition
+                                   bg-white border border-gray-200 rounded-md shadow-sm
+                                   hover:border-amber-300 hover:bg-amber-50/40 hover:shadow
+                                   min-w-0">
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="text-[10px] text-gray-500 font-mono tabular-nums shrink-0">
+                      {r.etfCode}
+                    </span>
+                    <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">
+                      {r.etfName}
+                    </span>
+                    {/* hit/total — "any" 모드에서만 의미있음 ("all" 모드는 항상 N/N) */}
+                    {included.size > 1 && mode === "any" && (
+                      <span className="text-[10px] text-gray-500 shrink-0">
+                        {r.hitCount}/{included.size}
+                      </span>
+                    )}
+                    <span className="font-bold tabular-nums text-rose-600 text-xs shrink-0">
+                      {r.totalRatio.toFixed(2)}%
+                    </span>
+                  </div>
+                  {breakdownItems && (
+                    <div className="text-[10px] text-gray-500 mt-0.5 truncate tabular-nums text-right">
+                      {breakdownItems.map((b, i) => (
+                        <span key={b.name + i}>
+                          {i > 0 && " + "}
+                          {b.name} <span className="text-rose-600 font-medium">{b.ratio.toFixed(2)}%</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
