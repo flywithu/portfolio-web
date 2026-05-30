@@ -59,9 +59,8 @@ function parseSettings(obj: Record<string, unknown>): ImportSettings | undefined
         && Array.isArray((f as { groups?: unknown }).groups))
       .map(f => ({ name: f.name, groups: f.groups.filter((g): g is string => typeof g === "string") }));
   }
-  if (src.tabVisibility && typeof src.tabVisibility === "object" && !Array.isArray(src.tabVisibility)) {
-    out.tabVisibility = src.tabVisibility as TabVisibility;
-  }
+  // tabVisibility 는 디바이스(모바일/PC)별로 별도 관리 — 백업/불러오기 미포함
+  // (옛 JSON 에 tabVisibility 키가 있어도 무시)
   if (typeof src.dimSleeping === "boolean") out.dimSleeping = src.dimSleeping;
   if (typeof src.personalProxyUrl === "string" || src.personalProxyUrl === null) {
     out.personalProxyUrl = src.personalProxyUrl as string | null;

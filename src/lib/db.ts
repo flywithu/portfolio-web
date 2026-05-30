@@ -2,7 +2,7 @@ import Dexie, { type Table } from "dexie";
 import type { Stock, Memo } from "../types";
 import { getDeposits, replaceAllDeposits } from "./deposits";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "./groupFolders";
-import { getTabVisibility, setTabVisibility, type TabVisibility } from "./tabVisibility";
+import type { TabVisibility } from "./tabVisibility";
 import {
   getDimSleepingEnabled, setDimSleepingEnabled,
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -371,7 +371,7 @@ export async function exportAll(): Promise<ExportPayload> {
       independentGroups,
       deposits: getDeposits(),
       groupFolders: getGroupFolders(),
-      tabVisibility: getTabVisibility(),
+      // tabVisibility 는 디바이스(모바일/PC) 별로 별도 저장 — 백업에 포함 안 함
       dimSleeping: getDimSleepingEnabled(),
       personalProxyUrl: getPersonalProxyUrl(),
       personalPollMs: getPersonalPollMs(),
@@ -392,7 +392,7 @@ export function applyImportedSettings(settings?: ExportPayload["settings"]): voi
   }
   if (settings.deposits) replaceAllDeposits(settings.deposits);
   if (settings.groupFolders) setGroupFolders(settings.groupFolders);
-  if (settings.tabVisibility) setTabVisibility(settings.tabVisibility);
+  // tabVisibility 는 디바이스(모바일/PC) 별로 별도 관리 — 불러오기 적용 안 함
   if (typeof settings.dimSleeping === "boolean") setDimSleepingEnabled(settings.dimSleeping);
   if (settings.personalProxyUrl !== undefined) setPersonalProxyUrl(settings.personalProxyUrl);
   if (typeof settings.personalPollMs === "number") setPersonalPollMs(settings.personalPollMs);

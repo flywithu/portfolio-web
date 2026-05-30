@@ -1,5 +1,7 @@
-// 시스템 탭 (주요지수 / 반도체 / 내주식) 표시 여부 — localStorage 기반.
+// 시스템 탭 (주요지수 / 반도체 / 내주식 / 컨센서스 / 섹터) 표시 여부.
+// 모바일/PC 각각 별도 저장 — 디바이스 폼팩터마다 보고 싶은 탭이 다르기 때문.
 // 기본값: 모두 ON. 사용자가 OFF 한 탭만 false 저장.
+// 저장/불러오기(JSON)에는 포함하지 않음(디바이스별로 환경이 달라서).
 
 export interface TabVisibility {
   usMarket: boolean;
@@ -9,37 +11,52 @@ export interface TabVisibility {
   consensus: boolean;
 }
 
-const KEY_US = "portfolio_tab_us_market";
-const KEY_SEMI = "portfolio_tab_semi_check";
-const KEY_SECTOR = "portfolio_tab_sector_rank";
-const KEY_MY = "portfolio_tab_my_stocks";
-const KEY_CONSENSUS = "portfolio_tab_consensus";
+const BASE_KEYS = {
+  usMarket:   "portfolio_tab_us_market",
+  semiCheck:  "portfolio_tab_semi_check",
+  sectorRank: "portfolio_tab_sector_rank",
+  myStocks:   "portfolio_tab_my_stocks",
+  consensus:  "portfolio_tab_consensus",
+} as const;
 
-function read(key: string): boolean {
+// 디바이스 폼팩터 — App.tsx 의 useIsMobile 과 동일 기준(width < 768)
+function deviceSuffix(): "_mobile" | "_pc" {
   try {
-    const v = localStorage.getItem(key);
-    return v === null ? true : v === "1";
+    return typeof window !== "undefined" && window.innerWidth < 768
+      ? "_mobile" : "_pc";
+  } catch { return "_pc"; }
+}
+function deviceKey(base: string): string { return base + deviceSuffix(); }
+
+// 새 키(디바이스별) → 옛 키(접미사 없음) 순으로 읽기 — 마이그레이션 자동 fallback.
+function read(base: string): boolean {
+  try {
+    const v = localStorage.getItem(deviceKey(base));
+    if (v !== null) return v === "1";
+    const legacy = localStorage.getItem(base);
+    if (legacy !== null) return legacy === "1";
+    return true;
   } catch { return true; }
 }
-function write(key: string, v: boolean): void {
-  try { localStorage.setItem(key, v ? "1" : "0"); }
+function write(base: string, v: boolean): void {
+  try { localStorage.setItem(deviceKey(base), v ? "1" : "0"); }
   catch { /* noop */ }
 }
 
 export function getTabVisibility(): TabVisibility {
   return {
-    usMarket: read(KEY_US),
-    semiCheck: read(KEY_SEMI),
-    sectorRank: read(KEY_SECTOR),
-    myStocks: read(KEY_MY),
-    consensus: read(KEY_CONSENSUS),
+    usMarket:   read(BASE_KEYS.usMarket),
+    semiCheck:  read(BASE_KEYS.semiCheck),
+    sectorRank: read(BASE_KEYS.sectorRank),
+    myStocks:   read(BASE_KEYS.myStocks),
+    consensus:  read(BASE_KEYS.consensus),
   };
 }
 
 export function setTabVisibility(patch: Partial<TabVisibility>): void {
-  if (patch.usMarket !== undefined) write(KEY_US, patch.usMarket);
-  if (patch.semiCheck !== undefined) write(KEY_SEMI, patch.semiCheck);
-  if (patch.sectorRank !== undefined) write(KEY_SECTOR, patch.sectorRank);
-  if (patch.myStocks !== undefined) write(KEY_MY, patch.myStocks);
-  if (patch.consensus !== undefined) write(KEY_CONSENSUS, patch.consensus);
+  if (patch.usMarket   !== undefined) write(BASE_KEYS.usMarket,   patch.usMarket);
+  if (patch.semiCheck  !== undefined) write(BASE_KEYS.semiCheck,  patch.semiCheck);
+  if (patch.sectorRank !== undefined) write(BASE_KEYS.sectorRank, patch.sectorRank);
+  if (patch.myStocks   !== undefined) write(BASE_KEYS.myStocks,   patch.myStocks);
+  if (patch.consensus  !== undefined) write(BASE_KEYS.consensus,  patch.consensus);
 }
