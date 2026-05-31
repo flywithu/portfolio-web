@@ -166,26 +166,40 @@ export function MobileStockCard({
 
   return (
     <div className={dimmed ? "opacity-60" : ""}>
-      {/* 책갈피 — 좌: 종목명 pill + 위험 뱃지 / 우: 수정·삭제 버튼 + 섹터 */}
+      {/* 메타 줄 — 좌: 경고 뱃지 / 우: 섹터. 종목명/버튼 줄을 밀지 않음. */}
+      {(warning || sector) && (
+        <div className="flex items-center justify-between gap-1 mx-2 mb-0.5">
+          <div className="flex items-center gap-1 min-w-0">
+            {warning && (
+              <Tooltip content={
+                <>
+                  <div className="font-bold text-amber-700 mb-1">⚠️ {warning}</div>
+                  <div className="mb-1">
+                    <b>{stock.name}</b> 이(가) 거래소에 의해 지정되었습니다.
+                  </div>
+                  <div className="text-gray-600">{WARN_TIPS[warning] ?? warning}</div>
+                </>
+              }>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-md
+                                  text-white text-[10px] font-medium leading-none cursor-help
+                                  ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+                  ⚠️ {warning}
+                </span>
+              </Tooltip>
+            )}
+          </div>
+          {sector && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md
+                              border ${cardBorder} ${cardBg}
+                              text-[10px] text-gray-600 leading-none truncate`}>
+              {sector}
+            </span>
+          )}
+        </div>
+      )}
+      {/* 책갈피 — 좌: 종목명 pill / 우: 수정·삭제 버튼 */}
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
-          {warning && (
-            <Tooltip content={
-              <>
-                <div className="font-bold text-amber-700 mb-1">⚠️ {warning}</div>
-                <div className="mb-1">
-                  <b>{stock.name}</b> 이(가) 거래소에 의해 지정되었습니다.
-                </div>
-                <div className="text-gray-600">{WARN_TIPS[warning] ?? warning}</div>
-              </>
-            }>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                                text-white text-base leading-none cursor-help
-                                ${WARN_BG[warning] ?? "bg-gray-500"}`}>
-                {warning}
-              </span>
-            </Tooltip>
-          )}
           <Tooltip content={
             <>
               <div className="font-bold mb-1">{stock.name} ({stock.ticker})</div>
@@ -205,7 +219,7 @@ export function MobileStockCard({
             <button onClick={() => openTossStock(stock.ticker)}
                     className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                                 border-t border-l border-r ${cardBorder}
-                                font-bold text-base leading-none w-fit
+                                font-bold text-base leading-none w-fit whitespace-nowrap
                                 ${cardBg}
                                 ${priceColorCls}`}>
               {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
@@ -289,13 +303,6 @@ export function MobileStockCard({
                                text-xs leading-none">
               🗑
             </button>
-          )}
-          {sector && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                              border-t border-l border-r ${cardBorder}
-                              ${cardBg} text-[11px] text-gray-600 leading-none`}>
-              {sector}
-            </span>
           )}
         </div>
       </div>
@@ -605,9 +612,10 @@ export function MobileStockCard({
         {/* 다른 그룹 표시 — 같은 ticker 가 속한 다른 account 들 (현재 그룹 제외).
             통계 박스 우상단 외곽(-top-2)으로 — 박스 안 우상단 👥 버튼과 수직으로 안 겹침. */}
         {otherGroups && otherGroups.length > 0 && (
-          <div className="absolute -top-2 right-1 z-10 flex items-baseline gap-1
+          <div title={otherGroups.join(", ")}
+               className="absolute -top-2 right-1 z-10 flex items-baseline gap-1
                           text-[9px] leading-tight">
-            {otherGroups.map(g => (
+            {otherGroups.slice(0, 2).map(g => (
               <span key={g}
                     className="bg-gradient-to-r from-emerald-100/20 to-green-200/20
                                border border-emerald-300/20 rounded
@@ -615,6 +623,12 @@ export function MobileStockCard({
                 {g}
               </span>
             ))}
+            {otherGroups.length > 2 && (
+              <span className="bg-emerald-50/40 border border-emerald-300/20 rounded
+                               px-1 py-0.5 text-emerald-800 whitespace-nowrap">
+                외 {otherGroups.length - 2}개
+              </span>
+            )}
           </div>
         )}
         {/* 👥 투자자 매매동향 열기 버튼 — 우상단 (닫기는 레이어 클릭) */}
