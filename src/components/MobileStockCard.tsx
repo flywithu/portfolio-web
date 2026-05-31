@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, fmtAgo } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -405,8 +405,17 @@ export function MobileStockCard({
         <div className="absolute -top-2 left-1 z-10 px-1.5 py-0
                         border rounded text-[10px] leading-tight whitespace-nowrap
                         bg-yellow-100/30 border-yellow-300/30">
-          <span className="text-gray-500">마감 </span>
-          <span className="text-gray-700 tabular-nums">{krCloseTimeLabel(krReg?.tradingEnd)}</span>
+          {krSinglePriceSession() === "PRE" ? (
+            <>
+              <span className="text-gray-500">프리장 </span>
+              <span className="text-gray-700 tabular-nums">09:00</span>
+            </>
+          ) : (
+            <>
+              <span className="text-gray-500">마감 </span>
+              <span className="text-gray-700 tabular-nums">{krCloseTimeLabel(krReg?.tradingEnd)}</span>
+            </>
+          )}
           <span className="text-gray-500"> (단일가)</span>
         </div>
       )}

@@ -181,6 +181,13 @@ export function krCloseTimeLabel(tradingEnd?: string): string {
   return "18:00";
 }
 
+// 단일가 세션 종류 — 09:00 이전이면 프리장(장전 동시호가/단일가),
+// 그 외(주로 15:30~18:00) 시간외 단일가. 카드 라벨 분기용.
+export function krSinglePriceSession(): "PRE" | "POST" {
+  const t = nowInTz("Asia/Seoul");
+  return t.hour * 60 + t.minute < 9 * 60 ? "PRE" : "POST";
+}
+
 // 보유 종목 흐림(마감) 판정 — 토스 tradingEnd/단일가 신호 기반 (10분 체결 휴리스틱 불필요).
 // 열림: 단일가 세션 중(singlePrice) / tradingEnd 이전(정규·NXT 접속매매).
 // 마감: tradingEnd 지났고 단일가도 아님(다음 세션 전까지). 08:00 이전/20:00 이후/주말 안전망.
