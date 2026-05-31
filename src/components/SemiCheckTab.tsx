@@ -10,7 +10,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { getDimSleepingEnabled, getEffectivePollMs } from "../lib/proxyConfig";
-import { isSymbolSleeping, fmtAgo } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo } from "../lib/format";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
@@ -82,7 +82,9 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
   // dim 처리 — marketState 기반 + 시간 기반 fallback.
   // 토스 인덱스(SOX.NAI 등)는 marketState="" 라 marketState 만으로는 판정 불가 →
   // isSymbolSleeping(시간대 기반)도 함께 OR 처리
-  const isClosed = !!(q?.marketState
+  // 24h 시장(환율·금/은·원유·암호화폐 등)은 Yahoo가 CLOSED 를 자주 반환하지만 흐림 제외.
+  const is24h = marketOfSymbol(symbol) === "OTHER";
+  const isClosed = !is24h && !!(q?.marketState
     && ["POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState));
   const sleeping = isSymbolSleeping(symbol);
   const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;

@@ -12,8 +12,8 @@ interface Props {
 interface Step {
   title: string;
   caption: React.ReactNode;
-  image: string;
-  alt: string;
+  image?: string;
+  alt?: string;
 }
 
 const PC_STEPS: Step[] = [
@@ -115,6 +115,31 @@ const PC_STEPS: Step[] = [
     image: "./help/quickstart-6-valuation.png",
     alt: "기업가치 모달 — 외국인/기관 차트 + 기간별 합계 표",
   },
+  {
+    title: "7. 잔고가 이상할 때 — 그룹 모드별 정리",
+    caption: (
+      <>
+        같은 종목을 여러 그룹에 등록하셨다면, <b>설정 → 그룹별 독립 보유</b> 모드에 따라 합산 방식이 달라집니다.
+        <span className="block mt-2 text-sm text-gray-700">
+          <b>● 독립 보유 ON</b> (다중 계좌)
+          <br />
+          <span className="text-gray-600 text-xs">
+            그룹마다의 행을 <b>모두 별도 보유</b>로 합산합니다 (의도된 동작).
+            합산을 원치 않는 그룹(보따리/날짜 등)은 그 종목의 <b>수량·평단을 0으로</b> 변경하세요.
+          </span>
+        </span>
+        <span className="block mt-2 text-sm text-gray-700">
+          <b>● 독립 보유 OFF</b> (동기화, 기본)
+          <br />
+          <span className="text-gray-600 text-xs">
+            모드 토글을 반복했다면 그룹별 값이 다른 채 sync가 잠시 멈춰 있을 수 있습니다.
+            카드 우측에 <b>다중 그룹 표시</b>가 있는 종목을 <b>어느 한 그룹에서 한 번 수정·저장</b>해 주세요.
+            그 값이 모든 그룹에 자동 적용되며 sync가 재개됩니다.
+          </span>
+        </span>
+      </>
+    ),
+  },
 ];
 
 const MOBILE_STEPS: Step[] = [
@@ -188,11 +213,37 @@ const MOBILE_STEPS: Step[] = [
     image: "./help/mobile-4-action-sheet.png",
     alt: "모바일 그룹 액션 시트",
   },
+  {
+    title: "5. 잔고가 이상할 때 — 그룹 모드별 정리",
+    caption: (
+      <>
+        같은 종목을 여러 그룹에 등록하셨다면, <b>설정 → 그룹별 독립 보유</b> 모드에 따라 합산 방식이 달라집니다.
+        <span className="block mt-2 text-sm text-gray-700">
+          <b>● 독립 보유 ON</b> (다중 계좌)
+          <br />
+          <span className="text-gray-600 text-xs">
+            그룹마다의 행을 <b>모두 별도 보유</b>로 합산합니다 (의도된 동작).
+            합산을 원치 않는 그룹(보따리/날짜 등)은 그 종목의 <b>수량·평단을 0으로</b> 변경하세요.
+          </span>
+        </span>
+        <span className="block mt-2 text-sm text-gray-700">
+          <b>● 독립 보유 OFF</b> (동기화, 기본)
+          <br />
+          <span className="text-gray-600 text-xs">
+            모드 토글을 반복했다면 그룹별 값이 다른 채 sync가 잠시 멈춰 있을 수 있습니다.
+            카드 우측에 <b>다중 그룹 표시</b>가 있는 종목을 <b>어느 한 그룹에서 한 번 수정·저장</b>해 주세요.
+            그 값이 모든 그룹에 자동 적용되며 sync가 재개됩니다.
+          </span>
+        </span>
+      </>
+    ),
+  },
 ];
 
 // 이미지 — 없으면 플레이스홀더
 function Shot({ src, alt }: { src: string; alt: string }) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [src]);   // 페이지 이동 시 상태 리셋
   if (failed) {
     return (
       <div className="rounded border border-dashed border-gray-300
@@ -266,7 +317,7 @@ export function HelpDialog({ isOpen, onClose, variant = "pc" }: Props) {
           <p className="text-sm text-gray-700 leading-relaxed mb-3">
             {cur.caption}
           </p>
-          <Shot src={cur.image} alt={cur.alt} />
+          {cur.image && <Shot src={cur.image} alt={cur.alt ?? cur.title} />}
         </div>
 
         {/* 풋터 — 페이저 */}

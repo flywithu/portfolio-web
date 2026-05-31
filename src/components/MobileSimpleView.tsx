@@ -16,7 +16,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, fmtAgo, nowKstDateStr } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, nowKstDateStr } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -960,7 +960,9 @@ export function MobileSimpleView() {
               const offHoursStates = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"];
               const isOffHours = q?.marketState != null && offHoursStates.includes(q.marketState);
               // dim 처리 — 정규장 마감 후 모든 상태 (POST 부터). PRE 는 새 거래일 시작 직전이라 제외.
-              const isClosed = q?.marketState != null
+              // 24h 시장(환율·금/은·원유·암호화폐 등)은 Yahoo가 CLOSED 를 자주 반환하지만 흐림 제외.
+              const is24h = marketOfSymbol(p.symbol) === "OTHER";
+              const isClosed = !is24h && q?.marketState != null
                 && ["POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState);
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
