@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -691,18 +691,28 @@ export function MobileStockCard({
           </div>
         )}
 
-        {/* 오늘 (보유만) — dayDiff × shares */}
-        {hasPosition && (
-          <div className="text-[10px]">
-            <span className="text-[9px] text-gray-500">오늘 </span>
-            <span className={`font-bold bg-yellow-100 rounded px-1 ${signColor(dayDiff)}`}>
-              {formatSigned(dayDiff * stock.shares)}원
-            </span>{" "}
-            <span className={signColor(dayDiff)}>
-              ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
-            </span>
-          </div>
-        )}
+        {/* 오늘 (보유만) — 보유분 어제대비 변동.
+            ※ 오늘 매수 종목은 어제 보유분이 없으므로 기준=매수단가(avg_price) → 전체와 동일 */}
+        {hasPosition && (() => {
+          const boughtToday = stock.buy_date === nowKstDateStr();
+          const baseForHold = boughtToday ? stock.avg_price : price.base;
+          const holdDayDiff = baseForHold > 0 ? price.price - baseForHold : 0;
+          const holdDayPct  = baseForHold > 0 ? (holdDayDiff / baseForHold) * 100 : 0;
+          return (
+            <div className="text-[10px]">
+              <span className="text-[9px] text-gray-500">오늘 </span>
+              <span className={`font-bold bg-yellow-100 rounded px-1 ${signColor(holdDayDiff)}`}>
+                {formatSigned(holdDayDiff * stock.shares)}원
+              </span>{" "}
+              <span className={signColor(holdDayDiff)}>
+                ({holdDayPct >= 0 ? "+" : ""}{holdDayPct.toFixed(2)}%)
+              </span>
+              {boughtToday && (
+                <span className="ml-1 text-[8px] text-gray-400" title="오늘 매수 — 매수단가 기준">(당일)</span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ─── 보조 지표 — 우측 하단 네모 블럭 ──── */}
         <AuxIndicators chart={chart} investorHistory={investorHistory}

@@ -138,7 +138,9 @@ export function EditHoldingDialog({
       modeAction = async () => {
         await applyTickerUpdate(stock, {
           shares: newShares, avg_price: newAvg,
-          buy_date: stock.buy_date || todayKstStr(),
+          // 매수는 오늘 일어난 행위 → buy_date 를 오늘로 갱신.
+          // 그래야 "오늘" 손익이 (어제종가가 아닌) 매수단가 기준으로 계산됨(=전체와 동일).
+          buy_date: todayKstStr(),
           market: stock.market, name: stock.name,
         });
       };
