@@ -447,7 +447,27 @@ export async function fetchKrRegularPrices(
   return out;
 }
 
+// 토스 가격 — 큰 배치는 URL 길이/개수 제한으로 400(Bad Request) → 청크 분할 후 병합.
+// (컨센서스/전체 탭 등 200+ 종목을 한 URL 에 다 넣어 전체 400 나던 문제 수정)
 export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
+  if (tickers.length === 0) return [];
+  const CHUNK = 50;
+  if (tickers.length > CHUNK) {
+    const chunks: string[][] = [];
+    for (let i = 0; i < tickers.length; i += CHUNK) chunks.push(tickers.slice(i, i + CHUNK));
+    const settled = await Promise.allSettled(chunks.map(c => fetchTossPricesBatch(c)));
+    const out: Price[] = [];
+    for (const s of settled) {
+      if (s.status === "fulfilled") out.push(...s.value);
+      // 점검(490)은 전체 상태로 전파 — 일부 청크라도 점검이면 점검 처리
+      else if (s.reason instanceof Error && s.reason.message === "toss-maintenance") throw s.reason;
+    }
+    return out;
+  }
+  return fetchTossPricesBatch(tickers);
+}
+
+async function fetchTossPricesBatch(tickers: string[]): Promise<Price[]> {
   if (tickers.length === 0) return [];
   const codes = tickers.map(t => `A${t}`).join(",");
   const target = `https://wts-info-api.tossinvest.com/api/v3/stock-prices/details?productCodes=${codes}`;

@@ -2,7 +2,7 @@
 // 데이터: 기업가치 팝업과 동일한 wisereport 최근리포트 (리포트별 목표가·투자의견).
 // 상승여력/정렬 기준 = 가장 최근(목표가 있는) 리포트. 같은 날 여러 건도 모두 표시.
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery, useQueries, keepPreviousData } from "@tanstack/react-query";
 import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchInvestorHistorySafe, fetchKrPriceHistory, fetchNaverNews } from "../lib/api";
 import { getTossMaintenance } from "../lib/tossMaintenance";
 import { fetchConsensusReports, fetchMajorShareholders, type Shareholder } from "../lib/fundamentals";
@@ -92,18 +92,26 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   const nameByTicker = useMemo(() => new Map(items.map(i => [i.ticker, i.name])), [items]);
   const groupsByTicker = useMemo(() => new Map(items.map(i => [i.ticker, i.groups ?? []])), [items]);
 
+  // 토스(KR) 가격조회 대상 — KR 6자리 코드만. 미국 등 비KR 티커가 섞이면(예 NVDA→ANVDA)
+  // 토스 배치 호출이 통째로 실패해 전 종목 현재가가 "—" 가 되므로 App 과 동일하게 선필터.
+  const krxTickers = useMemo(
+    () => tickers.filter(t => /^[\dA-Za-z]{6}$/.test(t)),
+    [tickers],
+  );
+
   const { data: prices } = useQuery({
-    queryKey: ["consensus-prices", tickers],
+    queryKey: ["consensus-prices", krxTickers],
     queryFn: async () => {
-      try { return await fetchTossPrices(tickers); }
+      try { return await fetchTossPrices(krxTickers); }
       catch (e) {
-        if (getTossMaintenance().active) return await fetchNaverPrices(tickers);
+        if (getTossMaintenance().active) return await fetchNaverPrices(krxTickers);
         throw e;
       }
     },
-    enabled: tickers.length > 0,
+    enabled: krxTickers.length > 0,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,   // 갱신 중 이전 가격 유지(깜빡임 방지)
   });
   const priceByTicker = useMemo(
     () => new Map((prices ?? []).map(p => [p.ticker, p.price])),
