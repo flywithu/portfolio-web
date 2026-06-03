@@ -238,8 +238,18 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
     firstDate?: string; market?: string;
   }
   const m = new Map<string, Acc>();
+  // 미러 중복 가산 방지 — sync 모드는 같은 ticker 의 모든 그룹 row 를 동일 값으로 미러한다
+  // (syncAllRowsForTicker). 독립모드로 전환하면 그 동일 미러들이 그대로 합산되어 N배가 됨.
+  // → (수량·평단·매수일) 시그니처가 동일한 row 는 같은 보유의 미러로 보고 1회만 합산.
+  //    값이 다른(진짜 그룹별 별도 보유) row 만 실제로 더해진다.
+  const seenSig = new Map<string, Set<string>>();   // ticker → 시그니처 집합
   for (const h of holdings) {
     if (!(h.shares > 0) || !(h.avg_price > 0)) continue;
+    const sig = `${h.shares}__${h.avg_price}__${h.buy_date ?? ""}`;
+    let sigs = seenSig.get(h.ticker);
+    if (!sigs) { sigs = new Set(); seenSig.set(h.ticker, sigs); }
+    if (sigs.has(sig)) continue;   // 동일 미러 — 건너뜀
+    sigs.add(sig);
     const cur = m.get(h.ticker);
     const invested = h.shares * h.avg_price;
     if (!cur) {

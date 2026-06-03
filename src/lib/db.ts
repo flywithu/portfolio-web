@@ -1,6 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type { Stock, Memo } from "../types";
-import { getDeposits, replaceAllDeposits } from "./deposits";
+import { getDeposits, getDeposit, setDeposit, replaceAllDeposits } from "./deposits";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "./groupFolders";
 import type { TabVisibility } from "./tabVisibility";
 import {
@@ -400,7 +400,10 @@ export function applyImportedSettings(settings?: ExportPayload["settings"]): voi
 
 // 그룹 일괄 삭제 — 해당 그룹의 모든 holdings 삭제 (반환: 삭제 건수)
 export async function deleteGroup(groupName: string): Promise<number> {
-  return await db.holdings.where("account").equals(groupName).delete();
+  const removed = await db.holdings.where("account").equals(groupName).delete();
+  // 그룹 예수금도 함께 제거 — 안 그러면 고아 예수금이 '내주식' 합산(getTotalDeposits)에 계속 남음
+  setDeposit(groupName, 0);
+  return removed;
 }
 
 // 일부 ticker 들을 특정 그룹에서만 제거 (검색 토글용)
@@ -459,7 +462,39 @@ export async function renameGroup(oldName: string, newName: string): Promise<num
       count += 1;
     }
   });
+  // 예수금 키도 새 이름으로 이전 — 안 그러면 옛 이름에 고아 예수금이 남음
+  const dep = getDeposit(old);
+  if (dep > 0) {
+    setDeposit(next, getDeposit(next) + dep);
+    setDeposit(old, 0);
+  }
   return count;
+}
+
+// 고아 예수금 정리 (부팅 1회, idempotent) — 레거시 deleteGroup/renameGroup 이 예수금을
+// 안 지우던 시절의 잔여분 제거. '내주식' 합산(getTotalDeposits)이 전 키를 더하므로,
+// 이미 없는 그룹의 예수금이 총자산에 계속 잡히던 문제를 전 사용자에게 자동 정리.
+//
+// 유효 그룹 판정 = holdings 의 account(0주 관심 row 포함) ∪ group folders 의 groups.
+// (빈 그룹에 예수금을 두려면 그 그룹 탭 접근이 필요 → holding row 나 폴더 등록 중 하나엔 반드시 존재.
+//  따라서 둘 다에 없는 예수금은 삭제된 그룹의 고아로 안전하게 판정 가능)
+// 반환: 정리된 고아 예수금 키 수 (0 이면 noop).
+export async function pruneOrphanDeposits(): Promise<number> {
+  const deposits = getDeposits();
+  const keys = Object.keys(deposits);
+  if (keys.length === 0) return 0;
+  const all = await db.holdings.toArray();
+  const valid = new Set<string>(all.map(h => h.account || ""));
+  for (const f of getGroupFolders()) {
+    for (const g of f.groups) valid.add(g);
+  }
+  let pruned = 0;
+  for (const group of keys) {
+    if (valid.has(group)) continue;
+    setDeposit(group, 0);   // 고아 — 제거
+    pruned += 1;
+  }
+  return pruned;
 }
 
 // 보유 데이터에서 사용자 그룹 목록 추출 (시스템 reserved 만 제외)

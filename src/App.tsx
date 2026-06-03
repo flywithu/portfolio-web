@@ -5,7 +5,7 @@ import {
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
   fetchInvestorHistorySafe, fetchNaverPrices,
 } from "./lib/api";
-import { loadHoldings, loadMemos, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding } from "./lib/db";
+import { loadHoldings, loadMemos, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY } from "./components/Tabs";
@@ -755,9 +755,11 @@ function AppRoot() {
     void (async () => {
       const removed = await cleanupReservedAccounts();
       const migrated = await migrateEmptyAccountToHolding();
-      if (removed > 0 || migrated > 0) {
+      // 고아 예수금 정리 — 삭제/이름변경된 그룹의 잔여 예수금이 '내주식' 총자산에 잡히던 문제
+      const prunedDeposits = await pruneOrphanDeposits();
+      if (removed > 0 || migrated > 0 || prunedDeposits > 0) {
         // eslint-disable-next-line no-console
-        console.log(`[boot] cleaned=${removed}, migrated=${migrated}`);
+        console.log(`[boot] cleaned=${removed}, migrated=${migrated}, deposits=${prunedDeposits}`);
         await queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
       }
       setReady(true);
