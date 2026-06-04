@@ -500,7 +500,7 @@ function Dashboard() {
 
       <main className="max-w-[1600px] mx-auto p-3">
         <div ref={tabsStickyRef}
-             className="sticky top-14 z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 [&>nav]:!mb-0">
+             className="sticky top-14 z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 mb-3 [&>nav]:!mb-0">
           <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab}
                  onRename={async (oldName, newName) => {
                    await renameGroup(oldName, newName);
