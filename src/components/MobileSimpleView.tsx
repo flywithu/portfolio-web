@@ -156,6 +156,7 @@ export function MobileSimpleView() {
     return next;
   });
   const [moreOpen, setMoreOpen] = useState(false);   // 상단 더보기 메뉴(사용법/질문/후원/설정)
+  const [marketSplit, setMarketSplitState] = useState(getMarketSplit());   // 일괄 / 시장분리 보기
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
@@ -836,6 +837,14 @@ export function MobileSimpleView() {
           {/* 정렬 옵션 + 추가지표 일괄 토글 */}
           {groupHoldings.length > 0 && (
             <div className="flex items-center justify-end gap-2 px-2 pt-2">
+              {/* 보기 모드 — 일괄 / 코스피·코스닥 분리 (좌측) */}
+              <select value={marketSplit ? "split" : "all"}
+                      onChange={e => { const v = e.target.value === "split"; setMarketSplitState(v); setMarketSplit(v); }}
+                      className="mr-auto text-[11px] font-medium border border-gray-300 rounded px-1 py-1
+                                 bg-white text-gray-700 focus:outline-none">
+                <option value="all">일괄보기</option>
+                <option value="split">코스피/코스닥분리</option>
+              </select>
               <AuxBatchToggle short />
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
@@ -890,7 +899,7 @@ export function MobileSimpleView() {
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
                                })} />
               );
-              if (!getMarketSplit()) return <>{shown.map(renderCard)}</>;
+              if (!marketSplit) return <>{shown.map(renderCard)}</>;
               // 시장 분리 — 코스피 / 코스닥 / ETF / 기타 (모바일 세로 스택), 분류별 합계
               const catOf = (s: Stock): string =>
                 isEtfByName(s.name) ? "ETF"
@@ -1783,17 +1792,6 @@ function SettingsModal({
               <div className="text-[10px] text-gray-500 mt-1">
                 꺼두면 해당 탭이 상단에서 사라집니다 (모달 닫을 때 반영).
               </div>
-              {/* 종목 목록 시장 분리 보기 */}
-              <label className="flex items-center gap-1.5 cursor-pointer select-none mt-2.5 pt-2 border-t border-gray-100">
-                <input type="checkbox" defaultChecked={getMarketSplit()}
-                       onChange={e => {
-                         setMarketSplit(e.target.checked);
-                         setSavedMsg(`✅ 시장 분리 보기: ${e.target.checked ? "ON" : "OFF"} (모달 닫을 때 반영)`);
-                         setTimeout(() => setSavedMsg(""), 2000);
-                       }}
-                       className="w-4 h-4 accent-blue-600" />
-                <span className="text-[11px] text-gray-700">📑 종목 목록 시장 분리 (코스피·코스닥·ETF + 합계)</span>
-              </label>
             </div>
           </div>
 

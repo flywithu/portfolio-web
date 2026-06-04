@@ -13,7 +13,7 @@ import { EtfReverseTab } from "./components/EtfReverseTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
-import { getTabVisibility, getMarketSplit } from "./lib/tabVisibility";
+import { getTabVisibility, getMarketSplit, setMarketSplit } from "./lib/tabVisibility";
 import { Menu } from "lucide-react";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
@@ -417,6 +417,9 @@ function Dashboard() {
     return next;
   });
 
+  // 종목 목록 보기 모드 — 일괄(전체) / 시장분리(코스피·코스닥·ETF). 정렬 툴바 선택박스.
+  const [marketSplit, setMarketSplitState] = useState(getMarketSplit());
+
   // 헤더/탭 높이를 측정해 sticky top 을 동적 계산 (헤더 접힘·탭 wrap 대응).
   const headerRef = useRef<HTMLElement>(null);
   const [headerH, setHeaderH] = useState(56);
@@ -609,6 +612,15 @@ function Dashboard() {
                  className="sticky z-30 bg-white/95 backdrop-blur
                             flex items-center justify-end gap-2 mb-2 py-1.5
                             -mx-3 px-3 border-b border-gray-200">
+              {/* 보기 모드 — 일괄보기 / 시장분리 (좌측) */}
+              <select value={marketSplit ? "split" : "all"}
+                      onChange={e => { const v = e.target.value === "split"; setMarketSplitState(v); setMarketSplit(v); }}
+                      title="종목 목록 보기 — 일괄 / 코스피·코스닥·ETF 분리"
+                      className="mr-auto text-xs font-medium border border-gray-300 rounded px-1.5 py-1
+                                 bg-white text-gray-700 focus:outline-none cursor-pointer">
+                <option value="all">일괄보기</option>
+                <option value="split">코스피/코스닥분리</option>
+              </select>
               <button onClick={() => setSimpleOpen(true)}
                       title="심플 보기 — 현재가만 한눈에 (팝업)"
                       className="px-2.5 py-1 rounded text-xs font-bold border transition
@@ -673,7 +685,7 @@ function Dashboard() {
                   onOpenEtfReverse={(tk, nm) => setEtfReverseDialog({ ticker: tk, name: nm })}
                 />
               );
-              if (!getMarketSplit()) {
+              if (!marketSplit) {
                 return <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{shown.map(renderCard)}</div>;
               }
               // 시장 분리 보기 — 코스피 | 코스닥 (2단) + ETF (전체폭). 분류별 합계 표시.
