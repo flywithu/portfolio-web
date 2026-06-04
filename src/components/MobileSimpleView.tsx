@@ -734,7 +734,7 @@ export function MobileSimpleView() {
         )}
         {/* 시스템 탭 묶음 — 선택된 탭 아이콘 + 선택박스 (지수~ETF) */}
         {(() => {
-          const SYS = new Set([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, MY_KEY, CONSENSUS_KEY, ETF_KEY]);
+          const SYS = new Set([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]);
           const sys = groupTabs.filter(t => SYS.has(t.key));
           if (sys.length === 0) return null;
           const current = sys.find(t => t.key === activeTab)?.key ?? sys[0].key;
@@ -760,8 +760,8 @@ export function MobileSimpleView() {
           );
         })()}
         {groupTabs.map(t => {
-          // 시스템 탭은 위 드롭다운으로만 표시 (개별 탭 숨김)
-          if ([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, MY_KEY, CONSENSUS_KEY, ETF_KEY].includes(t.key)) return null;
+          // 시스템 탭은 위 드롭다운으로만 표시 (내주식 제외 — 개별 탭 유지)
+          if ([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           const active = t.key === activeTab;

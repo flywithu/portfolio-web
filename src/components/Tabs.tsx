@@ -189,10 +189,10 @@ const RESERVED = new Set<string>([
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
 ]);
 
-// 묶기 대상 시스템 탭(지수~ETF) — 설정 ON 시 드롭다운 하나로 합침. (관심ETF 는 탭 아님)
+// 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. 내주식은 제외(개별 탭 유지).
 export const SYSTEM_TAB_KEYS = new Set<string>([
   US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
+  CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
 ]);
 
 // 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 사용자 그룹 알파벳 순.
