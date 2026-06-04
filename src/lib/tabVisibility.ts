@@ -64,3 +64,14 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.consensus  !== undefined) write(BASE_KEYS.consensus,  patch.consensus);
   if (patch.etfReverse !== undefined) write(BASE_KEYS.etfReverse, patch.etfReverse);
 }
+
+// 종목 목록 시장 분리 보기 — 코스피/코스닥/ETF 섹션으로 나눠 표시. 기본 OFF(전체보기).
+const MARKET_SPLIT_KEY = "portfolio_market_split";
+export function getMarketSplit(): boolean {
+  try { return localStorage.getItem(MARKET_SPLIT_KEY) === "1"; }
+  catch { return false; }
+}
+export function setMarketSplit(v: boolean): void {
+  try { localStorage.setItem(MARKET_SPLIT_KEY, v ? "1" : "0"); }
+  catch { /* noop */ }
+}

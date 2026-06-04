@@ -17,7 +17,7 @@ import { resetProxyStats } from "../lib/proxyStatus";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
-import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
+import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
@@ -53,6 +53,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [independentMode, setIndependent] = useState(getIndependentGroupsMode());
   const [conflicts, setConflicts] = useState<TickerConflict[] | null>(null);
   const [tabVis, setTabVis] = useState(getTabVisibility());
+  const [marketSplit, setMarketSplitState] = useState(getMarketSplit());
   const [folders, setFolders] = useState<GroupFolder[]>([]);
   const [newFolderName, setNewFolderName] = useState("");
 
@@ -679,6 +680,18 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 꺼두면 해당 탭이 상단 메뉴에서 사라집니다. 데이터는 보존됩니다.
                 <br/>표시된 탭들은 상단에서 <b>📊 선택박스 하나</b>로 묶여 나옵니다.
               </div>
+              {/* 종목 목록 시장 분리 보기 */}
+              <label className="flex items-center gap-1.5 cursor-pointer select-none mt-2.5 pt-2 border-t border-gray-100">
+                <input type="checkbox" checked={marketSplit}
+                       onChange={e => {
+                         setMarketSplitState(e.target.checked);
+                         setMarketSplit(e.target.checked);
+                         setStatusMsg(`✅ 시장 분리 보기: ${e.target.checked ? "ON (코스피·코스닥·ETF)" : "OFF (전체)"}`);
+                         onChanged();
+                       }}
+                       className="w-4 h-4 accent-blue-600" />
+                <span className="text-[11px] text-gray-700">📑 종목 목록 시장 분리 (코스피·코스닥·ETF + 분류별 합계)</span>
+              </label>
             </div>
 
             {/* 그룹 폴더 — 그룹을 폴더로 묶어 탭 단순화 */}

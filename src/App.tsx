@@ -13,12 +13,12 @@ import { EtfReverseTab } from "./components/EtfReverseTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
-import { getTabVisibility } from "./lib/tabVisibility";
+import { getTabVisibility, getMarketSplit } from "./lib/tabVisibility";
 import { Menu } from "lucide-react";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
-import { nowKstDateStr } from "./lib/format";
+import { nowKstDateStr, isEtfByName, signColor, formatSigned } from "./lib/format";
 import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FeedbackDialog } from "./components/FeedbackDialog";
@@ -634,18 +634,15 @@ function Dashboard() {
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-              {sortedVisible
-                // 가격이 한 번도 안 들어온 종목(KRX300 처럼 유효하지 않은 코드)은 숨김.
-                // 단 ① 첫 로딩(prices 미정) ② 전체 실패(priceMap 비어있음) 시엔 모두 표시.
-                .filter(stock =>
-                  prices === undefined || priceMap.size === 0 || priceMap.has(stock.ticker)
-                )
-                .map(stock => {
-                // 합산 그룹 row — 실제 holdings 가 아니라 가상으로 합쳐진 항목.
-                // 수정/삭제는 실제 그룹 탭에서만 가능 (어느 그룹을 수정할지 모호).
-                const isAggregated = activeTab === MY_STOCKS_TAB_KEY;
-                return (
+            {(() => {
+              // 합산 그룹 row — 실제 holdings 가 아니라 가상으로 합쳐진 항목.
+              // 수정/삭제는 실제 그룹 탭에서만 가능 (어느 그룹을 수정할지 모호).
+              const isAggregated = activeTab === MY_STOCKS_TAB_KEY;
+              // 가격이 한 번도 안 들어온 종목(KRX300 처럼 유효하지 않은 코드)은 숨김.
+              // 단 ① 첫 로딩(prices 미정) ② 전체 실패(priceMap 비어있음) 시엔 모두 표시.
+              const shown = sortedVisible.filter(stock =>
+                prices === undefined || priceMap.size === 0 || priceMap.has(stock.ticker));
+              const renderCard = (stock: Stock) => (
                 <StockCard
                   key={`${stock.ticker}_${stock.account || ""}`}
                   stock={stock}
@@ -675,9 +672,80 @@ function Dashboard() {
                   onOpenEtf={(tk, nm) => setEtfDialog({ ticker: tk, name: nm })}
                   onOpenEtfReverse={(tk, nm) => setEtfReverseDialog({ ticker: tk, name: nm })}
                 />
+              );
+              if (!getMarketSplit()) {
+                return <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{shown.map(renderCard)}</div>;
+              }
+              // 시장 분리 보기 — 코스피 | 코스닥 (2단) + ETF (전체폭). 분류별 합계 표시.
+              const catOf = (s: Stock): string =>
+                isEtfByName(s.name) ? "ETF"
+                : krMarketMap.get(s.ticker) === "KOSDAQ" ? "KOSDAQ"
+                : krMarketMap.get(s.ticker) === "KOSPI" ? "KOSPI"
+                : "기타";
+              const byCat: Record<string, Stock[]> = { KOSPI: [], KOSDAQ: [], ETF: [], 기타: [] };
+              for (const s of shown) byCat[catOf(s)].push(s);
+              const today = nowKstDateStr();
+              const subtotal = (items: Stock[]) => {
+                let invested = 0, current = 0, yesterday = 0;
+                for (const s of items) {
+                  if (!(s.shares > 0)) continue;
+                  const p = priceMap.get(s.ticker);
+                  const cur = p?.price || s.avg_price;
+                  const base = s.buy_date === today ? s.avg_price : (p?.base || cur);
+                  invested += s.shares * s.avg_price;
+                  current += cur * s.shares;
+                  yesterday += base * s.shares;
+                }
+                const pnl = current - invested;
+                const dayDiff = current - yesterday;
+                return {
+                  invested, current, pnl,
+                  pct: invested > 0 ? (pnl / invested) * 100 : 0,
+                  dayDiff, dayPct: yesterday > 0 ? (dayDiff / yesterday) * 100 : 0,
+                };
+              };
+              const sectionHead = (label: string, items: Stock[]) => {
+                const t = subtotal(items);
+                return (
+                  <div className="border-b border-gray-300 pb-1 mb-2">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xs font-bold text-gray-600">{label}</span>
+                      <span className="text-[11px] text-gray-400">{items.length}종목</span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[11px] tabular-nums text-gray-500">
+                      <span>원금 <b className="text-gray-700">{Math.round(t.invested).toLocaleString()}</b></span>
+                      <span>현재 <b className={signColor(t.pnl)}>{Math.round(t.current).toLocaleString()}</b></span>
+                      <span>전체 <b className={signColor(t.pnl)}>{formatSigned(Math.round(t.pnl))} ({t.pct >= 0 ? "+" : ""}{t.pct.toFixed(2)}%)</b></span>
+                      <span>오늘 <b className={signColor(t.dayDiff)}>{formatSigned(Math.round(t.dayDiff))} ({t.dayPct >= 0 ? "+" : ""}{t.dayPct.toFixed(2)}%)</b></span>
+                    </div>
+                  </div>
                 );
-              })}
-            </div>
+              };
+              const colSection = (key: string, label: string) => byCat[key].length > 0 ? (
+                <div key={key}>
+                  {sectionHead(label, byCat[key])}
+                  <div className="grid grid-cols-1 gap-2">{byCat[key].map(renderCard)}</div>
+                </div>
+              ) : null;
+              const wideSection = (key: string, label: string) => byCat[key].length > 0 ? (
+                <div key={key}>
+                  {sectionHead(label, byCat[key])}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{byCat[key].map(renderCard)}</div>
+                </div>
+              ) : null;
+              return (
+                <div className="space-y-3">
+                  {/* 코스피 | 코스닥 — 2단 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-3 items-start">
+                    {colSection("KOSPI", "코스피")}
+                    {colSection("KOSDAQ", "코스닥")}
+                  </div>
+                  {/* ETF + 기타 — 전체폭 */}
+                  {wideSection("ETF", "ETF")}
+                  {wideSection("기타", "기타")}
+                </div>
+              );
+            })()}
             <div className="sticky bottom-0 z-40 mt-3 w-full flex flex-wrap items-start gap-2">
               <TotalRow holdings={visible} prices={priceMap}
                         account={activeTab}

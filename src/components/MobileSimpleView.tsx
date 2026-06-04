@@ -16,7 +16,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, nowKstDateStr } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, nowKstDateStr, isEtfByName, signColor, formatSigned } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -85,7 +85,7 @@ import {
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
-import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
+import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
 
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
@@ -848,16 +848,13 @@ export function MobileSimpleView() {
                 이 그룹에는 종목이 없습니다
               </div>
             )}
-            {groupHoldings
-              // 가격이 한 번도 안 들어온 종목(KRX300 처럼 유효하지 않은 코드)은 숨김.
-              // 단 첫 로딩(groupPrices 미정)/전체 실패(맵 비어있음) 시엔 모두 표시.
-              .filter(s =>
-                groupPrices === undefined || groupPriceMap.size === 0 || groupPriceMap.has(s.ticker)
-              )
-              .map(s => {
+            {(() => {
               // 합산 그룹 row — 수정/삭제 비활성 (실제 그룹 탭에서만 수정 가능)
               const isAggregated = activeTab === MY_KEY;
-              return (
+              // 가격이 한 번도 안 들어온 종목(KRX300 처럼 유효하지 않은 코드)은 숨김.
+              const shown = groupHoldings.filter(s =>
+                groupPrices === undefined || groupPriceMap.size === 0 || groupPriceMap.has(s.ticker));
+              const renderCard = (s: Stock) => (
               <MobileStockCard key={s.ticker + (s.account ?? "")}
                                stock={s}
                                price={groupPriceMap.get(s.ticker)}
@@ -893,7 +890,58 @@ export function MobileSimpleView() {
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
                                })} />
               );
-            })}
+              if (!getMarketSplit()) return <>{shown.map(renderCard)}</>;
+              // 시장 분리 — 코스피 / 코스닥 / ETF / 기타 (모바일 세로 스택), 분류별 합계
+              const catOf = (s: Stock): string =>
+                isEtfByName(s.name) ? "ETF"
+                : krMarketMap.get(s.ticker) === "KOSDAQ" ? "KOSDAQ"
+                : krMarketMap.get(s.ticker) === "KOSPI" ? "KOSPI"
+                : "기타";
+              const byCat: Record<string, Stock[]> = { KOSPI: [], KOSDAQ: [], ETF: [], 기타: [] };
+              for (const s of shown) byCat[catOf(s)].push(s);
+              const today = nowKstDateStr();
+              const subtotal = (items: Stock[]) => {
+                let invested = 0, current = 0, yesterday = 0;
+                for (const s of items) {
+                  if (!(s.shares > 0)) continue;
+                  const p = groupPriceMap.get(s.ticker);
+                  const cur = p?.price || s.avg_price;
+                  const base = s.buy_date === today ? s.avg_price : (p?.base || cur);
+                  invested += s.shares * s.avg_price; current += cur * s.shares; yesterday += base * s.shares;
+                }
+                const pnl = current - invested;
+                const dayDiff = current - yesterday;
+                return {
+                  invested, current, pnl,
+                  pct: invested > 0 ? (pnl / invested) * 100 : 0,
+                  dayDiff, dayPct: yesterday > 0 ? (dayDiff / yesterday) * 100 : 0,
+                };
+              };
+              const SECTIONS: [string, string][] =
+                [["KOSPI", "코스피"], ["KOSDAQ", "코스닥"], ["ETF", "ETF"], ["기타", "기타"]];
+              return SECTIONS.map(([key, label]) => {
+                const items = byCat[key];
+                if (items.length === 0) return null;
+                const t = subtotal(items);
+                return (
+                  <div key={key} className="space-y-1.5">
+                    <div className="border-b border-gray-300 pb-0.5 pt-1">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-[11px] font-bold text-gray-600">{label}</span>
+                        <span className="text-[10px] text-gray-400">{items.length}종목</span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5 text-[10px] tabular-nums text-gray-500">
+                        <span>원금 <b className="text-gray-700">{Math.round(t.invested).toLocaleString()}</b></span>
+                        <span>현재 <b className={signColor(t.pnl)}>{Math.round(t.current).toLocaleString()}</b></span>
+                        <span>전체 <b className={signColor(t.pnl)}>{formatSigned(Math.round(t.pnl))} ({t.pct >= 0 ? "+" : ""}{t.pct.toFixed(2)}%)</b></span>
+                        <span>오늘 <b className={signColor(t.dayDiff)}>{formatSigned(Math.round(t.dayDiff))} ({t.dayPct >= 0 ? "+" : ""}{t.dayPct.toFixed(2)}%)</b></span>
+                      </div>
+                    </div>
+                    {items.map(renderCard)}
+                  </div>
+                );
+              });
+            })()}
           </div>
           {/* 합계 — 화면 하단 fixed.
               합계 클릭 시 위로 오늘 수익/손해 레이어가 펼쳐짐, 다시 클릭 또는 바깥 탭 시 닫힘.
@@ -1735,6 +1783,17 @@ function SettingsModal({
               <div className="text-[10px] text-gray-500 mt-1">
                 꺼두면 해당 탭이 상단에서 사라집니다 (모달 닫을 때 반영).
               </div>
+              {/* 종목 목록 시장 분리 보기 */}
+              <label className="flex items-center gap-1.5 cursor-pointer select-none mt-2.5 pt-2 border-t border-gray-100">
+                <input type="checkbox" defaultChecked={getMarketSplit()}
+                       onChange={e => {
+                         setMarketSplit(e.target.checked);
+                         setSavedMsg(`✅ 시장 분리 보기: ${e.target.checked ? "ON" : "OFF"} (모달 닫을 때 반영)`);
+                         setTimeout(() => setSavedMsg(""), 2000);
+                       }}
+                       className="w-4 h-4 accent-blue-600" />
+                <span className="text-[11px] text-gray-700">📑 종목 목록 시장 분리 (코스피·코스닥·ETF + 합계)</span>
+              </label>
             </div>
           </div>
 
