@@ -676,6 +676,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               </div>
               <div className="text-[10px] text-gray-500 mt-1">
                 꺼두면 해당 탭이 상단 메뉴에서 사라집니다. 데이터는 보존됩니다.
+                <br/>표시된 탭들은 상단에서 <b>📊 선택박스 하나</b>로 묶여 나옵니다.
               </div>
             </div>
 

@@ -43,15 +43,47 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }:
   const folderedGroups = new Set<string>();
   for (const f of folderList) for (const g of f.groups) if (presentGroups.has(g)) folderedGroups.add(g);
 
+  // 시스템 탭 묶기 — 지수~ETF 를 항상 드롭다운 하나로
+  const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key));
+
   return (
-    <nav className="flex flex-wrap gap-1 border-b border-gray-200 mb-3 px-1">
+    <nav className="flex gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap
+                    border-b border-gray-200 mb-3 px-1 pt-1">
+      {/* 시스템 탭 묶음 — 선택된 탭 아이콘 + 선택박스만 (지수~ETF) */}
+      {sysTabs.length > 0 && (() => {
+        const activeSys = sysTabs.find(t => t.key === activeKey);
+        const current = activeSys ? activeKey : sysTabs[0].key;
+        const curTab = sysTabs.find(t => t.key === current);
+        const on = !!activeSys;
+        return (
+          <div className={`shrink-0 inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-t-md border-b-2 -mb-px
+                           ${on ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
+            {/* 선택된 탭의 아이콘 (SVG 아이콘 우선, 없으면 이모지) */}
+            {curTab?.icon
+              ? <span className="inline-flex align-middle">{curTab.icon}</span>
+              : curTab?.emoji && <span className="text-sm">{curTab.emoji}</span>}
+            <select value={current}
+                    onChange={e => onChange(e.target.value)}
+                    className={`text-sm font-medium bg-transparent border-0 focus:outline-none cursor-pointer
+                                ${on ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
+              {sysTabs.map(t => (
+                <option key={t.key} value={t.key}>
+                  {t.label}{t.count > 0 ? ` (${t.count})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })()}
       {tabs.map(t => {
         const active = t.key === activeKey;
         const editable = !RESERVED.has(t.key);
+        // 시스템 탭은 위 드롭다운으로만 표시 (개별 탭 숨김)
+        if (SYSTEM_TAB_KEYS.has(t.key)) return null;
         // 폴더에 담긴 그룹 탭은 개별로 안 그림 (폴더 드롭다운으로 표시)
         if (editable && folderedGroups.has(t.key)) return null;
         return (
-          <div key={t.key} className="group relative inline-flex">
+          <div key={t.key} className="group relative inline-flex shrink-0">
             <button
               onClick={() => onChange(t.key)}
               className={`px-3 py-2 text-sm font-medium rounded-t-md
@@ -113,7 +145,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }:
         const active = members.includes(activeKey);
         return (
           <div key={`__folder__${folder.name}`}
-               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-t-md border-b-2 -mb-px
+               className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-t-md border-b-2 -mb-px
                            ${active ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
             <button onClick={() => onChange(current)}
                     className={`text-sm font-medium ${active ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
@@ -151,6 +183,12 @@ export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
 const RESERVED = new Set<string>([
   "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
+]);
+
+// 묶기 대상 시스템 탭(지수~ETF) — 설정 ON 시 드롭다운 하나로 합침. (관심ETF 는 탭 아님)
+export const SYSTEM_TAB_KEYS = new Set<string>([
+  US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
 ]);
 
 // 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 사용자 그룹 알파벳 순.

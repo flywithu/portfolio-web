@@ -108,7 +108,7 @@ const KR_ORDER: string[] = [
   "KBE", "091170.KS",     // 은행
   "ITA", "449450.KS",     // 방산
   "XLV", "266420.KS",     // 헬스케어
-  "BOTZ", "445290.KS",    // 로봇
+  "KOID", "0190C0.KS",    // 피지컬AI (KOID=미국 휴머노이드, RISE=국내)
 ];
 
 // 매크로 탭 — 환율/금리 → 미국지수+선물 → 미국 대표 ETF → 원자재 (맨 아래)
@@ -709,7 +709,34 @@ export function MobileSimpleView() {
       {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) — 길게 누르기 = 액션 시트 ─── */}
       <nav className="sticky top-[44px] z-40 bg-white border-b border-gray-200
                        px-2 py-1 flex gap-1 overflow-x-auto whitespace-nowrap">
+        {/* 시스템 탭 묶음 — 선택된 탭 아이콘 + 선택박스 (지수~ETF) */}
+        {(() => {
+          const SYS = new Set([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, MY_KEY, CONSENSUS_KEY, ETF_KEY]);
+          const sys = groupTabs.filter(t => SYS.has(t.key));
+          if (sys.length === 0) return null;
+          const current = sys.find(t => t.key === activeTab)?.key ?? sys[0].key;
+          const curTab = sys.find(t => t.key === current);
+          const on = sys.some(t => t.key === activeTab);
+          return (
+            <span className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-1.5
+                              ${on ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+              {curTab?.icon && <span className="inline-flex align-middle mr-0.5">{curTab.icon}</span>}
+              <select value={current}
+                      onChange={e => setActiveTab(e.target.value)}
+                      className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
+                                  ${on ? "text-white" : "text-gray-700"}`}>
+                {sys.map(t => (
+                  <option key={t.key} value={t.key} className="text-gray-800">
+                    {t.label}{t.count > 0 ? ` (${t.count})` : ""}
+                  </option>
+                ))}
+              </select>
+            </span>
+          );
+        })()}
         {groupTabs.map(t => {
+          // 시스템 탭은 위 드롭다운으로만 표시 (개별 탭 숨김)
+          if ([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, MY_KEY, CONSENSUS_KEY, ETF_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           const active = t.key === activeTab;
