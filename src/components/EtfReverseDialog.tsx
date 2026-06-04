@@ -2,7 +2,10 @@
 // portfolio-etf-index 의 역색인 사용 (lib/etfIndex).
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getEtfsContainingStock, type EtfHolding } from "../lib/etfIndex";
+import { fetchTossPrices } from "../lib/api";
+import { signColor } from "../lib/format";
 import { useEscClose } from "../lib/useEscClose";
 
 interface Props {
@@ -32,6 +35,16 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
     return () => { alive = false; };
   }, [ticker]);
 
+  // 각 ETF 의 현재가/% (일반 검색과 동일하게 표시)
+  const etfCodes = list?.map(h => h.etfCode) ?? [];
+  const { data: priceList } = useQuery({
+    queryKey: ["etf-reverse-dialog-prices", etfCodes],
+    queryFn: () => fetchTossPrices(etfCodes),
+    enabled: etfCodes.length > 0,
+    staleTime: 30_000,
+  });
+  const priceMap = new Map((priceList ?? []).map(p => [p.ticker, p]));
+
   const downRef = { current: false };
 
   return (
@@ -42,7 +55,7 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
            if (downRef.current && e.target === e.currentTarget) onClose();
            downRef.current = false;
          }}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg
                       max-h-[85vh] flex flex-col"
            onMouseDown={e => e.stopPropagation()}>
         <header className="px-4 py-3 border-b bg-gray-50 flex items-center gap-2">
@@ -82,6 +95,21 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
                       {h.etfCode}
                     </span>
                     <span className="flex-1 min-w-0 truncate text-sm text-gray-800">{h.etfName}</span>
+                    {(() => {
+                      const p = priceMap.get(h.etfCode);
+                      if (!p) return null;
+                      const pct = p.base > 0 ? ((p.price - p.base) / p.base) * 100 : undefined;
+                      return (
+                        <span className="shrink-0 tabular-nums text-xs self-center">
+                          <span className="font-bold text-gray-800">{p.price.toLocaleString()}원</span>
+                          {pct !== undefined && (
+                            <span className={`ml-1 ${signColor(pct)}`}>
+                              {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                     {/* + 포트폴리오 추가 — 기본 흐림 */}
                     {onRequestAdd && (
                       <button onClick={() => onRequestAdd(h.etfCode)}
@@ -104,8 +132,9 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
                         🍱
                       </button>
                     )}
-                    <span className="font-bold tabular-nums text-rose-600 text-sm shrink-0">
-                      {h.ratio.toFixed(2)}%
+                    <span className="shrink-0 tabular-nums text-sm self-center">
+                      <span className="text-[10px] text-gray-400 mr-0.5">비중</span>
+                      <span className="font-bold text-rose-600">{h.ratio.toFixed(2)}%</span>
                     </span>
                   </div>
                 ))}

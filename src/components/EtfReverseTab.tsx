@@ -4,13 +4,15 @@
 // 데이터 소스: portfolio-etf-index (lib/etfIndex).
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { Stock } from "../types";
 import {
   loadEtfData, searchEtfs, type EtfMatchMulti,
 } from "../lib/etfIndex";
 import {
-  searchTossAutoComplete, searchNaverAutoComplete, type SearchResult,
+  searchTossAutoComplete, searchNaverAutoComplete, fetchTossPrices, type SearchResult,
 } from "../lib/api";
+import { signColor } from "../lib/format";
 
 interface Props {
   holdings: Stock[];
@@ -44,6 +46,44 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
   const [dataReady, setDataReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const reqIdRef = useRef(0);
+
+  // 자동완성 제안 종목들의 현재가/% — 일반 검색과 동일하게 표시
+  const suggTickers = useMemo(() => suggestions.map(s => s.ticker), [suggestions]);
+  const { data: suggPriceList } = useQuery({
+    queryKey: ["etf-reverse-sugg-prices", suggTickers],
+    queryFn: () => fetchTossPrices(suggTickers),
+    enabled: suggTickers.length > 0,
+    staleTime: 30_000,
+  });
+  const suggPriceMap = useMemo(
+    () => new Map((suggPriceList ?? []).map(p => [p.ticker, p])),
+    [suggPriceList],
+  );
+
+  // 매칭 결과 ETF 들의 현재가/% — 결과 카드 표시용
+  const resultTickers = useMemo(() => (results ?? []).map(r => r.etfCode), [results]);
+  const { data: resultPriceList } = useQuery({
+    queryKey: ["etf-reverse-result-prices", resultTickers],
+    queryFn: () => fetchTossPrices(resultTickers),
+    enabled: resultTickers.length > 0,
+    staleTime: 30_000,
+  });
+  const resultPriceMap = useMemo(
+    () => new Map((resultPriceList ?? []).map(p => [p.ticker, p])),
+    [resultPriceList],
+  );
+
+  // 결과 정렬 — 비중(비중합 내림차순, searchEtfs 기본) / 상승율(전일대비 % 내림차순)
+  const [resultSort, setResultSort] = useState<"ratio" | "change">("ratio");
+  const sortedResults = useMemo(() => {
+    if (!results) return results;
+    if (resultSort === "ratio") return results;   // searchEtfs 가 이미 비중합 내림차순
+    const dayPctOf = (code: string) => {
+      const p = resultPriceMap.get(code);
+      return p && p.base > 0 ? (p.price - p.base) / p.base : -Infinity;
+    };
+    return [...results].sort((a, b) => dayPctOf(b.etfCode) - dayPctOf(a.etfCode));
+  }, [results, resultSort, resultPriceMap]);
 
   // 데이터 사전 로드
   useEffect(() => {
@@ -224,7 +264,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
           {(searching || suggestions.length > 0) && query.trim() && !/^[\d\s,]+$/.test(query) && (
             <div className="absolute left-0 mt-1 z-10 bg-white border border-gray-300
                             rounded-md shadow-lg max-h-80 overflow-hidden
-                            w-80 max-w-[calc(100vw-2rem)] flex flex-col">
+                            w-[30rem] max-w-[calc(100vw-2rem)] flex flex-col">
               {/* 헤더 + 닫기 */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 border-b border-gray-200">
                 <span className="text-[11px] text-gray-500">
@@ -247,10 +287,25 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                   return (
                     <div key={s.ticker}
                          className="px-3 py-1.5 flex items-baseline gap-2 border-b border-gray-100 last:border-b-0">
-                      <span className="font-medium text-sm text-gray-800 truncate">{s.name}</span>
-                      <span className="text-[11px] text-gray-500 font-mono tabular-nums">{s.ticker}</span>
+                      <span className="font-medium text-sm text-gray-800 truncate flex-1 min-w-0">{s.name}</span>
+                      <span className="text-[11px] text-gray-500 font-mono tabular-nums shrink-0">{s.ticker}</span>
                       <span className="text-[10px] text-gray-400 shrink-0">{s.market}</span>
-                      <span className="ml-auto flex items-center gap-1 shrink-0">
+                      {(() => {
+                        const p = suggPriceMap.get(s.ticker);
+                        if (!p) return null;
+                        const pct = p.base > 0 ? ((p.price - p.base) / p.base) * 100 : undefined;
+                        return (
+                          <span className="tabular-nums text-xs shrink-0">
+                            <span className="font-bold">{p.price.toLocaleString()}원</span>
+                            {pct !== undefined && (
+                              <span className={`ml-1 ${signColor(pct)}`}>
+                                {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
+                      <span className="flex items-center gap-1 shrink-0">
                         {slot && (
                           <span className={`text-[10px] mr-1 ${slot === "include" ? "text-emerald-700" : "text-rose-700"}`}>
                             {slot === "include" ? "포함됨" : "제외됨"}
@@ -374,16 +429,30 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
         </div>
       ) : (
         <div className="bg-white border border-gray-300 rounded-lg shadow-sm overflow-hidden">
-          <div className="px-3 py-2 bg-gray-50 border-b text-[11px] text-gray-600">
-            매칭 ETF <b className="text-gray-800">{results.length}</b>개 ·
-            {mode === "all" ? " 포함 종목 모두" : " 포함 종목 하나 이상"}
-            {excluded.size > 0 && ` · 제외 ${excluded.size}개 적용`} ·
-            비중합 내림차순
+          <div className="px-3 py-2 bg-gray-50 border-b text-[11px] text-gray-600
+                          flex items-center gap-2 flex-wrap">
+            <span>
+              매칭 ETF <b className="text-gray-800">{results.length}</b>개 ·
+              {mode === "all" ? " 포함 종목 모두" : " 포함 종목 하나 이상"}
+              {excluded.size > 0 && ` · 제외 ${excluded.size}개 적용`}
+            </span>
+            <span className="ml-auto inline-flex items-center gap-0.5">
+              <span className="text-gray-400 mr-1">정렬</span>
+              {([["ratio", "비중"], ["change", "상승율"]] as const).map(([k, label]) => (
+                <button key={k} onClick={() => setResultSort(k)}
+                        className={`px-1.5 py-0.5 rounded text-[11px] font-bold border transition
+                                    ${resultSort === k
+                                      ? "bg-gray-700 text-white border-gray-700"
+                                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-100"}`}>
+                  {label}
+                </button>
+              ))}
+            </span>
           </div>
           {/* 3 컬럼 그리드 — 카드형 띄워 배치, 좁은 화면은 1/2 단 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-2
                           max-h-[70vh] overflow-y-auto bg-gray-50">
-            {results.map(r => {
+            {(sortedResults ?? []).map(r => {
               // 포함 종목별 비중 분해 (포함 2개 이상일 때만 표시)
               const breakdownItems = included.size > 1
                 ? [...included]
@@ -431,10 +500,26 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                         {r.hitCount}/{included.size}
                       </span>
                     )}
-                    <span className="font-bold tabular-nums text-rose-600 text-xs shrink-0">
-                      {r.totalRatio.toFixed(2)}%
+                    <span className="shrink-0 tabular-nums text-xs">
+                      <span className="text-[9px] text-gray-400 mr-0.5">비중</span>
+                      <span className="font-bold text-rose-600">{r.totalRatio.toFixed(2)}%</span>
                     </span>
                   </div>
+                  {(() => {
+                    const p = resultPriceMap.get(r.etfCode);
+                    if (!p) return null;
+                    const pct = p.base > 0 ? ((p.price - p.base) / p.base) * 100 : undefined;
+                    return (
+                      <div className="text-[11px] tabular-nums mt-0.5 text-right">
+                        <span className="font-bold text-gray-800">{p.price.toLocaleString()}원</span>
+                        {pct !== undefined && (
+                          <span className={`ml-1 ${signColor(pct)}`}>
+                            {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {breakdownItems && (
                     <div className="text-[10px] text-gray-500 mt-0.5 truncate tabular-nums text-right">
                       {breakdownItems.map((b, i) => (

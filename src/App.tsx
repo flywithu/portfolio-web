@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
@@ -406,6 +406,21 @@ function Dashboard() {
     return m;
   }, [holdings]);
 
+  // 탭 바를 헤더 아래 sticky 로 고정. 그룹이 여러 줄로 wrap 되므로 높이를 측정해
+  // 아래 툴바(정렬/심플보기) sticky top 을 동적으로 내린다 (겹침 방지).
+  const HEADER_H = 56;   // sticky 헤더 높이 (top-14)
+  const tabsStickyRef = useRef<HTMLDivElement>(null);
+  const [tabsH, setTabsH] = useState(0);
+  useLayoutEffect(() => {
+    const el = tabsStickyRef.current;
+    if (!el) return;
+    const update = () => setTabsH(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tabs.length]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <NewVersionToast />
@@ -484,18 +499,21 @@ function Dashboard() {
       </header>
 
       <main className="max-w-[1600px] mx-auto p-3">
-        <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab}
-               onRename={async (oldName, newName) => {
-                 await renameGroup(oldName, newName);
-                 if (activeTab === oldName) setActiveTab(newName);
-                 setReloadKey(k => k + 1);
-               }}
-               onDelete={async name => {
-                 await deleteGroup(name);
-                 if (activeTab === name) setActiveTab("");
-                 setReloadKey(k => k + 1);
-               }}
-               folders={groupFolders} />
+        <div ref={tabsStickyRef}
+             className="sticky top-14 z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 [&>nav]:!mb-0">
+          <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab}
+                 onRename={async (oldName, newName) => {
+                   await renameGroup(oldName, newName);
+                   if (activeTab === oldName) setActiveTab(newName);
+                   setReloadKey(k => k + 1);
+                 }}
+                 onDelete={async name => {
+                   await deleteGroup(name);
+                   if (activeTab === name) setActiveTab("");
+                   setReloadKey(k => k + 1);
+                 }}
+                 folders={groupFolders} />
+        </div>
 
         {activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab onRequestSearch={(q) => {
@@ -549,8 +567,10 @@ function Dashboard() {
           )
         ) : (
           <>
-            {/* 정렬 옵션 + 심플 보기 + 추가지표 일괄 토글 — sticky 로 스크롤 중에도 접근 */}
-            <div className="sticky top-14 z-20 bg-white/95 backdrop-blur
+            {/* 정렬 옵션 + 심플 보기 + 추가지표 일괄 토글 — sticky. 탭 바 바로 아래에 고정
+                (탭이 여러 줄로 wrap 되므로 top 을 헤더+탭 높이로 동적 계산) */}
+            <div style={{ top: HEADER_H + tabsH }}
+                 className="sticky z-30 bg-white/95 backdrop-blur
                             flex items-center justify-end gap-2 mb-2 py-1.5
                             -mx-3 px-3 border-b border-gray-200">
               <button onClick={() => setSimpleOpen(true)}

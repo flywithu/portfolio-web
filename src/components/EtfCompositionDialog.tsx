@@ -65,6 +65,33 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
     staleTime: 30_000,
   });
 
+  // 해당 ETF 자신의 현재가/% — 헤더 표시용
+  const { data: ownPriceList } = useQuery({
+    queryKey: ["etf-own-price", ticker],
+    queryFn: () => fetchTossPrices([ticker]),
+    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 30_000,
+  });
+  const ownPrice = ownPriceList?.[0];
+  const ownPct = ownPrice && ownPrice.base > 0
+    ? ((ownPrice.price - ownPrice.base) / ownPrice.base) * 100 : undefined;
+
+  // 비교검색 결과 ETF 들의 현재가/% — 드롭다운 표시용
+  const cmpTickers = useMemo(
+    () => (searchResults ?? []).map(r => r.ticker),
+    [searchResults],
+  );
+  const { data: cmpPriceList } = useQuery({
+    queryKey: ["etf-compare-prices", cmpTickers],
+    queryFn: () => fetchTossPrices(cmpTickers),
+    enabled: cmpTickers.length > 0,
+    staleTime: 30_000,
+  });
+  const cmpPriceMap = useMemo(
+    () => new Map((cmpPriceList ?? []).map(p => [p.ticker, p])),
+    [cmpPriceList],
+  );
+
   if (!isOpen) return null;
 
   const isCompare = !!secondEtf;
@@ -79,6 +106,16 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
         {/* 상단 thin 바 — 비교하기 버튼 + 검색 + 닫기 */}
         <header className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 flex-wrap">
           <span className="text-base font-bold">📋 ETF 구성</span>
+          {ownPrice && (
+            <span className="tabular-nums text-sm">
+              <span className="font-bold">{ownPrice.price.toLocaleString()}원</span>
+              {ownPct !== undefined && (
+                <span className={`ml-1 text-xs ${signColor(ownPct)}`}>
+                  {ownPct >= 0 ? "+" : ""}{ownPct.toFixed(2)}%
+                </span>
+              )}
+            </span>
+          )}
           {!isCompare ? (
             <button onClick={() => setCompareOpen(o => !o)}
                     title="다른 ETF 와 구성 종목 비교"
@@ -100,7 +137,7 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
           )}
           {/* inline 검색 — 비교 열림 + 미선택 상태 */}
           {compareOpen && !isCompare && (
-            <div className="relative flex-1 min-w-[200px] max-w-md">
+            <div className="relative flex-1 min-w-[240px]">
               <input autoFocus
                      value={compareQuery}
                      onChange={e => setCompareQuery(e.target.value)}
@@ -122,6 +159,21 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
                                          flex items-center gap-2">
                         <span className="font-bold">{r.name}</span>
                         <span className="text-xs text-gray-500 font-mono">{r.ticker}</span>
+                        {(() => {
+                          const p = cmpPriceMap.get(r.ticker);
+                          if (!p) return null;
+                          const pct = p.base > 0 ? ((p.price - p.base) / p.base) * 100 : undefined;
+                          return (
+                            <span className="ml-auto tabular-nums text-xs">
+                              <span className="font-bold">{p.price.toLocaleString()}원</span>
+                              {pct !== undefined && (
+                                <span className={`ml-1 ${signColor(pct)}`}>
+                                  {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })()}
                       </button>
                     </li>
                   ))}
