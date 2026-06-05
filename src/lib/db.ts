@@ -116,7 +116,8 @@ export async function cleanupReservedAccounts(): Promise<number> {
 export async function repairBrokenNames(
   fetchName: (ticker: string) => Promise<string | null>,
 ): Promise<number> {
-  const BROKEN = /�/;   // 치환문자 — 인코딩 깨짐 표시
+  // 치환문자(U+FFFD) — 실제 글자 또는 HTML 엔티티(&#65533; / &#xFFFD;) 형태 모두 탐지
+  const BROKEN = /�|&#65533;|&#x?fffd;/i;
   const all = await loadHoldings();
   const brokenTickers = [...new Set(
     all.filter(s => s.name && BROKEN.test(s.name)).map(s => s.ticker)
