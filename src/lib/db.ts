@@ -123,20 +123,31 @@ export async function repairBrokenNames(
     all.filter(s => s.name && BROKEN.test(s.name)).map(s => s.ticker)
   )];
   if (brokenTickers.length === 0) return 0;
+  // eslint-disable-next-line no-console
+  console.log(`[repair] 깨진 종목명 ${brokenTickers.length}건 — 이름 재취득 시도:`, brokenTickers);
   const nameMap = new Map<string, string>();
   for (const ticker of brokenTickers) {
     try {
       const n = await fetchName(ticker);
       if (n && !BROKEN.test(n)) nameMap.set(ticker, n);
-    } catch { /* 출처 실패 — 건너뜀 */ }
+      else {
+        // eslint-disable-next-line no-console
+        console.warn(`[repair] ${ticker} 이름 재취득 실패/빈값:`, n);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[repair] ${ticker} 출처 오류:`, e);
+    }
   }
   if (nameMap.size === 0) return 0;
+  // ticker 인덱스로 해당 종목 모든 행의 name 갱신 (id 포맷에 의존하지 않음)
   await db.transaction("rw", db.holdings, async () => {
-    for (const s of all) {
-      const fixed = nameMap.get(s.ticker);
-      if (fixed) await db.holdings.update(holdingId(s), { name: fixed });
+    for (const [ticker, name] of nameMap) {
+      await db.holdings.where("ticker").equals(ticker).modify({ name });
     }
   });
+  // eslint-disable-next-line no-console
+  console.log(`[repair] 종목명 ${nameMap.size}건 복구 완료:`, [...nameMap.entries()]);
   return nameMap.size;
 }
 

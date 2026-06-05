@@ -404,6 +404,22 @@ export async function verifyKrMarkets(
   return out;
 }
 
+// 종목명 재취득 — 토스 JSON(UTF-8, 인코딩 안전·시세와 같은 출처라 확실히 닿음) 우선, 실패 시 네이버 HTML.
+// 깨진 종목명 복구(repairBrokenNames)용 — 토스 stock-infos 의 name 필드 사용.
+export async function fetchKrStockName(ticker: string): Promise<string | null> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
+  try {
+    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-infos/code-or-symbol/A${ticker}`);
+    if (r.ok) {
+      const j = await r.json() as { result?: Record<string, unknown> };
+      const res = j.result ?? {};
+      const name = (res.name ?? res.korName ?? res.companyName ?? res.fullName) as string | undefined;
+      if (name && name.trim()) return name.trim();
+    }
+  } catch { /* 토스 실패 — 네이버 폴백 */ }
+  return await fetchStockName(ticker);
+}
+
 // 한국 정규장(공식) 종가 — 토스 stock-prices?meta=true 의 close (거래현황 "오늘 종가"와 동일).
 // details.close 는 시간외/NXT 실시간 최신가라 변하지만, meta.close 는 공식 종가로 안정적 →
 // 시간외에 메인(실시간)과 다를 때 "마감 책갈피" 로 정규장 종가를 보여줌.
