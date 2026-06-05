@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, isTodayKst, holdingYesterdayBaseSum, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, isTodayKst, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -606,6 +606,27 @@ export function StockCard({
 
   const sig = computeSignal(investorHistory);
 
+  // 호버 캔들차트용 — 일봉 history 에 오늘 형성중 캔들(라이브 price)을 병합.
+  // Yahoo 일봉은 장중 today 를 늦게/누락 반영 → 라이브 OHLC 로 today 를 덮어쓰거나 추가.
+  const candlesWithToday: PricePoint[] = (() => {
+    const base = priceHistory ? [...priceHistory] : [];
+    if (!price.high || !(price.price > 0)) return base;   // 비거래일/무효 시세 → 그대로
+    const today = nowKstDateStr();
+    const todayCandle: PricePoint = {
+      date: today,
+      open: price.open || price.prevClose || price.price,
+      high: price.high ?? price.price,
+      low: price.low ?? price.price,
+      close: price.price,
+      volume: price.volume ?? 0,
+    };
+    if (base.length && base[base.length - 1].date === today) {
+      base[base.length - 1] = todayCandle;   // Yahoo 의 지연된 today → 라이브로 덮어씀
+    } else {
+      base.push(todayCandle);                // today 없으면 추가
+    }
+    return base;
+  })();
 
 
   // 시그널 톤 → 강조할 투자자 컬럼 매핑 (뱃지 호버 시 해당 컬럼 노랑 강조)
@@ -1034,8 +1055,8 @@ export function StockCard({
             Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
         <Tooltip content={
           <>
-            {/* 캔들차트 — 최근 ~60 거래일 OHLC (3개월), 평단가/목표가 가로 점선 + 외인비율 보라 라인 */}
-            {priceHistory && priceHistory.length > 1 && (() => {
+            {/* 캔들차트 — 최근 ~60 거래일 OHLC (3개월) + 오늘 형성중 캔들, 평단가/목표가 가로 점선 + 외인비율 보라 라인 */}
+            {candlesWithToday.length > 1 && (() => {
               const ratioMap = new Map<string, number>();
               if (longHistory) {
                 for (const d of longHistory) {
@@ -1048,7 +1069,7 @@ export function StockCard({
                 <div className="mb-1.5">
                   <div className="font-bold mb-1 text-gray-900">최근 60일 캔들</div>
                   <MiniCandleChart
-                    prices={priceHistory.slice(-60)}
+                    prices={candlesWithToday.slice(-60)}
                     avgPrice={hasPosition ? stock.avg_price : undefined}
                     targetPrice={consensus?.target && consensus.target > 0 ? consensus.target : undefined}
                     foreignRatio={ratioMap.size > 0 ? ratioMap : undefined}
@@ -1059,7 +1080,7 @@ export function StockCard({
               );
             })()}
             {/* 3개 정보 박스 — 가로 배치 (보유 손익 / 현재가 색 / 3개월 추이) */}
-            <div className={`flex gap-1.5 ${priceHistory && priceHistory.length > 1 ? "border-t border-gray-200 pt-1.5" : ""}`}>
+            <div className={`flex gap-1.5 ${candlesWithToday.length > 1 ? "border-t border-gray-200 pt-1.5" : ""}`}>
               {/* 박스 1 — 보유 손익 상태 */}
               <div className="flex-1 min-w-0 border border-gray-200 rounded p-1.5 text-gray-700">
                 <div className="font-bold mb-1 text-gray-900">{stock.name} ({stock.ticker})</div>
@@ -1107,6 +1128,12 @@ export function StockCard({
                     const colorName = change > 0 ? "빨강" : change < 0 ? "파랑" : "회색";
                     return (
                       <>
+                        {/* 미니 스파크라인 — 3개월 종가 추이 + 평단/목표/기대가 가로선 */}
+                        <Sparkline data={chart} width={200} height={48}
+                                   className="w-full mb-1"
+                                   avgPrice={hasPosition ? stock.avg_price : undefined}
+                                   target={consensus?.target && consensus.target > 0 ? consensus.target : undefined}
+                                   entry={memo?.entryPrice} />
                         <div>시작 → 끝: <b className="text-gray-900">{first.toLocaleString()}</b> → <b className="text-gray-900">{last.toLocaleString()}원</b></div>
                         <div>변동: <b className={change > 0 ? "text-rose-600" : change < 0 ? "text-blue-600" : "text-gray-900"}>
                           {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%

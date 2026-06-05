@@ -42,6 +42,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
   const folderList = folders ?? [];
   const countByKey = new Map(tabs.map(t => [t.key, t.count]));
   const presentGroups = new Set(tabs.filter(t => !RESERVED.has(t.key)).map(t => t.key));
+  // 폴더에 담긴(표시 가능한) 그룹은 개별 탭에서 숨기고 폴더로 묶어 노출.
+  // 멤버 2개 이상 → 폴더명 + 드롭다운 / 1개 → 폴더명 단일 탭(드롭다운 없이 바로 클릭).
   const folderedGroups = new Set<string>();
   for (const f of folderList) for (const g of f.groups) if (presentGroups.has(g)) folderedGroups.add(g);
 
@@ -53,6 +55,30 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
   // 묶음 드롭다운 렌더 (지수/내자산 공통)
   const renderGroupDropdown = (groupTabs: typeof tabs, fallbackEmoji: string) => {
     if (groupTabs.length === 0) return null;
+    // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭 버튼으로 바로 노출
+    if (groupTabs.length === 1) {
+      const t = groupTabs[0];
+      const active = t.key === activeKey;
+      return (
+        <button key={t.key}
+                onClick={() => onChange(t.key)}
+                className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md
+                            border-b-2 transition-colors -mb-px
+                            ${active
+                              ? "border-blue-500 text-blue-700 bg-white"
+                              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+          {t.icon
+            ? <span className="mr-1 inline-flex align-middle">{t.icon}</span>
+            : <span className="mr-1">{t.emoji ?? fallbackEmoji}</span>}
+          {t.label}
+          {t.count > 0 && (
+            <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>
+              {t.count}
+            </span>
+          )}
+        </button>
+      );
+    }
     const activeOne = groupTabs.find(t => t.key === activeKey);
     const current = activeOne ? activeKey : groupTabs[0].key;
     const curTab = groupTabs.find(t => t.key === current);
@@ -153,18 +179,37 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         if (members.length === 0) return null;
         const current = members.includes(activeKey) ? activeKey : members[0];
         const active = members.includes(activeKey);
+        // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
+        if (members.length === 1) {
+          const g = members[0];
+          const cnt = countByKey.get(g) ?? 0;
+          return (
+            <button key={`__folder__${folder.name}`}
+                    onClick={() => onChange(g)}
+                    className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
+                                ${active ? "border-blue-500 text-blue-700 bg-white" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+              📂 {folder.name}({g})
+              {cnt > 0 && (
+                <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>{cnt}</span>
+              )}
+            </button>
+          );
+        }
         return (
           <div key={`__folder__${folder.name}`}
                className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-t-md border-b-2 -mb-px
                            ${active ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
+            {/* 폴더명은 select 에서 표시(placeholder/옵션) — 앞 문구 제거, 📂 아이콘만 (클릭=현재 멤버 이동) */}
             <button onClick={() => onChange(current)}
                     className={`text-sm font-medium ${active ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
-              📂 {folder.name}
+              📂
             </button>
-            <select value={current}
-                    onChange={e => onChange(e.target.value)}
+            {/* 지수 묶음과 동일 — 폴더 밖일 땐 value="" 라 이미 표시된 항목 선택도 이동됨 */}
+            <select value={active ? current : ""}
+                    onChange={e => { if (e.target.value) onChange(e.target.value); }}
                     className={`text-xs bg-transparent border rounded px-1 py-0.5 focus:outline-none
                                 ${active ? "border-blue-300 text-blue-700" : "border-gray-300 text-gray-600"}`}>
+              {!active && <option value="" disabled hidden>{folder.name}</option>}
               {members.map(g => (
                 <option key={g} value={g}>
                   {g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}

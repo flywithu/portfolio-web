@@ -279,12 +279,17 @@ export function MobileSimpleView() {
 
   // 그룹 폴더 — 폴더에 담긴 그룹은 개별 탭 대신 📁 드롭다운으로 묶음
   const folders = useMemo(() => getGroupFolders(), [settingsOpen, holdings]);
-  const folderedGroups = useMemo(
-    () => new Set(folders.flatMap(f => f.groups)), [folders]);
-  const countByKey = useMemo(
-    () => new Map(groupTabs.map(t => [t.key, t.count])), [groupTabs]);
   const presentGroups = useMemo(
     () => new Set(groupTabs.map(t => t.key)), [groupTabs]);
+  // 폴더에 담긴(표시 가능한) 그룹은 개별 탭에서 숨기고 폴더로 묶음.
+  // 멤버 2개 이상 → 폴더명 + 드롭다운 / 1개 → 폴더명(그룹명) 단일 탭.
+  const folderedGroups = useMemo(() => {
+    const s = new Set<string>();
+    for (const f of folders) for (const g of f.groups) if (presentGroups.has(g)) s.add(g);
+    return s;
+  }, [folders, presentGroups]);
+  const countByKey = useMemo(
+    () => new Map(groupTabs.map(t => [t.key, t.count])), [groupTabs]);
   // 화면에 보이는 탭 순서(스와이프 이동용) — 비폴더 탭들 + 폴더별 멤버(이름순)
   const navKeys = useMemo(() => {
     const keys: string[] = [];
@@ -771,6 +776,19 @@ export function MobileSimpleView() {
           const SYS = new Set([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]);
           const sys = groupTabs.filter(t => SYS.has(t.key));
           if (sys.length === 0) return null;
+          // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
+          if (sys.length === 1) {
+            const t = sys[0];
+            const active = t.key === activeTab;
+            return (
+              <button onClick={() => setActiveTab(t.key)}
+                      className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition inline-flex items-center
+                                  ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                {t.icon && <span className="mr-0.5 inline-flex align-middle">{t.icon}</span>}
+                {t.label}{t.count > 0 ? ` (${t.count})` : ""}
+              </button>
+            );
+          }
           const current = sys.find(t => t.key === activeTab)?.key ?? sys[0].key;
           const curTab = sys.find(t => t.key === current);
           const on = sys.some(t => t.key === activeTab);
@@ -798,6 +816,19 @@ export function MobileSimpleView() {
           const MY = new Set([MY_KEY, MY_TRADES_KEY]);
           const my = groupTabs.filter(t => MY.has(t.key));
           if (my.length === 0) return null;
+          // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
+          if (my.length === 1) {
+            const t = my[0];
+            const active = t.key === activeTab;
+            return (
+              <button onClick={() => setActiveTab(t.key)}
+                      className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition inline-flex items-center
+                                  ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                {t.icon && <span className="mr-0.5 inline-flex align-middle">{t.icon}</span>}
+                {t.label}{t.count > 0 ? ` (${t.count})` : ""}
+              </button>
+            );
+          }
           const current = my.find(t => t.key === activeTab)?.key ?? my[0].key;
           const curTab = my.find(t => t.key === current);
           const on = my.some(t => t.key === activeTab);
@@ -869,17 +900,34 @@ export function MobileSimpleView() {
           const members = folder.groups.filter(g => presentGroups.has(g))
                                 .sort((a, b) => a.localeCompare(b, "ko"));
           if (members.length === 0) return null;
+          // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
+          if (members.length === 1) {
+            const g = members[0];
+            const cnt = countByKey.get(g) ?? 0;
+            const active = activeTab === g;
+            return (
+              <button key={`folder_${folder.name}`}
+                      onClick={() => setActiveTab(g)}
+                      className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
+                                  ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                📁{folder.name}({g}){cnt > 0 ? ` ${cnt}` : ""}
+              </button>
+            );
+          }
           const current = members.includes(activeTab) ? activeTab : members[0];
           const folderActive = members.includes(activeTab);
           return (
             <span key={`folder_${folder.name}`}
                   className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-2
                               ${folderActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
-              📁{folder.name}
-              <select value={current}
-                      onChange={e => setActiveTab(e.target.value)}
+              {/* 폴더명은 select 에서 표시 — 앞 문구 제거, 📁 아이콘만 */}
+              📁
+              {/* 지수 묶음과 동일 — 폴더 밖일 땐 value="" 라 이미 표시된 항목 선택도 이동됨 */}
+              <select value={folderActive ? current : ""}
+                      onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
                       className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
                                   ${folderActive ? "text-white" : "text-gray-700"}`}>
+                {!folderActive && <option value="" disabled hidden className="text-gray-800">{folder.name}</option>}
                 {members.map(g => (
                   <option key={g} value={g} className="text-gray-800">
                     {g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}
