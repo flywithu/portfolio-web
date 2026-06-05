@@ -3,9 +3,9 @@ import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstac
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
-  fetchInvestorHistorySafe, fetchNaverPrices,
+  fetchInvestorHistorySafe, fetchNaverPrices, fetchStockName,
 } from "./lib/api";
-import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits } from "./lib/db";
+import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY } from "./components/Tabs";
@@ -922,6 +922,14 @@ function AppRoot() {
         await queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
       }
       setReady(true);
+      // 깨진 종목명(인코딩 U+FFFD) 백그라운드 복구 — 정상 출처에서 이름 재취득 후 덮어씀. UI 비차단.
+      void repairBrokenNames(fetchStockName).then(fixed => {
+        if (fixed > 0) {
+          // eslint-disable-next-line no-console
+          console.log(`[boot] repaired ${fixed} broken name(s)`);
+          void queryClient.invalidateQueries();
+        }
+      }).catch(() => { /* 복구 실패 — 무시 */ });
     })();
   }, []);
 

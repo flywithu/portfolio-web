@@ -110,6 +110,35 @@ export async function cleanupReservedAccounts(): Promise<number> {
   return await db.holdings.where("account").equals("관심ETF").delete();
 }
 
+// 깨진 종목명 자동 복구 — 이름에 치환문자(U+FFFD)가 든 행은 정상 출처에서 이름을 다시 받아 덮어씀.
+// (인코딩 깨짐으로 저장된 종목명 복원. U+FFFD 는 정상 종목명에 절대 없으므로 오판 위험 없음.)
+// fetchName 은 api.fetchStockName 을 주입 (db→api 순환 의존 회피).
+export async function repairBrokenNames(
+  fetchName: (ticker: string) => Promise<string | null>,
+): Promise<number> {
+  const BROKEN = /�/;   // 치환문자 — 인코딩 깨짐 표시
+  const all = await loadHoldings();
+  const brokenTickers = [...new Set(
+    all.filter(s => s.name && BROKEN.test(s.name)).map(s => s.ticker)
+  )];
+  if (brokenTickers.length === 0) return 0;
+  const nameMap = new Map<string, string>();
+  for (const ticker of brokenTickers) {
+    try {
+      const n = await fetchName(ticker);
+      if (n && !BROKEN.test(n)) nameMap.set(ticker, n);
+    } catch { /* 출처 실패 — 건너뜀 */ }
+  }
+  if (nameMap.size === 0) return 0;
+  await db.transaction("rw", db.holdings, async () => {
+    for (const s of all) {
+      const fixed = nameMap.get(s.ticker);
+      if (fixed) await db.holdings.update(holdingId(s), { name: fixed });
+    }
+  });
+  return nameMap.size;
+}
+
 // 레거시 account="" 행을 일반 그룹 "보유" 로 통일 (앱 로드 시 호출, idempotent).
 // 충돌(같은 ticker 의 account="보유" 행 존재) 시 우선순위로 데이터 손실 방지:
 //   1) shares > 0 인 쪽 우선 (수량 있는 쪽이 의미 있는 데이터)
