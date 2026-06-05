@@ -13,10 +13,13 @@
 `/usage` 엔드포인트가 포함됩니다. (이미 최신이면 생략)
 
 ## 2) Cloudflare API 토큰 만들기
-1. https://dash.cloudflare.com/profile/api-tokens → **Create Token** → **Create Custom Token**
-2. 권한(Permissions): **Account → Account Analytics → Read** — 이 하나면 충분 (읽기 전용, 최소 권한)
-3. Account Resources: 내 계정 선택 → **Continue → Create Token**
-4. 생성된 토큰 값 복사 (이 화면에서 한 번만 표시)
+1. https://dash.cloudflare.com/profile/api-tokens → **Create Token** → **Create Custom Token → Get started**
+2. **Token name**: 아무 이름 입력 (예: `portfolio-usage`) — **필수** (안 넣으면 "Enter a name for your token" 에러)
+3. **Permissions**: 드롭다운 3개를 **Account / Account Analytics / Read** 로 설정 (읽기 전용, 최소 권한)
+4. **Account Resources**: **Include / 내 계정** 선택
+5. **Client IP Address Filtering**: 비워둠 (모든 IP 허용 — 기본값)
+6. 맨 아래 **Continue to summary → Create Token**
+7. 생성된 토큰 값 복사 (이 화면에서 **한 번만** 표시 — 못 보면 새로 만들기)
 
 ## 3) 워커 환경변수 설정
 대시보드 → 내 워커 → **Settings → Variables and Secrets** 에서 추가 후 **Deploy/Save**:
@@ -24,8 +27,15 @@
 | 이름 | 값 | 종류 |
 |---|---|---|
 | `CF_API_TOKEN` | 2)에서 만든 토큰 | **Secret (Encrypt)** |
-| `CF_ACCOUNT_ID` | 계정 ID (워커 Overview 의 *Account ID*) | Text |
+| `CF_ACCOUNT_ID` | 계정 ID (아래 참고) | Text |
 | `CF_SCRIPT_NAME` | (선택) 이 워커 스크립트명 | Text |
+
+**Account ID 찾는 법** (비밀값 아님, 그냥 식별자):
+- **URL에서 가장 쉬움**: 로그인 후 주소창 `https://dash.cloudflare.com/<여기가-Account-ID>/workers/...` — `dash.cloudflare.com/` 바로 뒤 긴 문자열.
+- 또는 **Workers & Pages** 우측 **Account details** 에 *Account ID* + 복사 버튼.
+- 또는 도메인 → **Overview** → 우측 **API** 박스의 *Account ID*.
+
+> `CF_API_TOKEN`(시크릿)과 다른 값입니다. 토큰=비밀번호, Account ID=계정 번호.
 
 - `CF_SCRIPT_NAME` 을 넣으면 **이 워커만의** 요청수, 비우면 **계정 전체** Workers 요청수(대시보드 "Requests today"와 동일).
 
