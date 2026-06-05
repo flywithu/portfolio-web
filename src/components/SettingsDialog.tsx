@@ -490,7 +490,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               </button>
             </div>
             <div className="text-[10px] text-gray-500">
-              보유·예수금·그룹·폴더·탭 등 모든 데이터를 .json 파일로 백업/복원합니다. (불러오기 = 전체 덮어쓰기)
+              보유·예수금·그룹·폴더·탭·거래기록 등 모든 데이터를 .json 파일로 백업/복원합니다. (불러오기 = 전체 덮어쓰기)
             </div>
           </div>
 

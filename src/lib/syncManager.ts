@@ -5,7 +5,7 @@
 //   "on"      → 자동 sync 활성
 //   "off"     → 일시 중지 (수동 ↑↓ 만)
 
-import { exportAll, replaceAllHoldings, replaceAllPeaks, replaceAllMemos, applyImportedSettings } from "./db";
+import { exportAll, replaceAllHoldings, replaceAllPeaks, replaceAllMemos, replaceAllTrades, applyImportedSettings } from "./db";
 import type { ExportPayload } from "./db";
 import { isSignedIn, signIn, signOut, wasSignedIn, getAccessToken } from "./googleAuth";
 import { downloadFile, uploadFile, getFileMeta, deleteFile } from "./googleDrive";
@@ -101,6 +101,13 @@ function normalize(p: ExportPayload): string {
       color: m.color ?? "",
     }))
     .sort((a, b) => a.ticker.localeCompare(b.ticker));
+  // trades(거래기록) — id 기준 정렬, 콘텐츠 비교 (거래기록만 바뀌어도 업로드되도록)
+  const trades = [...(p.trades ?? [])]
+    .map(t => ({
+      id: t.id, ticker: t.ticker, account: t.account ?? "",
+      type: t.type, date: t.date, qty: t.qty, amount: t.amount,
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
   // settings 도 비교에 포함 — 그룹폴더/예수금/탭표시 등만 바뀌어도 업로드되도록 (skip 방지)
   const s = p.settings ?? {};
   const depKeys = Object.keys(s.deposits ?? {}).sort();
@@ -118,7 +125,7 @@ function normalize(p: ExportPayload): string {
     personalProxyUrl: s.personalProxyUrl ?? null,
     personalPollMs: s.personalPollMs ?? null,
   };
-  return JSON.stringify({ holdings, peaks, memos, settings });
+  return JSON.stringify({ holdings, peaks, memos, trades, settings });
 }
 
 export async function uploadToDrive(): Promise<void> {
@@ -143,6 +150,8 @@ export async function downloadFromDrive(): Promise<boolean> {
   if (data.peaks) await replaceAllPeaks(data.peaks);
   // memos — 구버전 payload 에 없으면 빈 배열 (= 메모 없음 상태로 동기화)
   await replaceAllMemos(data.memos ?? []);
+  // trades(거래기록) — 구버전 payload 에 없으면 빈 배열로 동기화
+  await replaceAllTrades(data.trades ?? []);
   applyImportedSettings(data.settings);   // 독립 모드 등 동기화 대상 설정
   setLastSynced(modifiedTime);
   suppressNextAutoSync = true;
