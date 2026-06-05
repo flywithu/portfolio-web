@@ -245,7 +245,7 @@ function NewsSection({ ticker }: { ticker: string }) {
     refetchOnWindowFocus: false,
   });
   return (
-    <section className="mt-4 bg-gray-50 rounded p-3 border border-gray-200">
+    <section className="bg-gray-50 rounded p-3 border border-gray-200">
       <header className="mb-2">
         <h3 className="font-bold text-gray-700">📰 뉴스</h3>
         <p className="text-xs text-gray-400">네이버 증권 — 최신순</p>
@@ -272,6 +272,43 @@ function NewsSection({ ticker }: { ticker: string }) {
                     {n.press}{n.press && n.datetime ? " · " : ""}{fmtNewsTime(n.datetime)}
                   </div>
                 </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function DisclosureSection({ ticker }: { ticker: string }) {
+  // 차트 마커와 동일 쿼리키 — 캐시 공유(중복 fetch 방지)
+  const { data: disc, isLoading } = useQuery({
+    queryKey: ["disclosures-modal", ticker],
+    queryFn: () => fetchKrDisclosures(ticker, 12),
+    enabled: /^\d{6}$/.test(ticker),
+    staleTime: 30 * 60_000,
+  });
+  return (
+    <section className="bg-gray-50 rounded p-3 border border-gray-200">
+      <header className="mb-2">
+        <h3 className="font-bold text-gray-700">📋 공시</h3>
+        <p className="text-xs text-gray-400">DART — 최신순</p>
+      </header>
+      {isLoading ? (
+        <div className="text-xs text-gray-400 py-2">불러오는 중…</div>
+      ) : !disc || disc.length === 0 ? (
+        <div className="text-xs text-gray-400 py-2">최근 공시 없음</div>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {[...disc].reverse().map((d, i) => (
+            <li key={`${d.url}-${i}`}>
+              <a href={d.url} target="_blank" rel="noopener noreferrer"
+                 className="block py-1.5 group">
+                <div className="text-xs text-gray-800 leading-snug line-clamp-2 group-hover:text-blue-600">
+                  {d.title}
+                </div>
+                <div className="mt-0.5 text-[10px] text-gray-400">{d.date}</div>
               </a>
             </li>
           ))}
@@ -478,8 +515,11 @@ export function ValuationModal({
                                   curPrice={effCurPrice}
                                   todayBar={todayBar} />
 
-          {/* 종목 뉴스 (네이버) */}
-          <NewsSection ticker={ticker} />
+          {/* 뉴스(좌) + 공시(우) */}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+            <NewsSection ticker={ticker} />
+            <DisclosureSection ticker={ticker} />
+          </div>
 
           {/* 외부 링크 */}
           <section className="mt-4 flex flex-wrap gap-2 text-xs">
