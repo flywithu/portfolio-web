@@ -3,7 +3,7 @@
 //   (누적은 무의미 — 공매도는 상환됨, 실제 잔량은 대차잔고. 그래서 추세=이동평균)
 //   crosshair sync anchor = 이동평균 라인
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   createChart, ColorType, LineSeries, HistogramSeries, LineStyle,
   type IChartApi, type ISeriesApi, type SeriesType, type Time,
@@ -24,7 +24,7 @@ function fmtVol(v: number): string {
 interface Props {
   shortSelling: ShortSellingPoint[];
   dates: string[];
-  desc?: string;   // 그래프 하단 설명
+  desc?: ReactNode;   // 그래프 하단 설명 (색상 마크업 가능)
   onReady?: (
     chart: IChartApi,
     anchor: ISeriesApi<SeriesType>,

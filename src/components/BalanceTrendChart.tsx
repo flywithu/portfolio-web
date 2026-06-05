@@ -3,7 +3,7 @@
 //   히스토그램 (좌측 축, 하단): 일별 증감 수량 (증가=빌드업 / 감소=상환)
 //   crosshair sync anchor = 잔고 면적
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   createChart, ColorType, AreaSeries, HistogramSeries, LineStyle,
   type IChartApi, type ISeriesApi, type SeriesType, type Time,
@@ -42,7 +42,7 @@ interface Props {
   color: string;       // 잔고 면적/수치 색 (hex)
   title2?: string;     // 2번째 면적 라벨 (예: "매도")
   color2?: string;     // 2번째 면적 색 (hex)
-  desc?: string;       // 그래프 하단 설명
+  desc?: ReactNode;    // 그래프 하단 설명 (색상 마크업 가능)
   points: BalanceTrendPoint[];
   dates: string[];
   onReady?: (
@@ -198,6 +198,9 @@ export function BalanceTrendChart({ title, color, title2, color2, desc, points, 
   return (
     <div className="border border-gray-200 rounded p-2 bg-white">
       <div className="flex items-baseline gap-2 text-xs mb-1 flex-wrap">
+        {title2 && color2 && (
+          <span className="inline-block w-3 h-0.5 self-center" style={{ background: color }}></span>
+        )}
         <span className="font-bold" style={{ color }}>{title}</span>
         {last && <span className="tabular-nums font-bold" style={{ color }}>{headline}</span>}
         {last?.rate != null && last.rate > 0 && (

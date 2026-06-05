@@ -960,23 +960,23 @@ function InvestorChartsSection({
                 <ShortSellingChart
                   shortSelling={shortSelling}
                   dates={dates}
-                  desc="일별 공매도 수량(주)과 20일 평균. 평균이 우상향이면 공매도가 늘어 하락 베팅이 강해지는 흐름."
+                  desc={<>일별 공매도 수량(주)과 20일 평균. <b style={{ color: "#2563eb" }}>평균 우상향 = 공매도 증가(하락 베팅 강화)</b>.</>}
                   onReady={registerSync}
                 />
               )}
               {lendingPoints.length > 0 && (
                 <BalanceTrendChart title="대차잔고" color="#7c3aed"
-                  desc="빌려간 주식 잔고 = 잠재적 공매도 물량. 증가는 숏 빌드업(경계), 감소는 상환(숏커버 → 반등 신호)."
+                  desc={<>빌려간 주식 잔고 = 잠재적 공매도 물량. <b style={{ color: "#2563eb" }}>증가=숏 빌드업(경계)</b>, <b style={{ color: "#dc2626" }}>감소=상환·숏커버(반등)</b>.</>}
                   points={lendingPoints} dates={dates} onReady={registerSync} />
               )}
               {creditPoints.length > 0 && (
                 <BalanceTrendChart title="신용잔고" color="#ea580c"
-                  desc="개인이 빚내서 산 신용융자 잔고. 증가는 과열(반대매매 리스크), 급감은 반대매매(투매) 신호."
+                  desc={<>개인이 빚내서 산 신용융자 잔고. <b style={{ color: "#d97706" }}>증가=과열(반대매매 리스크)</b>, <b style={{ color: "#2563eb" }}>급감=반대매매(투매)</b>.</>}
                   points={creditPoints} dates={dates} onReady={registerSync} />
               )}
               {cfdPoints.length > 0 && (
                 <BalanceTrendChart title="CFD 매수" color="#0d9488" title2="매도" color2="#e11d48"
-                  desc="개인 레버리지(CFD) 잔고. 매수=롱, 매도=숏 포지션. 한쪽이 급증하면 방향성 베팅 쏠림."
+                  desc={<>개인 레버리지(CFD) 잔고. <b style={{ color: "#0d9488" }}>매수=롱</b>, <b style={{ color: "#e11d48" }}>매도=숏</b> 포지션. 한쪽이 급증하면 방향성 베팅 쏠림.</>}
                   points={cfdPoints} dates={dates} onReady={registerSync} />
               )}
             </div>
