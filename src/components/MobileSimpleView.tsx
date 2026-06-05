@@ -1859,7 +1859,7 @@ function SettingsModal({
                       u === "unsupported" ? (
                         <div className="text-[10px] text-amber-600 pl-6">
                           사용량 표시하려면 워커 업데이트 필요(/usage).&nbsp;
-                          <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md"
+                          <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/PROXY-USAGE.md"
                              target="_blank" rel="noopener noreferrer" className="underline">가이드 ↗</a>
                         </div>
                       ) : (() => {
