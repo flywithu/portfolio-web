@@ -4,8 +4,9 @@ import type { Stock } from "../types";
 import {
   syncAllRowsForTicker, deleteAllRowsForTicker,
   getUserGroups, upsertHoldingToGroup, removeHolding, loadHoldings,
-  updateHolding,
+  updateHolding, addTrade,
 } from "../lib/db";
+import { TradeLogSection } from "./TradeLogSection";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { useEscClose } from "../lib/useEscClose";
 
@@ -61,6 +62,12 @@ export function EditHoldingDialog({
   const [mode, setMode] = useState<Mode>("buy");
   const [shares, setShares] = useState("");
   const [price, setPrice] = useState("");
+  const [sellPrice, setSellPrice] = useState("");   // 매도가 (거래기록 금액용 — 보유엔 영향 없음)
+  const [tradeDate, setTradeDate] = useState(todayKstStr());   // 매수일/매도일 (기본 오늘)
+  // 창을 안 닫고 매수/매도 반영하므로, 현재 보유를 로컬에서 갱신해 표시 (prop 은 stale)
+  const [live, setLive] = useState<Stock | null>(stock);
+  const [logKey, setLogKey] = useState(0);          // 자동기록 후 거래기록 새로고침 트리거
+  const [okMsg, setOkMsg] = useState("");
   const [editShares, setEditShares] = useState("");
   const [editAvg, setEditAvg] = useState("");
   const [err, setErr] = useState("");
@@ -72,9 +79,12 @@ export function EditHoldingDialog({
   const [allGroups, setAllGroups] = useState<string[]>([]);
   const [newGroup, setNewGroup] = useState("");
 
-  // 다이얼로그 열릴 때 (혹은 다른 종목으로 변경 시) 그룹 정보 로드
+  // 다이얼로그 열릴 때 (혹은 다른 종목으로 변경 시) 그룹 정보 로드 + 로컬 보유/입력 초기화
   useEffect(() => {
     if (!isOpen || !stock) return;
+    setLive(stock);
+    setShares(""); setPrice(""); setSellPrice(""); setTradeDate(todayKstStr());
+    setEditShares(""); setEditAvg(""); setOkMsg("");
     void (async () => {
       const [holdings, userGroups] = await Promise.all([
         loadHoldings(), getUserGroups(),
@@ -94,9 +104,10 @@ export function EditHoldingDialog({
 
   if (!isOpen || !stock) return null;
 
-  const curShares = stock.shares;
-  const curAvg = stock.avg_price;
-  const curInvested = stock.invested ?? Math.round(curShares * curAvg);
+  const cur = live ?? stock;
+  const curShares = cur.shares;
+  const curAvg = cur.avg_price;
+  const curInvested = cur.invested ?? Math.round(curShares * curAvg);
   const independent = getIndependentGroupsMode();  // 그룹별 독립 보유 모드
 
   const toggleGroup = (g: string) => {
@@ -121,84 +132,76 @@ export function EditHoldingDialog({
   // 사용자 의도: "어느 그룹에서든 수정해도 같은 종목은 모든 그룹이 동일 값을 가짐."
   // → 0주 → 모든 그룹 row 일괄 삭제 / shares > 0 → 모든 그룹 row 일괄 sync.
   // 그룹 추가/제거는 모드 액션 전에 처리해 sync 가 새 row 도 반영하게 한다.
-  const apply = async () => {
-    setErr("");
-
-    // 1. 모드 액션 준비 (입력 있을 때만)
+  // 매수/매도/직접수정 적용 — 창은 닫지 않음(직접수정 0주 삭제만 닫음). 매수/매도는 거래기록 자동 추가.
+  const applyMode = async () => {
+    setErr(""); setOkMsg("");
     let modeAction: (() => Promise<void>) | null = null;
+    let tradeToLog: { type: "buy" | "sell"; date: string; qty: number; amount: number } | null = null;
+    let willDelete = false;
 
-    if (mode === "buy" && (shares || price)) {
-      const sh = Number(shares);
-      const pr = Number(price);
+    if (mode === "buy") {
+      const sh = Number(shares), pr = Number(price);
       if (!Number.isFinite(sh) || sh <= 0) return setErr("추가 수량 입력");
       if (!Number.isFinite(pr) || pr <= 0) return setErr("매수가 입력");
       const newShares = curShares + sh;
-      const newInvested = curInvested + Math.round(sh * pr);
-      const newAvg = newInvested / newShares;
-      modeAction = async () => {
-        await applyTickerUpdate(stock, {
-          shares: newShares, avg_price: newAvg,
-          // 매수는 오늘 일어난 행위 → buy_date 를 오늘로 갱신.
-          // 그래야 "오늘" 손익이 (어제종가가 아닌) 매수단가 기준으로 계산됨(=전체와 동일).
-          buy_date: todayKstStr(),
-          market: stock.market, name: stock.name,
-        });
-      };
-    } else if (mode === "sell" && shares) {
+      const newAvg = (curInvested + Math.round(sh * pr)) / newShares;
+      const bd = tradeDate || todayKstStr();
+      tradeToLog = { type: "buy", date: bd, qty: sh, amount: Math.round(sh * pr) };
+      modeAction = () => applyTickerUpdate(stock, {
+        shares: newShares, avg_price: newAvg, buy_date: bd,
+        market: stock.market, name: stock.name,
+      });
+    } else if (mode === "sell") {
       const sh = Number(shares);
       if (!Number.isFinite(sh) || sh <= 0) return setErr("매도 수량 입력");
       if (sh > curShares) return setErr(`보유 ${curShares}주를 초과`);
-      const newShares = curShares - sh;
-      modeAction = async () => {
-        // 전량 매도(0주) 여도 삭제하지 않고 0주로 그룹에 보관 (관심종목처럼 유지)
-        await applyTickerUpdate(stock, {
-          shares: newShares, avg_price: curAvg,
-          buy_date: stock.buy_date,
-          market: stock.market, name: stock.name,
-        });
-      };
-    } else if (mode === "edit" && (editShares || editAvg)) {
+      const sellPr = Number(sellPrice) > 0 ? Number(sellPrice) : (curPrice || curAvg);
+      tradeToLog = { type: "sell", date: tradeDate || todayKstStr(), qty: sh, amount: Math.round(sh * sellPr) };
+      modeAction = () => applyTickerUpdate(stock, {
+        shares: curShares - sh, avg_price: curAvg, buy_date: cur.buy_date,
+        market: stock.market, name: stock.name,
+      });
+    } else {
+      if (!editShares && !editAvg) return setErr("수정할 값 입력");
       const sh = Number(editShares || curShares);
       const ap = Number(editAvg || curAvg);
       if (!Number.isFinite(sh) || sh < 0) return setErr("수량 오류");
       if (!Number.isFinite(ap) || ap <= 0) return setErr("매수가 오류");
-      modeAction = async () => {
-        if (sh === 0) {
-          await applyTickerDelete(stock);
-        } else {
-          await applyTickerUpdate(stock, {
-            shares: sh, avg_price: ap,
-            buy_date: stock.buy_date || todayKstStr(),
+      willDelete = sh === 0;
+      modeAction = () => sh === 0
+        ? applyTickerDelete(stock)
+        : applyTickerUpdate(stock, {
+            shares: sh, avg_price: ap, buy_date: cur.buy_date || todayKstStr(),
             market: stock.market, name: stock.name,
           });
-        }
-      };
     }
 
-    // 2. 그룹 변경 diff
+    await modeAction();
+    if (tradeToLog) await addTrade({ ticker: stock.ticker, account: stock.account, ...tradeToLog });
+    onChanged();
+    if (willDelete) { onClose(); return; }
+    // 창 유지 — 로컬 보유 갱신 + 입력 초기화 + 거래기록 새로고침
+    const fresh = (await loadHoldings())
+      .find(s => s.ticker === stock.ticker && (s.account || "") === (stock.account || ""));
+    if (fresh) setLive(fresh);
+    setShares(""); setPrice(""); setSellPrice(""); setTradeDate(todayKstStr());
+    setEditShares(""); setEditAvg("");
+    setLogKey(k => k + 1);
+    setOkMsg(mode === "buy" ? "✅ 매수 반영 + 기록 추가"
+      : mode === "sell" ? "✅ 매도 반영 + 기록 추가" : "✅ 수정 반영");
+  };
+
+  // 그룹 추가/제외만 적용 — 보유 수량/평단과 무관 (창 유지)
+  const applyGroups = async () => {
+    setErr(""); setOkMsg("");
     const toAdd = [...groupSelection].filter(g => !originalGroups.has(g));
     const toRemove = [...originalGroups].filter(g => !groupSelection.has(g));
-
-    if (!modeAction && toAdd.length === 0 && toRemove.length === 0) {
-      return setErr("변경 사항이 없습니다");
-    }
-
-    // 3. 그룹 추가 (모드 액션 전)
-    for (const g of toAdd) {
-      await upsertHoldingToGroup(stock, g);
-    }
-    // 4. 그룹 제거
-    for (const g of toRemove) {
-      await removeHolding(stock.ticker, g);
-    }
-    // 5. 모드 액션 (전체 row sync)
-    if (modeAction) await modeAction();
-
+    if (toAdd.length === 0 && toRemove.length === 0) return setErr("그룹 변경 사항이 없습니다");
+    for (const g of toAdd) await upsertHoldingToGroup(cur, g);
+    for (const g of toRemove) await removeHolding(stock.ticker, g);
+    setOriginalGroups(new Set(groupSelection));
     onChanged();
-    onClose();
-    // reset
-    setShares(""); setPrice("");
-    setEditShares(""); setEditAvg("");
+    setOkMsg("✅ 그룹 변경 반영");
   };
 
   const tabBtn = (m: Mode, label: string) => (
@@ -285,6 +288,11 @@ export function EditHoldingDialog({
                        placeholder={curPrice ? `예: ${curPrice}` : "예: 100000"}
                        className={inputCls} />
               </Field>
+              <Field label="매수일 (기본 오늘)">
+                <input type="date" value={tradeDate}
+                       onChange={e => setTradeDate(e.target.value)}
+                       className={inputCls} />
+              </Field>
               {shares && price && Number(shares) > 0 && Number(price) > 0 && (
                 <div className="text-xs text-gray-500 mt-1">
                   → 신규 평균가 {
@@ -302,6 +310,17 @@ export function EditHoldingDialog({
                 <input type="number" inputMode="numeric" value={shares}
                        onChange={e => setShares(e.target.value)}
                        placeholder="예: 5" className={inputCls} />
+              </Field>
+              <Field label="매도가 (기록용·선택)">
+                <input type="number" inputMode="numeric" value={sellPrice}
+                       onChange={e => setSellPrice(e.target.value)}
+                       placeholder={curPrice ? `예: ${curPrice} (비우면 현재가)` : "예: 100000"}
+                       className={inputCls} />
+              </Field>
+              <Field label="매도일 (기본 오늘)">
+                <input type="date" value={tradeDate}
+                       onChange={e => setTradeDate(e.target.value)}
+                       className={inputCls} />
               </Field>
               <button onClick={() => setShares(String(curShares))}
                       className="text-xs text-blue-600 hover:underline">
@@ -334,7 +353,19 @@ export function EditHoldingDialog({
             </div>
           )}
 
-          {/* 그룹 토글 — 클릭 = 추가/제외, [적용] 시 일괄 처리 */}
+          {/* 매수/매도/수정 적용 — 창 유지(매수/매도는 닫지 않음). 그룹 변경과 분리된 버튼 */}
+          <button onClick={() => void applyMode()}
+                  className="w-full py-2 rounded text-sm font-bold text-white transition
+                             bg-blue-600 hover:bg-blue-700">
+            {mode === "buy" ? "➕ 매수 적용 (기록 추가)"
+              : mode === "sell" ? "➖ 매도 적용 (기록 추가)"
+              : "⚙️ 직접수정 적용"}
+          </button>
+
+          {/* 📒 거래 기록 — 매수/매도 바로 아래. 보유와 별개 로그(추가/수정/삭제는 보유 무관) */}
+          <TradeLogSection ticker={stock.ticker} account={stock.account} refreshKey={logKey} />
+
+          {/* 그룹 토글 — 클릭 = 추가/제외, [그룹 적용] 으로 별도 반영 */}
           <div className="border-t pt-3 space-y-1.5">
             <label className="text-xs font-bold text-gray-700 block">
               이 종목이 속한 그룹 (클릭 = 추가/제외)
@@ -396,25 +427,27 @@ export function EditHoldingDialog({
                 </div>
               );
             })()}
+            {/* 그룹 변경만 적용 — 보유 수량/평단과 무관 */}
+            <button onClick={() => void applyGroups()}
+                    className="w-full mt-1 py-1.5 rounded text-sm font-bold transition
+                               bg-gray-700 hover:bg-gray-800 text-white">
+              📁 그룹 변경 적용
+            </button>
           </div>
 
+          {okMsg && (
+            <div className="text-sm text-emerald-700 bg-emerald-50 px-2 py-1 rounded">{okMsg}</div>
+          )}
           {err && (
-            <div className="text-sm text-rose-700 bg-rose-50 px-2 py-1 rounded">
-              {err}
-            </div>
+            <div className="text-sm text-rose-700 bg-rose-50 px-2 py-1 rounded">{err}</div>
           )}
         </div>
 
         <footer className="px-5 py-3 border-t bg-gray-50 flex justify-end gap-2">
           <button onClick={onClose}
-                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
-                             text-gray-700 rounded text-sm">
-            취소
-          </button>
-          <button onClick={() => void apply()}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
-                             text-white rounded text-sm font-bold">
-            적용
+                  className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200
+                             text-gray-700 rounded text-sm font-medium">
+            닫기
           </button>
         </footer>
       </div>

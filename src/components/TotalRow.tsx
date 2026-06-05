@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Stock, Price } from "../types";
-import { formatSigned, signColor, nowKstDateStr } from "../lib/format";
+import { formatSigned, signColor, isTodayKst } from "../lib/format";
 import { getDeposit, getTotalDeposits, setDeposit } from "../lib/deposits";
 
 interface Props {
@@ -29,13 +29,12 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
   let activeCount = 0;
 
   // 오늘 매수 종목은 어제 보유분이 없으니 yesterday 기준=매수단가 (= 당일 손익 반영)
-  const today = nowKstDateStr();
   for (const s of holdings) {
     if (s.shares <= 0) continue;
     const p = prices.get(s.ticker);
     if (!p) continue;
     const cur = p.price || s.avg_price;
-    const base = s.buy_date === today ? s.avg_price : (p.base || cur);
+    const base = isTodayKst(s.buy_date) ? s.avg_price : (p.base || cur);
     totalInvested += s.shares * s.avg_price;
     totalCurrent += cur * s.shares;
     totalYesterday += base * s.shares;

@@ -12,11 +12,24 @@ import {
 interface Peak { ticker: string; price: number; }
 interface ConfigKV { key: string; value: unknown; }
 
+// 거래 기록 — 보유수량/평단과 별개의 로그. 매수/매도 시 자동 추가되며, 로그 CRUD 는 보유에 영향 없음.
+export interface Trade {
+  id: string;
+  ticker: string;
+  account?: string;          // 어느 그룹에서의 거래인지 (참고용)
+  type: "buy" | "sell";
+  date: string;              // YYYY-MM-DD (KST)
+  qty: number;               // 수량
+  amount: number;            // 총액(원) — 단가는 amount/qty
+  createdAt?: number;        // 기록 생성 시각(정렬 보조)
+}
+
 class PortfolioDB extends Dexie {
   holdings!: Table<Stock, string>;       // PK: ticker_account composite (string)
   peaks!: Table<Peak, string>;           // PK: ticker
   config!: Table<ConfigKV, string>;      // PK: key
   memos!: Table<Memo, string>;           // PK: ticker
+  trades!: Table<Trade, string>;         // PK: id (거래 기록)
 
   constructor() {
     super("portfolio_v3");
@@ -32,6 +45,14 @@ class PortfolioDB extends Dexie {
       config: "&key",
       memos: "&ticker",
     });
+    // v3: trades 테이블 추가 (거래 기록)
+    this.version(3).stores({
+      holdings: "&id, ticker, account",
+      peaks: "&ticker",
+      config: "&key",
+      memos: "&ticker",
+      trades: "&id, ticker",
+    });
   }
 }
 
@@ -39,6 +60,34 @@ export const db = new PortfolioDB();
 
 export function holdingId(s: Stock): string {
   return `${s.ticker}__${s.account || ""}`;
+}
+
+// ───────── 거래 기록(trades) — 보유와 별개 로그 ─────────
+export async function getTradesForTicker(ticker: string): Promise<Trade[]> {
+  const rows = await db.trades.where("ticker").equals(ticker).toArray();
+  // 날짜 내림차순(최신 먼저), 동일 날짜는 생성순 역순
+  return rows.sort((a, b) =>
+    b.date.localeCompare(a.date) || ((b.createdAt ?? 0) - (a.createdAt ?? 0)));
+}
+export async function addTrade(t: Omit<Trade, "id" | "createdAt"> & { id?: string }): Promise<string> {
+  const id = t.id ?? `${t.ticker}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  await db.trades.put({ ...t, id, createdAt: Date.now() });
+  return id;
+}
+export async function updateTrade(t: Trade): Promise<void> {
+  await db.trades.put(t);
+}
+export async function deleteTrade(id: string): Promise<void> {
+  await db.trades.delete(id);
+}
+export async function loadAllTrades(): Promise<Trade[]> {
+  return db.trades.toArray();
+}
+export async function replaceAllTrades(trades: Trade[]): Promise<void> {
+  await db.transaction("rw", db.trades, async () => {
+    await db.trades.clear();
+    if (trades.length > 0) await db.trades.bulkAdd(trades);
+  });
 }
 
 export async function loadHoldings(): Promise<Stock[]> {
@@ -328,6 +377,7 @@ export interface ExportPayload {
   holdings: Stock[];
   peaks: Record<string, number>;
   memos?: Memo[];                // 종목별 메모 (optional — 구버전 portfolio.json 호환)
+  trades?: Trade[];             // 거래 기록 (optional — 구버전 호환)
   exported_at: string;
   // 다기기 동기화 설정 — 설정의 모든 항목 포함
   settings?: {
@@ -341,8 +391,8 @@ export interface ExportPayload {
   };
 }
 export async function exportAll(): Promise<ExportPayload> {
-  const [stocks, memos] = await Promise.all([
-    loadHoldings(), loadMemos(),
+  const [stocks, memos, trades] = await Promise.all([
+    loadHoldings(), loadMemos(), loadAllTrades(),
   ]);
   // id 필드 (내부 PK) 제거 + 관심ETF 그룹 제외 (v2 동일 — 미국증시 섹터 매핑용 내부 데이터)
   const cleanHoldings = stocks
@@ -366,6 +416,7 @@ export async function exportAll(): Promise<ExportPayload> {
     holdings: cleanHoldings,
     peaks: peaksObj,
     memos: memosList,
+    trades: trades.slice().sort((a, b) => a.date.localeCompare(b.date)),
     exported_at: new Date().toISOString(),
     settings: {
       independentGroups,

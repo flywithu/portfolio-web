@@ -7,11 +7,10 @@ import {
 } from "../lib/api";
 import {
   bulkRemoveFromGroup, getUserGroups, loadHoldings,
-  upsertHoldingToGroup, syncAllRowsForTicker,
+  upsertHoldingToGroup,
 } from "../lib/db";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { getEffectivePollMs } from "../lib/proxyConfig";
-import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { Stock, Price } from "../types";
 import { signColor, isEtfByName } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
@@ -25,11 +24,6 @@ interface Props {
   initialQuery?: string;
 }
 
-interface RowEdit { shares: string; avgPrice: string; buyDate: string; }
-
-function todayKstStr(): string {
-  return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-}
 
 export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) {
   const [query, setQuery] = useState("");
@@ -61,7 +55,6 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newGroup, setNewGroup] = useState("");
-  const [rowEdits, setRowEdits] = useState<Map<string, RowEdit>>(new Map());
   // 일괄적용 시 함께 추가할 그룹 (마킹/선택)
   const [markedGroups, setMarkedGroups] = useState<Set<string>>(new Set());
   // 새로 생성한(아직 DB 에 없는) 그룹 — 칩 영역에만 추가됨, 마킹은 사용자가 직접
@@ -81,7 +74,6 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     setResults([]);
     setSelected(new Set());
     setNewGroup("");
-    setRowEdits(new Map());
     setMarkedGroups(new Set());
     setPendingGroups([]);
     setStatusMsg("");
@@ -169,16 +161,6 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   }, [markedGroups.size]);
   const downOnBackdropRef = useRef(false);
 
-  const updateRowEdit = (ticker: string, patch: Partial<RowEdit>) => {
-    setRowEdits(prev => {
-      const next = new Map(prev);
-      const cur = next.get(ticker)
-        ?? { shares: "", avgPrice: "", buyDate: todayKstStr() };
-      next.set(ticker, { ...cur, ...patch });
-      return next;
-    });
-  };
-
   const REFRESH_MS = useAdaptiveRefreshMs(getEffectivePollMs());
   const tickers = allStocks.map(r => r.ticker);
   const { data: prices } = useQuery({
@@ -228,44 +210,10 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     enabled: isOpen,
   });
 
-  // ticker → 가장 정보 많은 Stock (shares > 0 우선) — 검색 결과 prefill 용
-  const { data: existingStocks } = useQuery({
-    queryKey: ["existing-stocks", reloadKey],
-    queryFn: async () => {
-      const all = await loadHoldings();
-      const map = new Map<string, Stock>();
-      for (const s of all) {
-        const ex = map.get(s.ticker);
-        if (!ex || (s.shares > 0 && ex.shares === 0)) {
-          map.set(s.ticker, s);
-        }
-      }
-      return map;
-    },
-    enabled: isOpen,
-  });
-
-  // 검색 결과 받으면 기존 보유값 자동 prefill (사용자 입력은 보존)
-  useEffect(() => {
-    if (!existingStocks || allStocks.length === 0) return;
-    setRowEdits(prev => {
-      const next = new Map(prev);
-      for (const r of allStocks) {
-        const ex = existingStocks.get(r.ticker);
-        if (!ex || ex.shares <= 0) continue;
-        const cur = next.get(r.ticker);
-        const empty = !cur || (!cur.shares && !cur.avgPrice && !cur.buyDate);
-        if (empty) {
-          next.set(r.ticker, {
-            shares: String(ex.shares),
-            avgPrice: String(ex.avg_price),
-            buyDate: ex.buy_date || todayKstStr(),
-          });
-        }
-      }
-      return next;
-    });
-  }, [allStocks, existingStocks]);
+  // 기존 보유값 자동 prefill 제거 — 검색에서는 수량/평단 없이(0주 관심) 추가하고,
+  // 매수가/매수일은 추가 후 각 그룹의 "보유 수정 → 매수"에서 입력하도록 한다.
+  // (옛 동작: 기존 보유의 buy_date 까지 복사돼, 다른 그룹에서 재추가 시 오늘 매수가 아닌
+  //  원래 날짜로 잡혀 "오늘" 손익이 어긋나던 문제가 있었음)
 
   // 엔터/검색 버튼 — 디바운스 우회용 즉시 트리거. 라이브 useEffect 와 동일 로직
   const doSearch = async () => {
@@ -404,9 +352,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     setNewGroup("");
   };
 
-  // 일괄적용 — 마킹된 그룹들에만 적용. "보유" 도 일반 그룹과 완전히 동일하게 취급.
-  // 1) 수량 입력된 행: 마킹된 각 그룹에 upsert (account = 그룹명)
-  //    + sync 모드면 같은 ticker 의 모든 기존 row 동일 값으로 sync
+  // 일괄적용 — 마킹된 그룹들에 0주(관심)로만 추가. 이미 있는 종목은 보존(스킵).
+  // 수량/평단가/매수일은 각 그룹의 "보유 수정"에서 입력 (검색 단계에서 입력 안 받음).
   // 2) 수량 미입력 행: 마킹된 그룹들에 0주(관심) 추가
   const bulkApply = async () => {
     if (selected.size === 0) {
@@ -420,66 +367,42 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       return;
     }
     const sel = allStocks.filter(r => selected.has(r.ticker));
-    let syncedTotal = 0;
-    const groupResults: Map<string, { added: number; updated: number }> = new Map();
+    const groupResults: Map<string, { added: number; skipped: number }> = new Map();
 
+    // 검색 추가 = 항상 0주(관심)로만 등록. 수량/평단/매수일은 각 그룹의 "보유 수정"에서 입력.
+    // 이미 그 그룹에 있는 종목은 절대 건드리지 않음 (기존 수량이 0으로 덮어써지지 않도록).
     for (const r of sel) {
-      const ed = rowEdits.get(r.ticker);
-      const sh = Number(ed?.shares ?? "");
-      const ap = Number(ed?.avgPrice ?? "");
-      const hasValues =
-        Number.isFinite(sh) && sh > 0 && Number.isFinite(ap) && ap > 0;
-      const buyDate = ed?.buyDate || todayKstStr();
-
-      if (hasValues) {
-        for (const g of markedGroups) {
-          const stock: Stock = {
-            ticker: r.ticker, name: r.name,
-            shares: sh, avg_price: ap, invested: Math.round(sh * ap),
-            buy_date: buyDate, market: r.market, account: g,
-          };
-          const gres = await upsertHoldingToGroup(stock, g);
-          const cur = groupResults.get(g) ?? { added: 0, updated: 0 };
-          if (gres === "added") cur.added += 1; else cur.updated += 1;
+      const inGroups = existingMap?.get(r.ticker) ?? [];
+      for (const g of markedGroups) {
+        const cur = groupResults.get(g) ?? { added: 0, skipped: 0 };
+        if (inGroups.includes(g)) {
+          // 이미 보유/등록된 그룹 — 기존 값 보존, 스킵
+          cur.skipped += 1;
           groupResults.set(g, cur);
+          continue;
         }
-
-        // sync 모드 — 같은 ticker 의 모든 기존 그룹 row 동일 값으로 sync
-        if (!getIndependentGroupsMode()) {
-          const sync = await syncAllRowsForTicker(r.ticker, {
-            shares: sh, avg_price: ap, buy_date: buyDate,
-            market: r.market, name: r.name,
-          });
-          syncedTotal += sync.updated;
-        }
-      } else {
-        // 수량 미입력 — 마킹된 그룹들에 0주(관심) 추가
-        for (const g of markedGroups) {
-          const stock: Stock = {
-            ticker: r.ticker, name: r.name,
-            shares: 0, avg_price: 0, invested: 0,
-            buy_date: "", market: r.market, account: g,
-          };
-          const gres = await upsertHoldingToGroup(stock, g);
-          const cur = groupResults.get(g) ?? { added: 0, updated: 0 };
-          if (gres === "added") cur.added += 1; else cur.updated += 1;
-          groupResults.set(g, cur);
-        }
+        const stock: Stock = {
+          ticker: r.ticker, name: r.name,
+          shares: 0, avg_price: 0, invested: 0,
+          buy_date: "", market: r.market, account: g,
+        };
+        await upsertHoldingToGroup(stock, g);
+        cur.added += 1;
+        groupResults.set(g, cur);
       }
     }
 
     // 결과 메시지
     const parts: string[] = [];
-    if (syncedTotal > 0) parts.push(`🔄 모든 그룹 sync ${syncedTotal}건`);
-    for (const [g, { added, updated }] of groupResults) {
+    for (const [g, { added, skipped }] of groupResults) {
       const line = [];
       if (added > 0) line.push(`+${added}`);
-      if (updated > 0) line.push(`갱신 ${updated}`);
+      if (skipped > 0) line.push(`이미있음 ${skipped}`);
       parts.push(`"${g}" ${line.join(" · ")}`);
     }
     setStatusMsg(parts.length > 0
       ? `✅ ${parts.join(" · ")}`
-      : "⚠️ 적용된 항목 없음 — 그룹 마킹과 수량 확인");
+      : "⚠️ 적용된 항목 없음 — 그룹 마킹 확인");
     setReloadKey(k => k + 1);
     onAdded();
     if (parts.length > 0) onClose();
@@ -578,7 +501,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
               <div className="text-[11px] text-blue-700 bg-blue-100/60 rounded
                               px-2 py-1 border border-blue-200">
                 💡 처음이시군요! <b>"관심"</b> 그룹이 자동 선택됐어요.
-                수량 입력 없이 그대로 <b>일괄적용</b> 하면 관심종목으로 등록됩니다.
+                체크 후 <b>일괄적용</b> 하면 0주(관심)로 등록돼요. 수량·평단가는 그룹에서 <b>보유 수정</b>으로 입력하세요.
               </div>
             )}
             {groupWarn && (
@@ -700,9 +623,6 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
                             : []}
                           checked={isChecked}
                           onToggle={() => toggleOne(r.ticker)}
-                          edit={rowEdits.get(r.ticker)
-                                 ?? { shares: "", avgPrice: "", buyDate: todayKstStr() }}
-                          onEditChange={p => updateRowEdit(r.ticker, p)}
                           onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)}
                           onOpenEtf={() => setEtfDialog({ ticker: r.ticker, name: r.name })} />
                       );
@@ -736,9 +656,6 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
                           : []}
                         checked={isChecked}
                         onToggle={() => toggleOne(r.ticker)}
-                        edit={rowEdits.get(r.ticker)
-                               ?? { shares: "", avgPrice: "", buyDate: todayKstStr() }}
-                        onEditChange={p => updateRowEdit(r.ticker, p)}
                         onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)}
                         onOpenEtf={() => setEtfDialog({ ticker: r.ticker, name: r.name })} />
                     );
@@ -753,8 +670,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
         {allStocks.length > 0 && (
           <footer className="px-5 py-3 border-t bg-gray-50 flex items-center gap-2">
             <span className="text-xs text-gray-600">
-              마킹된 그룹{markedGroups.size > 0 && ` (${markedGroups.size}개)`}에만 추가
-              <span className="ml-1 text-blue-700">— 수량 입력 시 sync 모드면 동일 ticker 모든 그룹에 반영</span>
+              마킹된 그룹{markedGroups.size > 0 && ` (${markedGroups.size}개)`}에만 0주(관심)로 추가
+              <span className="ml-1 text-blue-700">— 이미 있는 종목은 건드리지 않아요 (수량 보존)</span>
             </span>
             <button onClick={() => void bulkApply()}
                     disabled={noneChecked}
@@ -785,15 +702,13 @@ interface RowProps {
   pending: string[];      // 마킹된 (아직 적용 안 된) 그룹들
   checked: boolean;
   onToggle: () => void;
-  edit: RowEdit;
-  onEditChange: (patch: Partial<RowEdit>) => void;
   onRemoveGroup: (group: string) => void;
   onOpenEtf: () => void;  // ETF 책갈피 클릭 시 구성종목 모달 열기
 }
 
 function SearchResultRow({
   item, price, existing, pending, checked,
-  onToggle, edit, onEditChange, onRemoveGroup, onOpenEtf,
+  onToggle, onRemoveGroup, onOpenEtf,
 }: RowProps) {
   const dayPct = price && price.base > 0
     ? ((price.price - price.base) / price.base) * 100 : undefined;
@@ -874,27 +789,6 @@ function SearchResultRow({
             )}
           </span>
         )}
-      </div>
-      {/* 행별 입력 (일괄적용 시 모든 그룹에 동일 적용) */}
-      <div className="mt-1.5 flex items-center gap-2 text-xs ml-6 flex-wrap">
-        <label className="flex items-center gap-1">
-          <span className="text-gray-500">수량</span>
-          <input type="number" inputMode="numeric" placeholder="0"
-                 value={edit.shares}
-                 onChange={e => onEditChange({ shares: e.target.value })}
-                 onClick={e => e.stopPropagation()}
-                 className="border rounded px-1.5 py-0.5 w-20 text-right
-                            tabular-nums focus:outline-none focus:border-blue-500" />
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-gray-500">평단가</span>
-          <input type="number" inputMode="numeric" placeholder="0"
-                 value={edit.avgPrice}
-                 onChange={e => onEditChange({ avgPrice: e.target.value })}
-                 onClick={e => e.stopPropagation()}
-                 className="border rounded px-1.5 py-0.5 w-24 text-right
-                            tabular-nums focus:outline-none focus:border-blue-500" />
-        </label>
       </div>
     </div>
   );

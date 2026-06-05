@@ -34,6 +34,13 @@ export function nowKstDateStr(): string {
   return nowKst().toISOString().slice(0, 10);
 }
 
+// buy_date 가 오늘(KST)인지 — 'YYYY-MM-DD' / 'YYYYMMDD'(임포트 데이터) 양쪽 형식 허용.
+// 형식 불일치로 "오늘 매수"가 안 잡혀 손익이 어제종가 기준으로 잡히던 문제 방지.
+export function isTodayKst(dateStr?: string): boolean {
+  if (!dateStr) return false;
+  return dateStr.replace(/\D/g, "") === nowKstDateStr().replace(/-/g, "");
+}
+
 // KST 시(0~23)
 export function nowKstHour(): number {
   return nowKst().getUTCHours();

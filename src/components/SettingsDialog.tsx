@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Settings, Cpu } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings, replaceAllMemos,
+  exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings, replaceAllMemos, replaceAllTrades,
 } from "../lib/db";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -273,6 +273,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
       if (result.kind === "holdings" || result.kind === "combined") {
         applyImportedSettings(result.settings);
         if (result.memos) await replaceAllMemos(result.memos);
+        if (result.trades) await replaceAllTrades(result.trades);
       }
       setStatusMsg("💾 불러오기 완료");
       onChanged();

@@ -18,7 +18,7 @@ import { Menu } from "lucide-react";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
-import { nowKstDateStr, isEtfByName, signColor, formatSigned } from "./lib/format";
+import { isTodayKst, isEtfByName, signColor, formatSigned } from "./lib/format";
 import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FeedbackDialog } from "./components/FeedbackDialog";
@@ -41,7 +41,6 @@ import {
   type SortKey, type SortDirection,
 } from "./lib/sortHoldings";
 import { SortSelector, makeSortHandlers } from "./components/SortSelector";
-import { AuxBatchToggle } from "./components/AuxBatchToggle";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
@@ -296,14 +295,13 @@ function Dashboard() {
   // 브라우저 탭 제목 — 전체금액 → 전체% → 오늘금액 → 오늘% 순서로 순환 (좁은 탭에서도 안 잘림)
   const titlePartsRef = useRef<string[]>([]);
   useEffect(() => {
-    const today = nowKstDateStr();
     let invested = 0, cur = 0, yest = 0;
     for (const s of visible) {
       if (s.shares <= 0) continue;
       const p = priceMap.get(s.ticker);
       if (!p) continue;
       const c = p.price || s.avg_price;
-      const base = s.buy_date === today ? s.avg_price : (p.base || c);
+      const base = isTodayKst(s.buy_date) ? s.avg_price : (p.base || c);
       invested += s.avg_price * s.shares;
       cur += c * s.shares;
       yest += base * s.shares;
@@ -641,7 +639,6 @@ function Dashboard() {
                                  bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
                 {codesCopied ? "✓ 복사됨" : "📋 코드 복사"}
               </button>
-              <AuxBatchToggle />
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />
@@ -696,14 +693,13 @@ function Dashboard() {
                 : "기타";
               const byCat: Record<string, Stock[]> = { KOSPI: [], KOSDAQ: [], ETF: [], 기타: [] };
               for (const s of shown) byCat[catOf(s)].push(s);
-              const today = nowKstDateStr();
               const subtotal = (items: Stock[]) => {
                 let invested = 0, current = 0, yesterday = 0;
                 for (const s of items) {
                   if (!(s.shares > 0)) continue;
                   const p = priceMap.get(s.ticker);
                   const cur = p?.price || s.avg_price;
-                  const base = s.buy_date === today ? s.avg_price : (p?.base || cur);
+                  const base = isTodayKst(s.buy_date) ? s.avg_price : (p?.base || cur);
                   invested += s.shares * s.avg_price;
                   current += cur * s.shares;
                   yesterday += base * s.shares;

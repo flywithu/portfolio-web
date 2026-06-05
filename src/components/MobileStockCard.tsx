@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, nowKstDateStr } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, isTodayKst } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -694,7 +694,7 @@ export function MobileStockCard({
         {/* 오늘 (보유만) — 보유분 어제대비 변동.
             ※ 오늘 매수 종목은 어제 보유분이 없으므로 기준=매수단가(avg_price) → 전체와 동일 */}
         {hasPosition && (() => {
-          const boughtToday = stock.buy_date === nowKstDateStr();
+          const boughtToday = isTodayKst(stock.buy_date);
           const baseForHold = boughtToday ? stock.avg_price : price.base;
           const holdDayDiff = baseForHold > 0 ? price.price - baseForHold : 0;
           const holdDayPct  = baseForHold > 0 ? (holdDayDiff / baseForHold) * 100 : 0;

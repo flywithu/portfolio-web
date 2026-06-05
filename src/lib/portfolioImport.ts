@@ -2,6 +2,7 @@
 // SettingsDialog (데스크톱) + MobileSimpleView (모바일) 공통 사용.
 
 import type { Stock, Memo } from "../types";
+import type { Trade } from "./db";
 import type { GroupFolder } from "./groupFolders";
 import type { TabVisibility } from "./tabVisibility";
 
@@ -17,11 +18,29 @@ export interface ImportSettings {
 }
 
 export type Detected =
-  | { kind: "holdings"; stocks: Stock[]; settings?: ImportSettings; memos?: Memo[] }
+  | { kind: "holdings"; stocks: Stock[]; settings?: ImportSettings; memos?: Memo[]; trades?: Trade[] }
   | { kind: "peaks"; peaks: Record<string, number> }
-  | { kind: "combined"; stocks: Stock[]; peaks: Record<string, number>; settings?: ImportSettings; memos?: Memo[] }
+  | { kind: "combined"; stocks: Stock[]; peaks: Record<string, number>; settings?: ImportSettings; memos?: Memo[]; trades?: Trade[] }
   | { kind: "error"; error: string }
   | null;
+
+// obj.trades 추출 — 거래 기록. 형태만 가볍게 검증.
+function parseTrades(obj: Record<string, unknown>): Trade[] | undefined {
+  if (!Array.isArray(obj.trades)) return undefined;
+  const out: Trade[] = [];
+  for (const t of obj.trades) {
+    if (t && typeof t === "object") {
+      const x = t as Partial<Trade>;
+      if (typeof x.id === "string" && typeof x.ticker === "string"
+          && (x.type === "buy" || x.type === "sell")
+          && typeof x.date === "string"
+          && typeof x.qty === "number" && typeof x.amount === "number") {
+        out.push(x as Trade);
+      }
+    }
+  }
+  return out;
+}
 
 // obj.memos 추출 — 상세 검증은 replaceAllMemos 가 수행하므로 형태만 가볍게 확인.
 // 배열이 아니면 undefined (불러오기 시 기존 메모 보존).
@@ -85,10 +104,11 @@ export function detectPortfolioJson(raw: string): Detected {
     if (typeof stocks === "string") return { kind: "error", error: stocks };
     const settings = parseSettings(obj);
     const memos = parseMemos(obj);
+    const trades = parseTrades(obj);
     if (obj.peaks && typeof obj.peaks === "object" && !Array.isArray(obj.peaks)) {
-      return { kind: "combined", stocks, peaks: obj.peaks as Record<string, number>, settings, memos };
+      return { kind: "combined", stocks, peaks: obj.peaks as Record<string, number>, settings, memos, trades };
     }
-    return { kind: "holdings", stocks, settings, memos };
+    return { kind: "holdings", stocks, settings, memos, trades };
   }
   // 패턴 2: peaks 단독 (모든 키 6자리, 값 number)
   const entries = Object.entries(obj);

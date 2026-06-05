@@ -5,7 +5,6 @@ import {
   type SortKey, type SortDirection,
 } from "../lib/sortHoldings";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
-import { AuxBatchToggle } from "./AuxBatchToggle";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures,
   fetchKrRegularPrices, verifyKrMarkets,
@@ -16,7 +15,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, nowKstDateStr, isEtfByName, signColor, formatSigned } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -55,7 +54,7 @@ import { NewVersionToast } from "./NewVersionToast";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadMemos,
-  deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup, applyImportedSettings, replaceAllMemos,
+  deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup, applyImportedSettings, replaceAllMemos, replaceAllTrades,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
@@ -384,14 +383,13 @@ export function MobileSimpleView() {
   // 브라우저 탭 제목 — 전체금액 → 전체% → 오늘금액 → 오늘% 순서로 순환
   const titlePartsRef = useRef<string[]>([]);
   useEffect(() => {
-    const today = nowKstDateStr();
     let invested = 0, cur = 0, yest = 0;
     for (const s of groupHoldingsUnsorted) {
       if (s.shares <= 0) continue;
       const p = groupPriceMap.get(s.ticker);
       if (!p) continue;
       const c = p.price || s.avg_price;
-      const base = s.buy_date === today ? s.avg_price : (p.base || c);
+      const base = isTodayKst(s.buy_date) ? s.avg_price : (p.base || c);
       invested += s.avg_price * s.shares;
       cur += c * s.shares;
       yest += base * s.shares;
@@ -834,7 +832,7 @@ export function MobileSimpleView() {
       {/* ─── 그룹 컨텐츠 (시스템 탭 외) ─── */}
       {!isSystemTab && (
         <>
-          {/* 정렬 옵션 + 추가지표 일괄 토글 */}
+          {/* 정렬 옵션 + 보기 모드 */}
           {groupHoldings.length > 0 && (
             <div className="flex items-center justify-end gap-2 px-2 pt-2">
               {/* 보기 모드 — 일괄 / 코스피·코스닥 분리 (좌측) */}
@@ -845,7 +843,6 @@ export function MobileSimpleView() {
                 <option value="all">일괄보기</option>
                 <option value="split">코스피/코스닥분리</option>
               </select>
-              <AuxBatchToggle short />
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />
@@ -908,14 +905,13 @@ export function MobileSimpleView() {
                 : "기타";
               const byCat: Record<string, Stock[]> = { KOSPI: [], KOSDAQ: [], ETF: [], 기타: [] };
               for (const s of shown) byCat[catOf(s)].push(s);
-              const today = nowKstDateStr();
               const subtotal = (items: Stock[]) => {
                 let invested = 0, current = 0, yesterday = 0;
                 for (const s of items) {
                   if (!(s.shares > 0)) continue;
                   const p = groupPriceMap.get(s.ticker);
                   const cur = p?.price || s.avg_price;
-                  const base = s.buy_date === today ? s.avg_price : (p?.base || cur);
+                  const base = isTodayKst(s.buy_date) ? s.avg_price : (p?.base || cur);
                   invested += s.shares * s.avg_price; current += cur * s.shares; yesterday += base * s.shares;
                 }
                 const pnl = current - invested;
@@ -1475,6 +1471,7 @@ function SettingsModal({
         if (parsed.kind === "holdings" || parsed.kind === "combined") {
           applyImportedSettings(parsed.settings);
           if (parsed.memos) await replaceAllMemos(parsed.memos);
+          if (parsed.trades) await replaceAllTrades(parsed.trades);
         }
         onClose();
         location.reload();
