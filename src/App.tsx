@@ -525,10 +525,10 @@ function Dashboard() {
             </button>
             <button
               onClick={() => setDonateOpen(true)}
-              title="개발자 후원하기 (카카오페이)"
+              title="개발지원 (카카오페이)"
               className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
                          text-gray-700 rounded text-sm">
-              후원하기
+              개발지원
             </button>
             <button
               onClick={() => setSettingsOpen(true)}

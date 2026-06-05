@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-06-05T11:29:15.437Z",
+  "lastUpdated": "2026-06-05T11:48:55.232Z",
   "activeFeatures": [
     "portfolio-web",
     "proxy",
@@ -21,9 +21,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-01T03:35:27.330Z",
-        "lastUpdated": "2026-06-05T11:29:15.437Z"
+        "lastUpdated": "2026-06-05T11:48:55.232Z"
       },
-      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/App.tsx"
+      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/components/DonateDialog.tsx"
     },
     "proxy": {
       "phase": "do",
@@ -112,7 +112,7 @@
   "session": {
     "startedAt": "2026-05-01T03:34:12.578Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-06-05T11:29:15.437Z"
+    "lastActivity": "2026-06-05T11:48:55.232Z"
   },
   "history": [
     {
@@ -26313,6 +26313,90 @@
     },
     {
       "timestamp": "2026-06-05T11:29:15.437Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:40:52.129Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:41:00.571Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:41:05.838Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:41:19.436Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:41:25.732Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:41:37.682Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:41:48.654Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:42:01.786Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:43:47.180Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:43:52.053Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:43:57.120Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:47:28.034Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:48:46.819Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-05T11:48:55.232Z",
       "feature": "portfolio-web",
       "phase": "do",
       "action": "updated"

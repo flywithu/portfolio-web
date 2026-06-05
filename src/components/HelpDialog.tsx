@@ -29,9 +29,9 @@ const PC_STEPS: Step[] = [
           의견·건의는{" "}
           <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
                            bg-emerald-50 text-emerald-700 border border-emerald-200">질문하기</span>
-          , 운영비 후원은{" "}
+          , 운영비 지원은{" "}
           <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                           bg-gray-100 text-gray-700">후원하기</span>
+                           bg-gray-100 text-gray-700">개발지원</span>
           {" "}로 부탁드리며, 프록시·자동 백업·갱신 주기 등 환경 설정은{" "}
           <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
                            bg-gray-100 text-gray-700">설정</span>
@@ -43,7 +43,7 @@ const PC_STEPS: Step[] = [
       </>
     ),
     image: "./help/quickstart-1-header.png",
-    alt: "헤더 — 검색/주식추가·사용법·질문하기·후원하기·설정 버튼",
+    alt: "헤더 — 검색/주식추가·사용법·질문하기·개발지원·설정 버튼",
   },
   {
     title: "2. 종목 검색",
@@ -155,9 +155,9 @@ const MOBILE_STEPS: Step[] = [
           의견·건의는{" "}
           <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
                            bg-emerald-50 text-emerald-700 border border-emerald-200">질문</span>
-          , 운영비 후원은{" "}
+          , 운영비 지원은{" "}
           <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                           bg-gray-100 text-gray-700 border border-gray-200">후원</span>
+                           bg-gray-100 text-gray-700 border border-gray-200">개발지원</span>
           {" "}으로 부탁드리며, 환경(프록시·자동 백업·갱신 주기) 변경은{" "}
           <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
                            bg-gray-100 text-gray-700 border border-gray-200">설정</span>
