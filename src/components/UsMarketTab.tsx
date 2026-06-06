@@ -263,7 +263,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
               const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
               const isFuture = p.symbol.endsWith("=F") || p.symbol === "^KS200N" || p.symbol === "^KQ150N";
               const bg = sleeping && dimEnabled
-                ? "bg-gray-100 border-gray-300"
+                ? "bg-gray-100 border-transparent"
                 : cdiff > 0 ? "bg-rose-50 border-rose-200"
                 : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
                 : "bg-white border-gray-200";
