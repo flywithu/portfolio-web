@@ -42,11 +42,11 @@ function quoteUrl(symbol: string): string {
   // 야간선물 — yasun.gg
   if (symbol === "^KS200N") return "https://yasun.gg/kospi200";
   if (symbol === "^KQ150N") return "https://yasun.gg/kosdaq150";
+  // 명시 매핑 우선 (VKOSPI=investing 등) — krMatch 보다 먼저 (VKOSPI 가 6자리 영숫자라 토스로 오인되던 문제)
+  if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
   const krMatch = /^([\dA-Za-z]{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
-  // 지수/환율/미국 ETF 토스 매핑 (lib/toss.ts 공통 맵)
-  if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 import { RefreshIndicator } from "./RefreshIndicator";
