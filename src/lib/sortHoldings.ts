@@ -95,20 +95,31 @@ interface SortContext {
 // 정렬 함수 (대부분 ascending — direction 적용은 호출 측에서)
 type CmpFn = (a: Stock, b: Stock, ctx: SortContext) => number;
 
+// 표시와 동일 — 거래일엔 base 기준, 비거래일(자정 롤오버로 dayDiff=0)이면 prevClose(마지막 거래일) 기준 유지.
+function dayDiffUnit(p?: Price): number {
+  if (!p) return 0;
+  const d = p.price - p.base;
+  return d !== 0 ? d : p.price - (p.prevClose || p.price);
+}
+function dayPctUnit(p?: Price): number {
+  if (!p) return 0;
+  const d = p.price - p.base;
+  if (d !== 0) return p.base > 0 ? d / p.base : 0;
+  return p.prevClose > 0 ? (p.price - p.prevClose) / p.prevClose : 0;
+}
+
 const COMPARATORS: Record<SortKey, CmpFn> = {
   dayChange: (a, b, ctx) => {
-    const pa = ctx.prices.get(a.ticker);
-    const pb = ctx.prices.get(b.ticker);
-    const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : 0;
-    const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : 0;
+    const pctA = dayPctUnit(ctx.prices.get(a.ticker));
+    const pctB = dayPctUnit(ctx.prices.get(b.ticker));
     return pctA - pctB;
   },
   dayPnl: (a, b, ctx) => {
     // 오늘 손익(원) = shares × (현재가 - 기준가). 관심종목(shares=0)은 0.
     const pa = ctx.prices.get(a.ticker);
     const pb = ctx.prices.get(b.ticker);
-    const krwA = pa ? (pa.price - pa.base) * a.shares : 0;
-    const krwB = pb ? (pb.price - pb.base) * b.shares : 0;
+    const krwA = dayDiffUnit(pa) * a.shares;
+    const krwB = dayDiffUnit(pb) * b.shares;
     return krwA - krwB;
   },
   totalPnl: (a, b, ctx) => {

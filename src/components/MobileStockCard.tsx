@@ -129,6 +129,10 @@ export function MobileStockCard({
   // (sparkline 색은 차트 자체 추세로 별도 자동 판정)
   const colorDiff = price.price - (price.prevClose || price.price);
   const colorPct = price.prevClose > 0 ? (colorDiff / price.prevClose) * 100 : 0;
+  // 표시용 오늘 변동 — 거래일엔 base==prevClose 라 dayDiff==colorDiff.
+  // 비거래일(자정 롤오버)엔 base 가 현재가로 리셋돼 dayDiff=0 → 마지막 거래일 변동(colorDiff)으로 '어제%' 유지.
+  const dispDiff = dayDiff !== 0 ? dayDiff : colorDiff;
+  const dispPct = dayDiff !== 0 ? dayPct : colorPct;
   // 기대가 도달 — 현재가가 기대가까지 떨어졌으면 violet 으로 강조 (sparkline 선 색과 동일)
   const memoEntryReached =
     memo?.entryPrice != null && Number.isFinite(memo.entryPrice) &&
@@ -508,11 +512,11 @@ export function MobileStockCard({
                   </span>
                 )}
               </div>
-              <div className={`flex items-baseline gap-1 pl-2 font-bold ${signColor(dayDiff)}`}>
+              <div className={`flex items-baseline gap-1 pl-2 font-bold ${signColor(dispDiff)}`}>
                 <span className="text-lg leading-tight bg-yellow-100 rounded px-1">
-                  {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
+                  {dispPct >= 0 ? "+" : ""}{dispPct.toFixed(2)}%
                 </span>
-                <span className="text-xs font-normal">({formatSigned(dayDiff)}원)</span>
+                <span className="text-xs font-normal">({formatSigned(dispDiff)}원)</span>
               </div>
             </div>
           );
