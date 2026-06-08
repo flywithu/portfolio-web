@@ -2,7 +2,7 @@ import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getEnabledPersonalProxies } from "./proxyConfig";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
-import { isKrNightSession, krFuturesName } from "./format";
+import { isKrNightSession, krFuturesName, isKrFuturesTradingNow } from "./format";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
 cleanupOldProxyCalls();
@@ -1410,6 +1410,23 @@ async function fetchYasunCandles(real: string, session: string): Promise<YasunCa
   return Array.isArray(data) ? (data as YasunCandle[]) : [];
 }
 
+// yasun.gg 페이지가 실제로 쓰는 실시간 시세 피드 — 전 종목 1회 응답.
+// 기준점(전일 정산가)을 yasun 과 동일하게 맞추기 위해 changePercent/change/price 를 그대로 사용.
+//   (캔들 first.open 기준은 야간 세션 시작가라 yasun 표시값과 어긋남)
+interface YasunPrice { symbol: string; price: number; change: number; changePercent: number }
+async function fetchYasunQuote(real: string): Promise<YasunPrice | null> {
+  try {
+    const resp = await fetchProxied("https://yasun.gg/api/prices");
+    if (!resp.ok) return null;
+    const arr = await resp.json();
+    if (!Array.isArray(arr)) return null;
+    const hit = (arr as YasunPrice[]).find(x => x.symbol === real);
+    return hit && typeof hit.price === "number" ? hit : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchYasunNightFutures(virtualSymbol: string): Promise<YasunNightData | null> {
   const real = YASUN_SYMBOL_MAP[virtualSymbol];
   if (!real) return null;
@@ -1419,24 +1436,45 @@ export async function fetchYasunNightFutures(virtualSymbol: string): Promise<Yas
   const primary = night ? "night" : "main";
   const fallback = night ? "main" : "night";
   try {
-    let allCandles = await fetchYasunCandles(real, primary);
+    // 시세(quote)와 캔들(sparkline)을 병렬 fetch — quote 가 가격/변동률 출처, 캔들은 스파크라인 전용.
+    const [quote, candlesPrimary] = await Promise.all([
+      fetchYasunQuote(real),
+      fetchYasunCandles(real, primary),
+    ]);
+    let allCandles = candlesPrimary;
     if (allCandles.length === 0) allCandles = await fetchYasunCandles(real, fallback);
-    if (allCandles.length === 0) return null;
-    // 응답에 여러 세션이 섞여 있을 수 있음 → 가장 큰 시간 갭(>30분) 뒤를 현재 세션 시작으로.
-    let sessionStart = 0;
-    for (let i = allCandles.length - 1; i > 0; i--) {
-      if (allCandles[i].time - allCandles[i - 1].time > 30 * 60) {
-        sessionStart = i;
-        break;
+
+    // 캔들에서 현재 세션만 추출 — 응답에 여러 세션이 섞일 수 있어 가장 큰 시간 갭(>30분) 뒤부터.
+    let candles = allCandles;
+    if (allCandles.length > 0) {
+      let sessionStart = 0;
+      for (let i = allCandles.length - 1; i > 0; i--) {
+        if (allCandles[i].time - allCandles[i - 1].time > 30 * 60) {
+          sessionStart = i;
+          break;
+        }
       }
+      candles = allCandles.slice(sessionStart);
     }
-    const candles = allCandles.slice(sessionStart);
-    const first = candles[0];
-    const last = candles[candles.length - 1];
-    const price = last.close;
-    const base = first.open;     // 현재 야간 세션 시작가 = 정규장 종가 근사
-    const diff = price - base;
-    const pct = base > 0 ? (diff / base) * 100 : 0;
+    const last = candles.length > 0 ? candles[candles.length - 1] : undefined;
+
+    // 가격/변동률: quote 우선(yasun 표시값과 동일), 없으면 캔들 first.open 기준으로 폴백.
+    let price: number, diff: number, pct: number;
+    if (quote) {
+      price = quote.price;
+      pct = quote.changePercent;
+      diff = quote.change;
+    } else {
+      if (!last) return null;
+      const base = candles[0].open;   // 폴백: 세션 시작가 = 정규장 종가 근사
+      price = last.close;
+      diff = price - base;
+      pct = base > 0 ? (diff / base) * 100 : 0;
+    }
+    const base = price - diff;
+    const lastTime = last ? last.time : Math.floor(Date.now() / 1000);
+    // 실제 거래중이면 REGULAR(흐림 제외), 개장 대기·마감 구간이면 CLOSED(흐림 + '마감' 책갈피).
+    const trading = isKrFuturesTradingNow();
     return {
       index: {
         symbol: virtualSymbol,
@@ -1446,9 +1484,9 @@ export async function fetchYasunNightFutures(virtualSymbol: string): Promise<Yas
         prevClose: base,
         diff,
         pct,
-        tradeDate: new Date(last.time * 1000).toISOString().slice(0, 10),
-        regularMarketTime: last.time,
-        marketState: "REGULAR",      // 야간이지만 거래중이라 흐림 처리 X
+        tradeDate: new Date(lastTime * 1000).toISOString().slice(0, 10),
+        regularMarketTime: lastTime,
+        marketState: trading ? "REGULAR" : "CLOSED",
         regularPrice: price,
         regularPct: pct,
       },
@@ -1816,6 +1854,31 @@ export async function fetchInvestingPriceHistory(symbol: string): Promise<PriceP
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// 토스 원달러 환율 — base(당일 09:00 고시 기준가) + close(실시간 현재가).
+//   Yahoo/yasun forex(KRW=X)는 기준점을 새벽 FX 롤오버(~02시 KST)로 리셋해 변동률이 ~0%로 어긋남.
+//   토스는 '어제 종가' 기준이라 토스 환율 페이지 표시값(-1.x%)과 일치.
+export async function fetchTossExchangeRate(): Promise<UsIndex | null> {
+  const url = "https://wts-info-api.tossinvest.com/api/v1/product/exchange-rate?buyCurrency=USD&sellCurrency=KRW";
+  try {
+    const resp = await fetchProxied(url);
+    if (!resp.ok) return null;
+    const data = await resp.json() as { result?: { base?: number; close?: number } };
+    const r = data.result;
+    if (!r || typeof r.close !== "number" || typeof r.base !== "number" || r.base <= 0) return null;
+    const price = r.close, base = r.base;
+    const diff = price - base;
+    return {
+      symbol: "KRW=X", name: "USD/KRW",
+      price, prev: base, prevClose: base,
+      diff, pct: (diff / base) * 100, currency: "KRW",
+      tradeDate: new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10),
+      marketState: "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 // 다수 심볼 한꺼번에 — 병렬 fetch.
 // 정책: 현재가 = 토스(가능하면), 차트·정규장 마감가(regularPrice/마감 책갈피) = Yahoo.
 //   - Yahoo 를 모든 심볼에 대해 받아 베이스로 사용 (regularPrice/marketState/prevClose 확보)
@@ -1834,8 +1897,9 @@ export async function fetchYahooBatch(
     .filter(p => TOSS_US_STOCK_CODE[p.symbol])
     .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
   const investItems = pairs.filter(p => isInvestingIndex(p.symbol));
+  const hasFx = pairs.some(p => p.symbol === "KRW=X");   // 원달러 환율은 토스 FX 로 교정
 
-  const [ksMap, idxResults, usMap, investResults, yahooResults] = await Promise.all([
+  const [ksMap, idxResults, usMap, investResults, fxResult, yahooResults] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
           .then(prices => {
@@ -1862,6 +1926,7 @@ export async function fetchYahooBatch(
     Promise.all(tossIdxItems.map(p => fetchTossIndexPrice(p.symbol, p.name))),
     fetchTossUsIndexMap(tossUsItems),
     Promise.all(investItems.map(p => fetchInvestingIndexPrice(p.symbol, p.name))),
+    hasFx ? fetchTossExchangeRate() : Promise.resolve(null),
     // 모든 심볼 Yahoo — 베이스(regularPrice/marketState/prevClose) + 토스 실패 시 fallback
     Promise.all(pairs.map(p => fetchYahooQuote(p.symbol, p.name))),
   ]);
@@ -1892,6 +1957,7 @@ export async function fetchYahooBatch(
   for (const r of idxResults) { if (r) applyToss(r.symbol, r); }
   for (const [sym, t] of usMap) applyToss(sym, t);
   for (const r of investResults) { if (r) applyToss(r.symbol, r); }
+  if (fxResult) applyToss(fxResult.symbol, fxResult);   // 원달러 환율 — 토스 base 기준 교정
 
   return merged;
 }

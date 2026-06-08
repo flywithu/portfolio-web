@@ -204,12 +204,19 @@ export function isUsExtendedTradingOpen(): boolean {
   return true;
 }
 
-// yasun.gg 한국 선물 — 현재 KST 시각 기준 야간 세션(18:00~05:00) 여부.
-//   그 외 시간대(주간 09:00~15:45 포함)는 주간선물(main 세션)로 간주.
+// yasun.gg 한국 선물 — 현재 표시 데이터가 '야간 세션' 소속인지.
+//   세션 개장 시각 기준으로 소유권 전환: 야간(18:00 개장)은 다음날 주간 개장(09:00) 전까지,
+//   주간(09:00 개장)은 야간 개장(18:00) 전까지. → 마감 대기 구간도 직전 세션 라벨 유지.
+//   (예: 05:00~09:00 = 야간 마감 후 주간 대기 → '야간'. 15:45~18:00 = 주간 마감 후 야간 대기 → '주간')
 export function isKrNightSession(): boolean {
   const t = nowInTz("Asia/Seoul");
   const hhmm = t.hour * 60 + t.minute;
-  return hhmm >= 18 * 60 || hhmm < 5 * 60;
+  return hhmm >= 18 * 60 || hhmm < 9 * 60;
+}
+// yasun 한국 선물 — 현재 '실제 거래중'(주간 09:00~15:45 / 야간 18:00~05:00)인지.
+//   그 외(개장 대기·마감) 구간은 흐림 처리 대상. KR_NIGHT 의 정규장 판정과 동일.
+export function isKrFuturesTradingNow(): boolean {
+  return isMarketOpen("KR_NIGHT");
 }
 // KR 선물 가상심볼(^KS200N/^KQ150N) → 현재 세션 반영 표시명 (주간/야간선물)
 export function krFuturesName(symbol: string): string {

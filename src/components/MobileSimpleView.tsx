@@ -1187,9 +1187,10 @@ export function MobileSimpleView() {
               const inSession = !!(q?.marketState
                   && ["REGULAR", "PRE", "POST", "POSTPOST", "PREPRE"].includes(q.marketState))
                 || (marketOfSymbol(p.symbol) === "US" && isUsExtendedTradingOpen());
-              // 한국 야간선물(KR_NIGHT)은 주간 세션에 마지막 야간 마감값을 그대로 보여줌 → 흐림 제외
+              // 한국 야간선물(KR_NIGHT) — 거래중(REGULAR)이면 inSession 으로 흐림 제외,
+              //   개장 대기·마감 구간(marketState CLOSED + sleeping)이면 다른 종목과 동일하게 흐림.
               const isNightFut = marketOfSymbol(p.symbol) === "KR_NIGHT";
-              const dimNow = dimEnabled && !inSession && !isNightFut && (sleeping || isClosed);
+              const dimNow = dimEnabled && !inSession && (sleeping || isClosed);
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)

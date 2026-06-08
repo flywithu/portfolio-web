@@ -25,7 +25,7 @@ export const TOSS_US_CODE: Record<string, string> = {
 };
 
 export const US_PAIRS: Pair[] = [
-  // Tier 0: 핵심 대시보드 — 데스크탑 T0_GROUPS 순서와 일치 (모바일 단일 컬럼 같은 순서로 노출)
+  // Tier 0: 핵심 대시보드 — 데스크탑은 UsMarketTab T0_SECTIONS(한국시장 영향 관계) 기준으로 그룹 표시
   // 행 1 — 한국 지수 (맨 위)
   { symbol: "^KS11",    name: "KOSPI",       desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KS200N",  name: "코스피200 야간선물", desc: "yasun.gg · 18:00~05:00 KST", tier: "T0", sector: "dashboard", direction: "direct" },

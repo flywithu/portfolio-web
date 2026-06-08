@@ -110,17 +110,36 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
 
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
-  // T0 그룹 — 비슷한 지수끼리 묶어서 줄별로 표시
-  const T0_GROUPS: string[][] = [
-    ["^KS11", "^KQ11", "069500.KS", "VKOSPI", "^VIX", "EWY"],                          // 1행 — 한국 지수 + KODEX 200 + 공포(VKOSPI·VIX) + 외국인 투심
-    ["^KS200N", "^KQ150N", "KRW=X", "DX-Y.NYB", "^FVX", "^TNX", "^TYX"],               // 2행 — KOSPI/KOSDAQ 야간선물 + 환율 + 매크로 + 미국 국채(5/10/30Y)
-    ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],        // 원자재 + 비트코인
-    ["^IXIC", "NQ=F", "^GSPC", "ES=F", "^DJI", "RTY=F"], // 미국 지수·선물 + 다우 + 러셀선물 (필반은 반도체 탭으로)
-    ["SPY", "QQQ", "DIA", "IWM", "VTI"],                          // 미국 대표 ETF
-    ["SMH", "PAVE", "LIT", "XBI",
-     "KBE", "ITA", "XLV", "KOID"],                                // 미국 섹터 ETF (KOID=피지컬AI, KODEX 위)
-    ["091160.KS", "117700.KS", "305720.KS", "244580.KS",
-     "091170.KS", "449450.KS", "266420.KS", "0190C0.KS"],          // 한국 섹터 ETF (KODEX + K-방산 + RISE 피지컬AI)
+  // T0 — "한국시장 영향 관계" 기준 그룹. PC 는 한 화면에 라벨 헤더와 함께 전부 표시.
+  //   (모바일은 화면 제약으로 지수/매크로 2탭 분리 — MobileSimpleView KR_ORDER/US_ORDER)
+  const T0_SECTIONS: { label: string; rows: string[][] }[] = [
+    {
+      label: "🇰🇷 한국 시장",                       // 본체 지수 + 다음 한국장 미리보기(야간선물) + 한국 공포
+      rows: [["^KS11", "^KQ11", "069500.KS", "^KS200N", "^KQ150N", "VKOSPI"]],
+    },
+    {
+      label: "💵 한국에 영향 — 현물·매크로",          // 가격 자체가 신호인 외부 변수
+      rows: [
+        ["KRW=X", "DX-Y.NYB", "^FVX", "^TNX", "^TYX"],          // 환율·달러·미국 국채금리 커브
+        ["EWY", "^VIX", "^IXIC", "^GSPC", "^DJI"],              // 외국인 투심·글로벌 공포·미국 지수 현물
+        ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],    // 원자재(현물격) + 코인
+      ],
+    },
+    {
+      label: "🌙 한국에 영향 — 야간 선물",            // 미장 마감 후 다음 한국장 선행 신호
+      rows: [["NQ=F", "ES=F", "RTY=F"]],
+    },
+    {
+      label: "📦 미국 대표 ETF",
+      rows: [["SPY", "QQQ", "DIA", "IWM", "VTI"]],
+    },
+    {
+      label: "🧩 섹터 ETF (미국 ↔ 한국 페어)",        // 위·아래 줄이 같은 섹터로 세로 정렬
+      rows: [
+        ["SMH", "PAVE", "LIT", "XBI", "KBE", "ITA", "XLV", "KOID"],
+        ["091160.KS", "117700.KS", "305720.KS", "244580.KS", "091170.KS", "449450.KS", "266420.KS", "0190C0.KS"],
+      ],
+    },
   ];
 
   // T0 + 모든 섹터 현물·선물 Yahoo 심볼 통합 — 동일 캐시
@@ -232,11 +251,17 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
 
   return (
     <div className="space-y-3">
-      {/* ─── Tier 0 — 비슷한 지수끼리 그룹별 줄 분리 ─── */}
-      <div className="space-y-2">
-        {T0_GROUPS.map((group, gi) => (
-          <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-x-2 gap-y-4">
-            {group.map(symbol => {
+      {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
+      <div className="space-y-4">
+        {T0_SECTIONS.map((section) => (
+          <div key={section.label} className="space-y-2">
+            <div className="flex items-center gap-2 px-0.5">
+              <h3 className="text-sm font-bold text-gray-700 whitespace-nowrap">{section.label}</h3>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+            {section.rows.map((group, gi) => (
+              <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-x-2 gap-y-4">
+                {group.map(symbol => {
               const rawP = tier0.find(x => x.symbol === symbol);
               if (!rawP) return null;
               // 한국 선물(^KS200N/^KQ150N)은 현재 KST 세션에 따라 주간/야간선물로 표시명 변경
@@ -262,9 +287,10 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
               const inSession = !!(q?.marketState
                   && ["REGULAR", "PRE", "POST", "POSTPOST", "PREPRE"].includes(q.marketState))
                 || (marketOfSymbol(p.symbol) === "US" && isUsExtendedTradingOpen());
-              // 한국 야간선물(KR_NIGHT)은 주간 세션에 마지막 야간 마감값을 그대로 보여줌 → 흐림 제외
+              // 한국 야간선물(KR_NIGHT) — 거래중(REGULAR)이면 inSession 으로 흐림 제외,
+              //   개장 대기·마감 구간(marketState CLOSED + sleeping)이면 다른 종목과 동일하게 흐림.
               const isNightFut = marketOfSymbol(p.symbol) === "KR_NIGHT";
-              const dimNow = dimEnabled && !inSession && !isNightFut && (sleeping || isClosed);
+              const dimNow = dimEnabled && !inSession && (sleeping || isClosed);
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
@@ -404,7 +430,9 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                   )}
                 </div>
               );
-            })}
+                })}
+              </div>
+            ))}
           </div>
         ))}
       </div>
