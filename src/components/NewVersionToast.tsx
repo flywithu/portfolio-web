@@ -49,14 +49,32 @@ export function NewVersionToast() {
     };
     void check();
     const id = setInterval(check, POLL_MS);
-    const onFocus = () => void check();
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
+    // 모바일 재진입 커버 — setInterval 은 백그라운드에서 throttle/정지되므로
+    // 다양한 "다시 보임" 이벤트마다 즉시 재검사
+    const recheck = () => {
+      // 숨김 상태에서 발생한 visibilitychange 는 무시 (보일 때만)
+      if (document.visibilityState === "hidden") return;
+      void check();
+    };
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    // BFCache(뒤로/앞으로·앱 복귀)로 복원될 때는 focus/visibilitychange 가
+    // 안 뜨고 pageshow 만 뜸 — 모바일에서 토스트가 안 나오던 핵심 누락 경로
+    window.addEventListener("pageshow", recheck);
+    // 새 SW 가 페이지를 장악한 순간 = 새 버전 확정 — 폴링 안 기다리고 즉시 확인
+    const onControllerChange = () => void check();
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+    }
     return () => {
       stop = true;
       clearInterval(id);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("pageshow", recheck);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      }
     };
   }, []);
 
