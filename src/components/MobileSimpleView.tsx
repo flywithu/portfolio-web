@@ -1198,15 +1198,25 @@ export function MobileSimpleView() {
                    ? ((effPrice - effBase) / effBase) * 100
                    : null);
               const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
+              // direction === "inverse"(공포지수·환율·달러인덱스·금리 등) → 상승=한국 위험 → 색 반전
+              // (빨강=좋음 / 파랑=나쁨 기준). SemiCheckTab 과 동일 규칙.
+              const isInverse = p.direction === "inverse";
+              const effUp = isInverse ? cdiff < 0 : cdiff > 0;
+              const effDn = isInverse ? cdiff > 0 : cdiff < 0;
+              const chartArr = t0ChartMap.get(p.symbol) ?? [];
+              const sparkColor = dimNow ? "#94a3b8"
+                : (isInverse && chartArr.length > 1)
+                  ? (chartArr[chartArr.length - 1] > chartArr[0] ? "#2563eb" : "#dc2626")
+                  : undefined;
               const isFuture = p.symbol.endsWith("=F") || p.symbol === "^KS200N" || p.symbol === "^KQ150N";
               const bg = dimNow
                 ? "bg-gray-100 border-transparent"
-                : cdiff > 0 ? "bg-rose-50 border-rose-200"
-                : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
+                : effUp ? "bg-rose-50 border-rose-200"
+                : effDn ? "bg-blue-50/70 border-blue-200"
                 : "bg-white border-gray-200";
               const sign =
-                cdiff > 0 ? "text-rose-600"
-                : cdiff < 0 ? "text-blue-600"
+                effUp ? "text-rose-600"
+                : effDn ? "text-blue-600"
                 : "text-gray-900";
               const nameColor = isFuture ? "text-amber-700" : "text-gray-900";
               // 정규장 종료(sleeping) 후 항상 마감가 책갈피. 시간외 거래값 있으면 그 값, 없으면 현재가를 마감가로 통일.
@@ -1214,7 +1224,8 @@ export function MobileSimpleView() {
               const closeVal = q?.regularPrice ?? effPrice;
               const regPct = q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"
-                : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
+                : (isInverse ? regPct < 0 : regPct > 0) ? "text-rose-600"
+                : (isInverse ? regPct > 0 : regPct < 0) ? "text-blue-600" : "text-gray-700";
               // 마감 책갈피는 노란 배경(살짝 투명) + 흐림 제외 → dim 은 콘텐츠 자식에만
               const dimCls = dimNow ? "opacity-60" : "";
               return (
@@ -1251,9 +1262,9 @@ export function MobileSimpleView() {
                   )}
                   <div className={`relative overflow-hidden h-full flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5 ${bg}`}>
-                  <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
+                  <Sparkline data={chartArr}
                              width={300} height={70}
-                             color={dimNow ? "#94a3b8" : undefined}
+                             color={sparkColor}
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
                   <div className={`relative flex items-baseline gap-1.5 ${dimCls}`}>
