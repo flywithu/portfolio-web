@@ -81,6 +81,13 @@ function toKstDateString(iso: string): string {
   const kst = new Date(kstMs);
   return kst.toISOString().slice(0, 10);
 }
+// 토스 ISO 체결시각 → unix sec (갱신 정체 판정용). new Date(iso) 는 UTC epoch 으로
+// 해석되므로 Date.now() 와 직접 비교 가능 (toKstDateString 이 +9h 하는 것과 동일 전제).
+function isoToUnixSec(iso?: string): number | undefined {
+  if (!iso) return undefined;
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
 
 interface TossPriceItem {
   code: string;
@@ -1377,7 +1384,8 @@ export interface UsIndex {
   pct: number;
   currency?: string;
   tradeDate: string;       // KST 날짜 (YYYY-MM-DD) — 마지막 거래 시각 기준
-  regularMarketTime?: number;  // 마지막 거래 시각 (unix sec) — 카드별 "갱신" 표시용
+  regularMarketTime?: number;  // 마지막 "정규장" 거래 시각 (unix sec) — 마감가 책갈피("갱신") 표시용 (시간외엔 정규 종가에 고정)
+  freshTime?: number;          // 실제 마지막 데이터 갱신 시각 (unix sec) — 정규/시간외/오버나잇 통틀어 가장 최신. 흐림(정체) 판정 전용
   marketState: string;     // REGULAR / PRE / POST / CLOSED / PREPRE / POSTPOST
   // 시간외 (after-hours) — POST 마켓 상태가 아닌 때도 직전 시간외 가격 보존
   postPrice?: number;
@@ -1486,6 +1494,7 @@ export async function fetchYasunNightFutures(virtualSymbol: string): Promise<Yas
         pct,
         tradeDate: new Date(lastTime * 1000).toISOString().slice(0, 10),
         regularMarketTime: lastTime,
+        freshTime: lastTime,   // yasun 마지막 캔들 시각 — 야간/주간 마감 후 멈추면 흐림
         marketState: trading ? "REGULAR" : "CLOSED",
         regularPrice: price,
         regularPct: pct,
@@ -1511,6 +1520,8 @@ interface QuoteSummaryPrice {
   postMarketPrice?: QuoteSummaryRaw;
   postMarketChangePercent?: QuoteSummaryRaw;
   regularMarketTime?: number;
+  postMarketTime?: number;
+  preMarketTime?: number;
   marketState?: string;
   currency?: string;
 }
@@ -1607,9 +1618,14 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
       }
     }
 
+    // 실제 마지막 갱신 시각 — 정규/애프터/프리 중 가장 최신 (시간외 거래중이면 regularMarketTime 은 정규 종가에 고정되므로 post/preMarketTime 이 더 최신).
+    const freshTime = [p.regularMarketTime, p.postMarketTime, p.preMarketTime]
+      .filter((t): t is number => typeof t === "number" && t > 0)
+      .reduce<number | undefined>((mx, t) => (mx == null || t > mx ? t : mx), undefined);
+
     return {
       symbol, name, price, prev, prevClose, diff, pct,
-      currency: p.currency, tradeDate, regularMarketTime: p.regularMarketTime, marketState: state,
+      currency: p.currency, tradeDate, regularMarketTime: p.regularMarketTime, freshTime, marketState: state,
       postPrice, postPct, regularPrice, regularPct,
     };
   } catch {
@@ -1751,6 +1767,9 @@ async function fetchTossUsIndexMap(
       price: tp.close, prev: tp.base, prevClose: tp.base,
       diff, pct: tp.pct, currency: "USD",
       tradeDate: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
+      // 토스 tradeDateTime = 실측 마지막 체결시각(체결 있을 때만 전진, 무체결 종목은 멈춤 — 폴링 검증됨).
+      //   24h(Blue Ocean) 거래 중엔 계속 갱신 → 정체 판정에서 통과(밝게). 진짜 끊기면 흐림.
+      freshTime: isoToUnixSec(tp.tradeDateTime),
       marketState: "",
     });
   }
@@ -1832,6 +1851,8 @@ async function fetchInvestingIndexPrice(symbol: string, name: string): Promise<U
     symbol, name, price: close, prev: base, prevClose: base,
     diff, pct, currency: "", tradeDate: todayKst, marketState: "",
     regularMarketTime,
+    // freshTime 미설정 — investing 은 '일봉'이라 장중에도 타임스탬프가 오늘 일봉에 고정됨.
+    //   (값은 갱신되나 시각은 안 움직여 정체로 오판) → KR 세션 로직(isMarketOpen)으로 흐림 판정 폴백.
   };
 }
 // 차트(스파크라인)용 종가 시계열
@@ -1916,7 +1937,8 @@ export async function fetchYahooBatch(
                 symbol: m.symbol, name: m.name,
                 price: tp.price, prev: tp.base, prevClose: tp.prevClose,
                 diff, pct, currency: "KRW",
-                tradeDate: tp.trade_date, marketState: "",
+                tradeDate: tp.trade_date, freshTime: isoToUnixSec(tp.trade_dt),
+                marketState: "",
               });
             }
             return out;
@@ -1950,6 +1972,7 @@ export async function fetchYahooBatch(
       pct: t.pct,
       currency: t.currency ?? y.currency,
       tradeDate: t.tradeDate || y.tradeDate,
+      freshTime: t.freshTime ?? y.freshTime,   // 토스가 메인값 → 토스 체결시각이 실제 갱신 기준
       marketState: "",             // 빈값 → 카드가 토스 현재가를 메인으로 표시
     });
   };

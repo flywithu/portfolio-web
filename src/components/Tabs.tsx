@@ -47,8 +47,9 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
   const folderedGroups = new Set<string>();
   for (const f of folderList) for (const g of f.groups) if (presentGroups.has(g)) folderedGroups.add(g);
 
-  // 시스템 탭 묶기 — 지수~ETF 를 항상 드롭다운 하나로
-  const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key));
+  // 시스템 탭 묶기 — 섹터~ETF 를 드롭다운 하나로 (지수는 자주 써서 오른쪽 별도 고정 탭으로 분리)
+  const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key) && t.key !== US_MARKET_TAB_KEY);
+  const usMarketTab = tabs.find(t => t.key === US_MARKET_TAB_KEY);
   // 내자산 묶기 — 내주식 + 내거래 드롭다운 하나로
   const myTabs = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
 
@@ -108,7 +109,17 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
     <nav className="flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap
                     border-b border-gray-200 mb-3 px-1 pt-1">
       {leading && <span className="shrink-0">{leading}</span>}
-      {/* 시스템 탭 묶음(지수~ETF) → 내자산 묶음(내주식·내거래) 순서로 드롭다운 */}
+      {/* 지수 — 자주 쓰는 탭이라 드롭다운에서 빼서 섹터 왼쪽(맨 앞)에 별도 탭으로 노출 */}
+      {usMarketTab && (
+        <button onClick={() => onChange(usMarketTab.key)}
+                className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 transition-colors -mb-px
+                            ${usMarketTab.key === activeKey
+                              ? "border-blue-500 text-blue-700 bg-white"
+                              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+          <span className="mr-1">{usMarketTab.emoji ?? "📈"}</span>{usMarketTab.label}
+        </button>
+      )}
+      {/* 섹터~ETF 드롭다운 → 내자산 묶음(내주식·내거래) 순서 */}
       {renderGroupDropdown(sysTabs, "📊")}
       {renderGroupDropdown(myTabs, "📦")}
       {tabs.map(t => {

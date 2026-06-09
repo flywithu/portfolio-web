@@ -191,9 +191,24 @@ export function isSymbolSleeping(symbol: string): boolean {
   return !isMarketOpen(marketOfSymbol(symbol));
 }
 
-// 미국 24시간 거래(토스 Blue Ocean ATS — 프리/정규/애프터/오버나이트) 열림 여부 — 시간 기반.
-//   거래 가능 창: 일요일 20:00 ET ~ 금요일 20:00 ET (그 사이 24h 연속). 주말 갭만 휴장.
-//   marketState 가 stale/빈 값(토스 소스)이어도, 거래중이면 '열림'으로 판정 → 흐림 제외.
+// 데이터 갱신 정체 판정 — 마지막 실측 체결(freshTime)이 STALE_MIN 분 이상 지났으면 '멈춤'(흐림 대상).
+//   미국 종목/ETF·지수선물은 24h 거래(isUsExtendedTradingOpen 시각창)로 밝게 유지되지만,
+//   그 안에서도 '진짜 멈춘' 종목(VIX = 정규장 후 갱신중단, 데이터 끊김 등)을 이 정체 판정이 잡아 흐림.
+//   freshTime 출처: 토스 tradeDateTime(체결 있을 때만 전진 — 실측 신뢰) / Yahoo max(regular·post·preTime).
+//   freshTime 없으면 false → 시각창 로직 폴백(무회귀).
+//   90분: 새벽 저유동성 종목(예 PAVE 30분+ 간격)의 '드문 체결'을 오판하지 않으면서,
+//         수시간째 멈춘 VIX·주말 등 진짜 마감은 확실히 흐림.
+const QUOTE_STALE_MIN = 90;
+export function isQuoteStale(freshTime?: number): boolean {
+  if (freshTime == null || !Number.isFinite(freshTime)) return false;
+  return Date.now() / 1000 - freshTime > QUOTE_STALE_MIN * 60;
+}
+
+// 미국 종목/ETF 24시간 거래(토스 Blue Ocean ATS — 프리/정규/애프터/오버나잇) 열림 여부 — 시간 기반.
+//   거래창 = 일요일 20:00 ET ~ 금요일 20:00 ET (그 사이 24h 연속). 주말 갭만 휴장.
+//   ※ 실측 확인: 새벽(ET 01:40)에도 토스 close 가 실시간 변동(SPY 741.46→741.44, EWY 193.6→193.5).
+//     tradeDateTime 은 체결 있을 때만 전진(SMH 무체결 시 멈춤) = 진짜 24h 거래. 그래서 24h 로 판정.
+//   진짜 멈추는 종목(VIX 등)·주말은 isQuoteStale 정체 판정 + 주말 갭으로 흐림.
 export function isUsExtendedTradingOpen(): boolean {
   const t = nowInTz("America/New_York");
   const hhmm = t.hour * 60 + t.minute;

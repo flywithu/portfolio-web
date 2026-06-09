@@ -3,7 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchInvestingChart, isInvestingIndex, fetchYasunNightFutures } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale } from "../lib/format";
 import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { buildDashboardSections } from "../lib/dashboardGroups";
 import {
@@ -262,7 +262,10 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
               // 한국 야간선물(KR_NIGHT) — 거래중(REGULAR)이면 inSession 으로 흐림 제외,
               //   개장 대기·마감 구간(marketState CLOSED + sleeping)이면 다른 종목과 동일하게 흐림.
               const isNightFut = marketOfSymbol(p.symbol) === "KR_NIGHT";
-              const dimNow = dimEnabled && !inSession && (sleeping || isClosed);
+              // 갱신 정체(흐림) — 24h 거래(시각창) 중에도 '진짜 멈춘' 종목(VIX·데이터 끊김)을 freshTime 90분+ 정체로 잡음.
+              //   미국 종목/ETF 는 토스 실측 체결시각이 24h 갱신돼 통과(밝게), 주말·VIX 마감은 정체/시각창으로 흐림.
+              const stale = isQuoteStale(q?.freshTime);
+              const dimNow = dimEnabled && (stale || (!inSession && (sleeping || isClosed)));
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)

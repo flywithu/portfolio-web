@@ -10,7 +10,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { getDimSleepingEnabled, getEffectivePollMs } from "../lib/proxyConfig";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, isQuoteStale } from "../lib/format";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
@@ -103,7 +103,8 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
   const effUp = direction === "inverse" ? cdiff < 0 : cdiff > 0;
   const effDn = direction === "inverse" ? cdiff > 0 : cdiff < 0;
   // 흐림(잠자는) 시 — 회색 채움 + 외곽선 제거 (지수 카드와 동일)
-  const dimNow = dimEnabled && !inSession && (isClosed || sleeping);
+  //   반도체주는 24h 거래(시각창) 중엔 밝게, 진짜 멈춤(VIX·데이터 끊김)·주말은 freshTime 90분+ 정체로 흐림.
+  const dimNow = dimEnabled && (isQuoteStale(q?.freshTime) || (!inSession && (isClosed || sleeping)));
   const bg = dimNow ? "bg-gray-100 border-transparent"
            : effUp ? "bg-rose-50 border-rose-200"
            : effDn ? "bg-blue-50 border-blue-200"

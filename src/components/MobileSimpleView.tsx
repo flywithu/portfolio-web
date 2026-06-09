@@ -15,7 +15,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
@@ -733,9 +733,22 @@ export function MobileSimpleView() {
             <Menu size={16} />
           </button>
         )}
-        {/* 시스템 탭 묶음 — 선택된 탭 아이콘 + 선택박스 (지수~ETF) */}
+        {/* 지수 — 자주 쓰는 탭이라 드롭다운에서 빼서 섹터 왼쪽(맨 앞)에 별도 탭으로 노출 */}
         {(() => {
-          const SYS = new Set([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]);
+          const t = groupTabs.find(x => x.key === KR_KEY);
+          if (!t) return null;
+          const active = activeTab === KR_KEY;
+          return (
+            <button onClick={() => setActiveTab(KR_KEY)}
+                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition inline-flex items-center
+                                ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              {t.label}
+            </button>
+          );
+        })()}
+        {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF (지수는 위에서 별도 탭으로 분리) */}
+        {(() => {
+          const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]);
           const sys = groupTabs.filter(t => SYS.has(t.key));
           if (sys.length === 0) return null;
           // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
@@ -1170,7 +1183,10 @@ export function MobileSimpleView() {
               // 한국 야간선물(KR_NIGHT) — 거래중(REGULAR)이면 inSession 으로 흐림 제외,
               //   개장 대기·마감 구간(marketState CLOSED + sleeping)이면 다른 종목과 동일하게 흐림.
               const isNightFut = marketOfSymbol(p.symbol) === "KR_NIGHT";
-              const dimNow = dimEnabled && !inSession && (sleeping || isClosed);
+              // 갱신 정체(흐림) — 24h 거래(시각창) 중에도 '진짜 멈춘' 종목(VIX·데이터 끊김)을 freshTime 90분+ 정체로 잡음.
+              //   미국 종목/ETF 는 토스 실측 체결시각이 24h 갱신돼 통과(밝게), 주말·VIX 마감은 정체/시각창으로 흐림.
+              const stale = isQuoteStale(q?.freshTime);
+              const dimNow = dimEnabled && (stale || (!inSession && (sleeping || isClosed)));
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
