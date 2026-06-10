@@ -2,7 +2,7 @@ import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getEnabledPersonalProxies } from "./proxyConfig";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
-import { isKrNightSession, krFuturesName, isKrFuturesTradingNow } from "./format";
+import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen } from "./format";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
 cleanupOldProxyCalls();
@@ -111,8 +111,11 @@ interface TossPriceResponse { result: TossPriceItem[]; }
 // 입력: US19890516001 같은 토스 코드. 응답: close(현재가) / base(직전 정규장 종가)
 export interface TossUsPrice {
   code: string;
-  close: number;
-  base: number;        // 직전 정규장 종가
+  close: number;       // USD 네이티브 현재가
+  base: number;        // 직전 정규장 종가 (USD)
+  closeKrw: number;    // 토스 환산 원화 정규장 종가 (토스 앱 표시값)
+  baseKrw: number;     // 토스 환산 원화 직전(어제) 종가
+  afterCloseKrw: number; // 애프터장 원화 현재가 (16:00~20:00 ET, 없으면 0)
   pct: number;         // (close - base) / base × 100
   tradeDateTime: string;
 }
@@ -126,13 +129,19 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
     const data = await resp.json() as {
       result?: Array<{
         code: string; close: number; base: number; tradeDateTime: string;
+        closeKrw?: number; baseKrw?: number; afterMarketCloseKrw?: number;
       }>;
     };
     for (const item of (data.result ?? [])) {
       if (!item.code || !item.close || !item.base) continue;
       const pct = item.base > 0 ? ((item.close - item.base) / item.base) * 100 : 0;
+      // 원화 환산값은 토스가 같이 내려줌(토스 앱 표시값). 누락 시 close/base 로 폴백(달러).
+      const closeKrw = item.closeKrw && item.closeKrw > 0 ? item.closeKrw : item.close;
+      const baseKrw  = item.baseKrw  && item.baseKrw  > 0 ? item.baseKrw  : item.base;
       out.set(item.code, {
         code: item.code, close: item.close, base: item.base,
+        closeKrw, baseKrw,
+        afterCloseKrw: item.afterMarketCloseKrw && item.afterMarketCloseKrw > 0 ? item.afterMarketCloseKrw : 0,
         pct, tradeDateTime: item.tradeDateTime,
       });
     }
@@ -1758,19 +1767,34 @@ async function fetchTossUsIndexMap(
   const out = new Map<string, UsIndex>();
   if (items.length === 0) return out;
   const priceByCode = await fetchTossUsPrices(items.map(i => i.code));
+  // 애프터장(16:00~20:00 ET): close 는 정규 종가로 고정, 체결은 afterMarketClose 로만 들어옴 → 메인을 애프터값으로.
+  const afterOpen = isUsAfterMarketOpen();
   for (const it of items) {
     const tp = priceByCode.get(it.code);
     if (!tp) continue;
-    const diff = tp.close - tp.base;
+    // 토스 앱과 동일하게 환산 원화로 표시. closeKrw 없으면(폴백) 달러 그대로.
+    const hasKrw = tp.closeKrw > tp.close;   // 원화는 달러 × ~1500 → 항상 큼
+    const regClose = hasKrw ? tp.closeKrw : tp.close;   // 정규장 종가(원화) — 마감 책갈피용
+    const yClose   = hasKrw ? tp.baseKrw  : tp.base;    // 어제 종가(원화)
+    // 애프터장 거래중이고 애프터값(원화)이 있으면 메인 = 애프터 현재가, 아니면 정규 종가.
+    const useAfter = hasKrw && afterOpen && tp.afterCloseKrw > 0;
+    const price = useAfter ? tp.afterCloseKrw : regClose;
+    // 변동 기준: 애프터장은 토스 앱처럼 '정규 종가 대비'(애프터 세션 변동만), 정규/오버나잇은 '어제 종가 대비'.
+    const base = useAfter ? regClose : yClose;
+    const diff = price - base;
+    const pct = base > 0 ? (diff / base) * 100 : 0;
+    const regPct = yClose > 0 ? ((regClose - yClose) / yClose) * 100 : 0;   // 마감 책갈피 = 정규장(어제 대비)
     out.set(it.symbol, {
       symbol: it.symbol, name: it.name,
-      price: tp.close, prev: tp.base, prevClose: tp.base,
-      diff, pct: tp.pct, currency: "USD",
+      price, prev: base, prevClose: base,
+      diff, pct, currency: hasKrw ? "KRW" : "USD",
       tradeDate: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
       // 토스 tradeDateTime = 실측 마지막 체결시각(체결 있을 때만 전진, 무체결 종목은 멈춤 — 폴링 검증됨).
       //   24h(Blue Ocean) 거래 중엔 계속 갱신 → 정체 판정에서 통과(밝게). 진짜 끊기면 흐림.
       freshTime: isoToUnixSec(tp.tradeDateTime),
       marketState: "",
+      // 마감 책갈피 = 토스 정규 종가(원화) — 애프터장엔 메인(애프터)과 별개로 정규 종가 표시. Yahoo 달러값 대체.
+      regularPrice: regClose, regularPct: regPct,
     });
   }
   return out;
@@ -1970,6 +1994,11 @@ export async function fetchYahooBatch(
       prevClose: t.prevClose,      // 기준 종가도 토스 base → 변동률이 토스와 동일 (현재가 vs 토스 base)
       diff: t.diff,
       pct: t.pct,
+      // 토스가 마감 책갈피값을 주면(미국 종목=원화) Yahoo 달러값 대신 토스값 사용 → 통화 일관.
+      //   안 주면(한국 종목 등) Yahoo 정규 종가 유지.
+      regularPrice: t.regularPrice ?? y.regularPrice,
+      regularPct: t.regularPct ?? y.regularPct,
+      postPrice: t.postPrice ?? y.postPrice,
       currency: t.currency ?? y.currency,
       tradeDate: t.tradeDate || y.tradeDate,
       freshTime: t.freshTime ?? y.freshTime,   // 토스가 메인값 → 토스 체결시각이 실제 갱신 기준

@@ -219,6 +219,17 @@ export function isUsExtendedTradingOpen(): boolean {
   return true;
 }
 
+// 미국 애프터마켓(포스트장) 거래중 여부 — 평일 16:00~20:00 ET.
+//   이 구간엔 토스 close(정규 종가)가 고정되고 체결은 afterMarketClose* 로만 들어옴 → 메인 가격을 애프터값으로.
+//   (정규장·프리마켓은 close 가 live, 오버나잇 20:00+ Blue Ocean 도 close 가 live → 그땐 close 사용)
+export function isUsAfterMarketOpen(): boolean {
+  const t = nowInTz("America/New_York");
+  if (t.weekday === 0 || t.weekday === 6) return false;
+  if (US_MARKET_HOLIDAYS.has(dateStrInTz("America/New_York"))) return false;
+  const hhmm = t.hour * 60 + t.minute;
+  return 16 * 60 <= hhmm && hhmm < 20 * 60;
+}
+
 // yasun.gg 한국 선물 — 현재 표시 데이터가 '야간 세션' 소속인지.
 //   세션 개장 시각 기준으로 소유권 전환: 야간(18:00 개장)은 다음날 주간 개장(09:00) 전까지,
 //   주간(09:00 개장)은 야간 개장(18:00) 전까지. → 마감 대기 구간도 직전 세션 라벨 유지.
