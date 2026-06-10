@@ -50,7 +50,10 @@ export default defineConfig({
       },
     },
     VitePWA({
-      registerType: "autoUpdate",
+      // prompt: 새 SW 를 자동 적용/리로드하지 않고 대기시킴 → 커스텀 NewVersionToast 가
+      //   version.json 폴링으로 감지해 "새로고침" 팝업을 띄우는 게 유일한 갱신 경로.
+      //   (autoUpdate 면 SW 가 조용히 skipWaiting+리로드 해서 팝업 전에 적용돼 버림 — 모바일에서 특히)
+      registerType: "prompt",
       includeAssets: ["favicon.svg", "robots.txt"],
       manifest: {
         name: "포트폴리오",

@@ -4,7 +4,8 @@ import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegu
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
-import { formatSigned, signColor, isEtfByName, dayChangePct, dayChangeDiff } from "../lib/format";
+import { formatSigned, signColor, isEtfByName, dayChangePct, dayChangeDiff, isKrHoldingClosed } from "../lib/format";
+import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { handleTossLinkClick, openExternal } from "../lib/toss";
 
 // ETF 구성 종목 모달 — 토스 v2 compositions endpoint
@@ -262,6 +263,8 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
     staleTime: 30_000,
   });
   const priceMap = new Map((priceList ?? []).map(p => [p.ticker, p]));
+  // 장 마감 흐림 — 메인 카드와 동일 기준(설정 ON + 토스 tradingEnd/단일가 마감)
+  const dimEnabled = getDimSleepingEnabled();
 
   const { data: krRegMap } = useQuery({
     queryKey: ["etf-kr-reg-prices", stockTickers],
@@ -365,15 +368,21 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
             // 그룹 3개 이상이면 2개만 보이고 "외 N개"
             const shownGroups = groups.length >= 3 ? groups.slice(0, 2) : groups;
             const moreGroups = groups.length - shownGroups.length;
-            const tabBg = colorDiff > 0 ? "bg-rose-50 border-rose-300"
-              : colorDiff < 0 ? "bg-blue-50/70 border-blue-300"
-              : "bg-white border-gray-300";
-            // dim 우선순위: 1) 비교 모드 공통 종목 2) 파이 호버 미선택
+            // dim 우선순위: 1) 비교 모드 공통 종목 2) 파이 호버 미선택 3) 장 마감(흐림) 4) 비표준(선물·기타)
             const isCommon = dimTickers?.has(tNum) ?? false;
             const hoverDim = hoveredIdx !== null && hoveredIdx !== i;
+            const closedDim = isStandard && dimEnabled
+              && isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price?.singlePrice);
+            // 마감 흐림이면 테두리도 투명(메인 카드와 동일) — 색 테두리 제거해 더 가라앉게
+            const tabBg = closedDim ? "bg-gray-100/60 border-transparent"
+              : colorDiff > 0 ? "bg-rose-50 border-rose-300"
+              : colorDiff < 0 ? "bg-blue-50/70 border-blue-300"
+              : "bg-white border-gray-300";
             const dimCls = isCommon ? "opacity-30"
               : hoverDim ? "opacity-15"
-              : isStandard ? "" : "opacity-60";
+              : !isStandard ? "opacity-60"
+              : closedDim ? "opacity-60"
+              : "";
             return (
               <div key={`${it.stockCode || "x"}-${i}`}
                    className={`group transition-opacity duration-150 ${dimCls}`}>
@@ -405,7 +414,8 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                     )}
                   </div>
                 </div>
-                <div className="border border-gray-300 rounded-lg bg-gray-100/60 px-1.5 pt-3 pb-1.5 relative">
+                <div className={`border rounded-lg bg-gray-100/60 px-1.5 pt-3 pb-1.5 relative
+                                 ${closedDim ? "border-transparent" : "border-gray-300"}`}>
                   <div className="relative w-full h-full">
                     {showRegTag && krReg && (
                       <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
@@ -435,9 +445,10 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                         </div>
                       );
                     })()}
-                    <div className="relative overflow-hidden border border-gray-200 rounded-md
+                    <div className={`relative overflow-hidden border rounded-md
                                     bg-gray-50/60 px-2 py-1 space-y-0.5 w-full min-h-[120px]
-                                    flex flex-col justify-center">
+                                    flex flex-col justify-center
+                                    ${closedDim ? "border-transparent" : "border-gray-200"}`}>
                       {chart.length > 1 && (
                         <Sparkline data={chart} width={300} height={120}
                                    className="absolute inset-0 w-full h-full opacity-20
