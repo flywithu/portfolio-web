@@ -87,8 +87,8 @@ export function TradeGantt({ trades, nameOf, scope, cutoff }: {
 
   return (
     <div>
-      {/* 종목명 헤더·날짜축 고정 — 그 아래만 스크롤 */}
-      <div className="overflow-auto max-h-[72vh]">
+      {/* 종목명 헤더·날짜축 고정 — 그 아래만 스크롤. data-noswipe: 모바일 그룹 스와이프 제외 */}
+      <div data-noswipe className="overflow-auto max-h-[72vh]">
         <div className="grid items-start min-w-min gap-x-2" style={{ gridTemplateColumns: gridCols }}>
           {/* 좌상단 코너(고정) */}
           <div className="sticky top-0 left-0 z-30 bg-white" />

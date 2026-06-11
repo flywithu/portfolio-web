@@ -162,6 +162,8 @@ export function MobileSimpleView() {
     || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY
     || activeTab === ETF_KEY || activeTab === MY_TRADES_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  // 스와이프 시작이 가로 스크롤 영역(data-noswipe) 안이면 그 시작 scrollLeft 기억 — 실제 스크롤됐는지 판정용
+  const swipeScroll = useRef<{ el: HTMLElement; left: number } | null>(null);
 
 
   // 활성 탭 변경 시 저장
@@ -255,10 +257,17 @@ export function MobileSimpleView() {
   }, [folders, presentGroups]);
   const countByKey = useMemo(
     () => new Map(groupTabs.map(t => [t.key, t.count])), [groupTabs]);
-  // 화면에 보이는 탭 순서(스와이프 이동용) — 비폴더 탭들 + 폴더별 멤버(이름순)
+  // 화면에 보이는 탭바와 '동일 순서'로 스와이프 이동 키 구성.
+  //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
+  //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
   const navKeys = useMemo(() => {
+    const SYS = [KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, MY_KEY, MY_TRADES_KEY];
+    const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
-    for (const t of groupTabs) if (!folderedGroups.has(t.key)) keys.push(t.key);
+    if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭)
+    for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음
+    for (const k of [MY_KEY, MY_TRADES_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음
+    for (const t of groupTabs) if (!SYS.includes(t.key) && !folderedGroups.has(t.key)) keys.push(t.key);  // 사용자그룹
     for (const f of folders) {
       keys.push(...f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko")));
     }
@@ -605,15 +614,22 @@ export function MobileSimpleView() {
   const handleRefresh = () => void forceUpdate();
 
   // 좌우 스와이프로 그룹 탭 이동 (가로 dx > 세로 dy 일 때만 인정)
+  //  가로 스크롤 영역(data-noswipe, 예: 내거래 차트)에서 시작했고 실제로 스크롤됐으면 그룹 전환 X —
+  //  차트는 자유롭게 좌우 스크롤하되, 끝까지 닿아 더 안 밀릴 때의 스와이프는 그룹 전환 허용.
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    const ns = (e.target as HTMLElement).closest("[data-noswipe]") as HTMLElement | null;
+    swipeScroll.current = ns ? { el: ns, left: ns.scrollLeft } : null;
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart.current) return;
     const dx = e.changedTouches[0].clientX - touchStart.current.x;
     const dy = e.changedTouches[0].clientY - touchStart.current.y;
     touchStart.current = null;
+    const scroller = swipeScroll.current; swipeScroll.current = null;
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+    // 차트가 실제로 가로 스크롤된 제스처면 그룹 전환 안 함
+    if (scroller && scroller.el.scrollLeft !== scroller.left) return;
     const idx = navKeys.indexOf(activeTab);
     if (idx === -1) return;
     if (dx < 0 && idx < navKeys.length - 1) setActiveTab(navKeys[idx + 1]);
