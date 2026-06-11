@@ -30,6 +30,14 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "^FVX":  "https://www.tossinvest.com/indices/ROB.US5YT-RR",
   "^TNX":  "https://www.tossinvest.com/indices/ROB.US10YT-RR",
   "^TYX":  "https://www.tossinvest.com/indices/ROB.US30YT-RR",
+  // 원자재 (토스 overview 로 일원화 — 야후 대신 토스 인덱스 페이지)
+  "GC=F":  "https://www.tossinvest.com/indices/RFU.GCv1",
+  "SI=F":  "https://www.tossinvest.com/indices/RFU.SIv1",
+  "CL=F":  "https://www.tossinvest.com/indices/RFU.CLv1",
+  "NG=F":  "https://www.tossinvest.com/indices/RFU.NGv1",
+  "HG=F":  "https://www.tossinvest.com/indices/RFU.HGv1",
+  // 비트코인 — 토스 원화 인덱스
+  "BTC-USD": "https://www.tossinvest.com/indices/VWAP.KRW-BTC",
   // V-KOSPI — investing.com (토스/야후 미제공)
   "VKOSPI": "https://www.investing.com/indices/kospi-volatility",
   // 미국 대표 ETF (토스 종목 페이지)
