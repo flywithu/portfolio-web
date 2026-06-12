@@ -124,32 +124,41 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
             const refPx = px ? (px.prevClose || px.base) : 0;
             const dayPct = (cur && refPx > 0) ? ((cur - refPx) / refPx) * 100 : null;
             return (
-              <div key={col.key} className="sticky top-0 z-20 bg-white text-center px-1 pt-0.5 pb-2 leading-tight border-l border-dashed border-gray-300">
-                <div className="truncate font-bold text-[13px] text-gray-700" title={col.name}>{col.name}</div>
-                {col.account && <div className="truncate text-[11px] text-gray-400">{col.account}</div>}
-                {cur != null && (
-                  <div className="text-[12px] tabular-nums">
-                    <span className="text-gray-700">{cur.toLocaleString()}</span>
-                    {dayPct != null && (
-                      <span className={`ml-1 font-semibold ${signColor(dayPct)}`}>
-                        ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
-                      </span>
-                    )}
-                  </div>
-                )}
-                {/* 종목별 총손익 — 실현(익절·손절) / 평가(보유 미실현) 분리 */}
-                {hasReal && (
-                  <div className="text-[12px] font-bold tabular-nums">
-                    <span className="text-gray-400 font-normal text-[10px] mr-0.5">실현</span>
-                    <span className={signColor(realizedSum)}>{formatSigned(realizedSum)}</span>
-                  </div>
-                )}
-                {unreal != null && (
-                  <div className="text-[12px] font-bold tabular-nums">
-                    <span className="text-gray-400 font-normal text-[10px] mr-0.5">평가</span>
-                    <span className={signColor(unreal)}>{formatSigned(unreal)}</span>
-                  </div>
-                )}
+              <div key={col.key} className="sticky top-0 z-20 bg-white px-0.5 pt-0.5 pb-2">
+                {/* 지수 카드 스타일 — 종목명·현재가(%)·실현/평가 */}
+                <div className="rounded-lg border border-gray-200 shadow-sm bg-white text-center px-2 py-1.5 leading-tight">
+                  <div className="truncate font-bold text-[13px] text-gray-800" title={col.name}>{col.name}</div>
+                  {col.account && <div className="truncate text-[11px] text-gray-400">{col.account}</div>}
+                  {cur != null && (
+                    <div className="text-[12px] tabular-nums mt-0.5">
+                      <span className="font-bold text-gray-800">{cur.toLocaleString()}</span>
+                      {dayPct != null && (
+                        <span className={`ml-1 font-semibold ${signColor(dayPct)}`}>
+                          ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {/* 종목별 총손익 — 실현(익절/손절) / 보유(미실현) 분리, 금액 우측정렬 */}
+                  {(hasReal || unreal != null) && (
+                    <div className="mt-1 pt-1 border-t border-gray-100 text-[12px] tabular-nums">
+                      {hasReal && (
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`text-white text-[10px] font-bold px-1.5 py-px rounded ${realizedChip(realizedSum).bg}`}>
+                            {realizedChip(realizedSum).label}
+                          </span>
+                          <span className={`font-bold ${signColor(realizedSum)}`}>{formatSigned(realizedSum)}</span>
+                        </div>
+                      )}
+                      {unreal != null && (
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-white text-[10px] font-bold px-1.5 py-px rounded bg-emerald-500">보유</span>
+                          <span className={`font-bold ${signColor(unreal)}`}>{formatSigned(unreal)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
