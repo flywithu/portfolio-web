@@ -1972,6 +1972,14 @@ const TOSS_INDEX_CODE: Record<string, string> = {
 // Yahoo 심볼 → 토스 미국 종목 코드 (현재가만 토스, 없으면 Yahoo fallback).
 // 토스 stock-prices/details (US 코드) — 24시간/시간외 거래값 포함.
 const TOSS_US_STOCK_CODE: Record<string, string> = {
+  // 빅테크 개별주
+  "SPCX": "NAS2606012004",   // 스페이스X
+  "AAPL": "US19801212001",
+  "MSFT": "US19860313001",
+  "GOOGL":"US20040819002",
+  "AMZN": "US19970515001",
+  "META": "US20120518001",
+  "TSLA": "US20100629001",
   // 반도체 개별주
   "MU":   "US19890516001",
   "NVDA": "US19990122001",

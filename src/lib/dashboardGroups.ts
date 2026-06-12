@@ -42,17 +42,20 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
       ],
     },
     {
-      label: "📦 미국 대표 ETF",
-      rows: [["SPCX", "SPY", "QQQ", "DIA", "IWM", "VTI"]],
-    },
-    {
-      label: "🧩 섹터 ETF (미국 ↔ 한국 페어)",        // 한 줄 = 미국 2 + 짝 한국 2 (모바일은 좌 미국·우 한국)
+      label: "🇺🇸 미국 빅테크·대표 ETF",        // 데스크톱: 위=빅테크·아래=ETF / 모바일: 좌 빅테크·우 ETF
       mobilePair: true,
       rows: [
-        ["SMH", "PAVE", "091160.KS", "117700.KS"],     // 반도체 · 건설
-        ["LIT", "XBI", "305720.KS", "244580.KS"],      // 2차전지 · 바이오
-        ["KBE", "ITA", "091170.KS", "449450.KS"],      // 은행 · 방산
-        ["XLV", "KOID", "266420.KS", "0190C0.KS"],     // 헬스케어 · 피지컬AI
+        ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA"],   // 빅테크 개별주 (6) — 모바일 왼쪽
+        ["SPCX", "SPY", "QQQ", "DIA", "IWM", "VTI"],          // 스페이스X + 대표 ETF (6) — 모바일 오른쪽
+      ],
+    },
+    {
+      label: "🧩 섹터 ETF (미국 선행 ↕ 한국)",        // 데스크톱: 위=미국·아래=한국 / 모바일: 좌 미국·우 한국
+      mobilePair: true,
+      rows: [
+        // 반도체·건설·2차전지·바이오·은행·방산·헬스케어·피지컬AI 순 (열 정렬)
+        ["SMH", "PAVE", "LIT", "XBI", "KBE", "ITA", "XLV", "KOID"],                              // 미국
+        ["091160.KS", "117700.KS", "305720.KS", "244580.KS", "091170.KS", "449450.KS", "266420.KS", "0190C0.KS"], // 한국
       ],
     },
   ];

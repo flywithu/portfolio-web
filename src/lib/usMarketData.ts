@@ -62,8 +62,15 @@ export const US_PAIRS: Pair[] = [
   { symbol: "AMAT",     name: "어플라이드머티리얼즈", desc: "반도체 식각·증착 장비 회사 — AI 메모리 생산 설비 투자 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "LRCX",     name: "램리서치",     desc: "Lam Research — 식각·증착 장비. HBM 핵심 공정", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ASML",     name: "ASML",        desc: "EUV 노광 독점 — 첨단 반도체 공정 필수", tier: "T0", sector: "dashboard", direction: "direct" },
-  // 행 4 — 미국 대표 ETF
+  // 행 3.5 — 미국 빅테크 개별주 (Mag7 + 스페이스X, NVDA 는 반도체 줄에 있음). 가격·링크 모두 토스.
+  { symbol: "AAPL",     name: "애플",         desc: "Apple — 아이폰·서비스. 미국 시총 1위급 소비 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "MSFT",     name: "마이크로소프트", desc: "Microsoft — 클라우드(Azure)·AI(코파일럿). 엔터프라이즈 대표", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "GOOGL",    name: "알파벳",       desc: "Alphabet(구글) — 검색·유튜브·클라우드·제미나이", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "AMZN",     name: "아마존",       desc: "Amazon — 이커머스·AWS 클라우드", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "META",     name: "메타",         desc: "Meta — 광고·SNS·AI 인프라 투자", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "TSLA",     name: "테슬라",       desc: "Tesla — 전기차·로보택시·에너지", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "SPCX",     name: "스페이스X",    desc: "SpaceX (SPCX) — 우주 발사·스타링크. NASDAQ 상장 주식", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 행 4 — 미국 대표 ETF
   { symbol: "SPY",      name: "SPY",         desc: "SPDR S&P 500 — 미국 대형주 추종", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "QQQ",      name: "QQQ",         desc: "Invesco NASDAQ 100 — 미국 대형 기술주", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "DIA",      name: "DIA",         desc: "SPDR Dow Jones 30 — 미국 대형주 30선", tier: "T0", sector: "dashboard", direction: "direct" },

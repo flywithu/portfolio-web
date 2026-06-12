@@ -40,6 +40,14 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "BTC-USD": "https://www.tossinvest.com/indices/VWAP.KRW-BTC",
   // V-KOSPI — investing.com (토스/야후 미제공)
   "VKOSPI": "https://www.investing.com/indices/kospi-volatility",
+  // 미국 빅테크 개별주 (토스 종목 페이지)
+  "SPCX": "https://www.tossinvest.com/stocks/NAS2606012004",
+  "AAPL": "https://www.tossinvest.com/stocks/US19801212001",
+  "MSFT": "https://www.tossinvest.com/stocks/US19860313001",
+  "GOOGL":"https://www.tossinvest.com/stocks/US20040819002",
+  "AMZN": "https://www.tossinvest.com/stocks/US19970515001",
+  "META": "https://www.tossinvest.com/stocks/US20120518001",
+  "TSLA": "https://www.tossinvest.com/stocks/US20100629001",
   // 미국 대표 ETF (토스 종목 페이지)
   "SPY": "https://www.tossinvest.com/stocks/US19930122001",
   "QQQ": "https://www.tossinvest.com/stocks/US19990310001",
