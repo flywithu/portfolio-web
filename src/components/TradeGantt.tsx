@@ -83,7 +83,7 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
 
   // 라운드를 시작 날짜로 세로 정렬 — 행=라운드 시작일, 열=종목. 같은 시작일 라운드는 가로로 맞춰짐.
   //  + 종목별 실현손익 합 + 보유중 미실현(현재가 − 평단)×잔량.
-  const colRounds = cols.map(c => {
+  const colRoundsAll = cols.map(c => {
     const rs = buildRounds(c.events);
     const realizedSum = c.events.reduce((s, e) => s + (e.realized?.realized ?? 0), 0);
     const hasReal = c.events.some(e => e.realized);
@@ -99,6 +99,19 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
       rounds: rs.map((round, i) => ({ startMs: round[0].ms, events: round, held: c.held && i === rs.length - 1 })),
     };
   });
+  // 기간 내 매수가 있는 종목만 표시 — 매도만 들어온 종목(매수는 기간 밖)은 제외.
+  const hasBuy = (cr: typeof colRoundsAll[number]) => cr.col.events.some(e => e.kind === "buy");
+  const buyMs = (cr: typeof colRoundsAll[number], pick: "last" | "first") => {
+    const buys = cr.col.events.filter(e => e.kind === "buy").map(e => e.ms);
+    return buys.length ? (pick === "last" ? Math.max(...buys) : Math.min(...buys)) : 0;
+  };
+  // 정렬 — 매수일 기준(행 방향 desc=최신순과 동일): ①최근 매수일 → ②첫 매수일 → 현재가 유무.
+  const colRounds = colRoundsAll
+    .filter(hasBuy)
+    .sort((a, b) =>
+      (desc ? buyMs(b, "last") - buyMs(a, "last") : buyMs(a, "last") - buyMs(b, "last"))
+      || (desc ? buyMs(b, "first") - buyMs(a, "first") : buyMs(a, "first") - buyMs(b, "first"))
+      || (a.cur != null ? 0 : 1) - (b.cur != null ? 0 : 1));
   // 전체 합계 — 실현(익절+손절) + 보유 평가(미실현)
   let gReal = 0, gUnreal = 0, anyReal = false, anyHeld = false;
   for (const ci of colRounds) {
@@ -108,15 +121,21 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
   const gTotal = gReal + gUnreal;
   const dateRows = [...new Set(colRounds.flatMap(cr => cr.rounds.map(r => r.startMs)))]
     .sort((a, b) => desc ? b - a : a - b);
-  const gridCols = `56px repeat(${cols.length}, 168px)`;
+  const gridCols = `56px repeat(${colRounds.length}, 168px)`;
+
+  if (colRounds.length === 0) {
+    return <div className="text-center text-xs text-gray-400 py-10">이 기간에 매수한 종목이 없습니다.</div>;
+  }
 
   return (
     <div>
       {/* 종목명 헤더·날짜축 고정 — 그 아래만 스크롤. data-noswipe: 모바일 그룹 스와이프 제외 */}
       <div data-noswipe className="overflow-auto max-h-[72vh]">
         <div className="grid items-start min-w-min gap-x-2" style={{ gridTemplateColumns: gridCols }}>
-          {/* 좌상단 코너(고정) */}
-          <div className="sticky top-0 left-0 z-30 bg-white" />
+          {/* 좌상단 코너(고정) — 날짜축 라벨 */}
+          <div className="sticky top-0 left-0 z-30 bg-white flex items-end justify-end pr-1.5 pb-2">
+            <span className="text-[11px] font-bold text-gray-400">매수일</span>
+          </div>
           {/* 종목명 헤더(상단 고정) — 종목별 총손익(실현 익절·손절 + 보유 평가) */}
           {colRounds.map(({ col, realizedSum, hasReal, unreal }) => {
             const px = prices?.get(col.ticker);
@@ -181,14 +200,10 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
           ))}
         </div>
       </div>
-      {/* 범례 */}
+      {/* 범례 — 총손익만 */}
       <div className="flex items-center gap-3 mt-3 text-[12px] text-gray-400">
-        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm border border-gray-300 bg-gray-50 inline-block" />매수</span>
-        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm border border-rose-300 bg-rose-50 inline-block" />익절</span>
-        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm border border-blue-300 bg-blue-50 inline-block" />손절</span>
-        <span>행 = 라운드 시작일</span>
         {(anyReal || anyHeld) && (
-          <span className="ml-auto inline-flex items-baseline gap-1 tabular-nums">
+          <span className="inline-flex items-baseline gap-1 tabular-nums">
             <span className="text-gray-500">총손익</span>
             <span className={`text-[13px] font-bold ${signColor(gTotal)}`}>{formatSigned(gTotal)}</span>
             {anyReal && anyHeld && (
