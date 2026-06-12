@@ -142,10 +142,20 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
             const cur = px?.price;
             const refPx = px ? (px.prevClose || px.base) : 0;
             const dayPct = (cur && refPx > 0) ? ((cur - refPx) / refPx) * 100 : null;
+            // 카드 톤·책갈피 — 보유중=녹색(보유) / 청산=익절(빨강)·손절(파랑)
+            const tone = col.held ? CARD_TONE.held
+              : hasReal ? (realizedSum >= 0 ? CARD_TONE.profit : CARD_TONE.loss)
+              : CARD_TONE.neutral;
             return (
               <div key={col.key} className="sticky top-0 z-20 bg-white px-0.5 pt-0.5 pb-2">
-                {/* 지수 카드 스타일 — 종목명·현재가(%)·실현/평가 */}
-                <div className="rounded-lg border border-gray-200 shadow-sm bg-white text-center px-2 py-1.5 leading-tight">
+                {/* 종목명·현재가(%)·실현/평가. 카드색+왼쪽 책갈피로 상태표시 */}
+                <div className={`relative rounded-lg border shadow-sm text-center px-2 py-1.5 leading-tight ${tone.box}`}>
+                  {/* 왼쪽 세로 책갈피 */}
+                  {tone.tag && (
+                    <span className={`absolute right-full top-1/2 -translate-y-1/2 w-[18px] rounded-l-md py-1 text-[11px] font-bold text-white text-center leading-tight shadow-sm ${tone.tab}`}>
+                      {tone.tag}
+                    </span>
+                  )}
                   <div className="truncate font-bold text-[13px] text-gray-800" title={col.name}>{col.name}</div>
                   {col.account && <div className="truncate text-[11px] text-gray-400">{col.account}</div>}
                   {cur != null && (
@@ -158,20 +168,18 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
                       )}
                     </div>
                   )}
-                  {/* 종목별 총손익 — 실현(익절/손절) / 보유(미실현) 분리, 금액 우측정렬 */}
+                  {/* 종목별 총손익 — 실현 / 평가 분리, 금액 우측정렬 */}
                   {(hasReal || unreal != null) && (
-                    <div className="mt-1 pt-1 border-t border-gray-100 text-[12px] tabular-nums">
+                    <div className="mt-1 pt-1 border-t border-black/10 text-[12px] tabular-nums">
                       {hasReal && (
                         <div className="flex items-center justify-between gap-1">
-                          <span className={`text-white text-[10px] font-bold px-1.5 py-px rounded ${realizedChip(realizedSum).bg}`}>
-                            {realizedChip(realizedSum).label}
-                          </span>
+                          <span className="text-gray-400 text-[10px]">실현</span>
                           <span className={`font-bold ${signColor(realizedSum)}`}>{formatSigned(realizedSum)}</span>
                         </div>
                       )}
                       {unreal != null && (
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-white text-[10px] font-bold px-1.5 py-px rounded bg-emerald-500">보유</span>
+                          <span className="text-gray-400 text-[10px]">평가</span>
                           <span className={`font-bold ${signColor(unreal)}`}>{formatSigned(unreal)}</span>
                         </div>
                       )}
@@ -263,6 +271,14 @@ function RoundGroup({ round, held, heldUnreal }: {
     </div>
   );
 }
+
+// 종목 카드 톤 — 보유중=녹색(보유) / 청산 익절=빨강 / 손절=파랑 / 그 외=무채색
+const CARD_TONE = {
+  held:    { box: "border-emerald-200 bg-emerald-50", tab: "bg-emerald-500", tag: "보유" },
+  profit:  { box: "border-rose-200 bg-rose-50",       tab: "bg-rose-500",    tag: "익절" },
+  loss:    { box: "border-blue-200 bg-blue-50",       tab: "bg-blue-500",    tag: "손절" },
+  neutral: { box: "border-gray-200 bg-white",         tab: "",               tag: "" },
+};
 
 // 색: 매수=회색 / 매도 익절=빨강 / 손절=파랑 / 본전·원가불명=회색
 const TONE = {
