@@ -16,7 +16,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
