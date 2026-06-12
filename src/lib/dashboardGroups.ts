@@ -43,7 +43,7 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
     },
     {
       label: "📦 미국 대표 ETF",
-      rows: [["SPY", "QQQ", "DIA", "IWM", "VTI"]],
+      rows: [["SPCX", "SPY", "QQQ", "DIA", "IWM", "VTI"]],
     },
     {
       label: "🧩 섹터 ETF (미국 ↔ 한국 페어)",        // 한 줄 = 미국 2 + 짝 한국 2 (모바일은 좌 미국·우 한국)

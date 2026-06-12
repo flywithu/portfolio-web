@@ -63,6 +63,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "LRCX",     name: "램리서치",     desc: "Lam Research — 식각·증착 장비. HBM 핵심 공정", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ASML",     name: "ASML",        desc: "EUV 노광 독점 — 첨단 반도체 공정 필수", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 4 — 미국 대표 ETF
+  { symbol: "SPCX",     name: "스페이스X",    desc: "SpaceX (SPCX) — 우주 발사·스타링크. NASDAQ 상장 주식", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "SPY",      name: "SPY",         desc: "SPDR S&P 500 — 미국 대형주 추종", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "QQQ",      name: "QQQ",         desc: "Invesco NASDAQ 100 — 미국 대형 기술주", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "DIA",      name: "DIA",         desc: "SPDR Dow Jones 30 — 미국 대형주 30선", tier: "T0", sector: "dashboard", direction: "direct" },
