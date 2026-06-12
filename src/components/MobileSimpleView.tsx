@@ -89,7 +89,7 @@ import {
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
-import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
+import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
 
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
@@ -130,7 +130,6 @@ export function MobileSimpleView() {
     return next;
   });
   const [moreOpen, setMoreOpen] = useState(false);   // 상단 더보기 메뉴(사용법/질문/후원/설정)
-  const [marketSplit, setMarketSplitState] = useState(getMarketSplit());   // 일괄 / 시장분리 보기
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpStep, setHelpStep] = useState(0);   // 사용법 열 때 시작 단계 (현재 탭 기준)
@@ -955,14 +954,6 @@ export function MobileSimpleView() {
           {/* 정렬 옵션 + 보기 모드 */}
           {groupHoldings.length > 0 && (
             <div className="flex items-center justify-end gap-2 px-2 pt-2">
-              {/* 보기 모드 — 일괄 / 코스피·코스닥 분리 (좌측) */}
-              <select value={marketSplit ? "split" : "all"}
-                      onChange={e => { const v = e.target.value === "split"; setMarketSplitState(v); setMarketSplit(v); }}
-                      className="mr-auto text-[11px] font-medium border border-gray-300 rounded px-1 py-1
-                                 bg-white text-gray-700 focus:outline-none">
-                <option value="all">일괄보기</option>
-                <option value="split">코스피/코스닥분리</option>
-              </select>
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />
@@ -1017,56 +1008,7 @@ export function MobileSimpleView() {
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
                                })} />
               );
-              if (!marketSplit) return <>{shown.map(renderCard)}</>;
-              // 시장 분리 — 코스피 / 코스닥 / ETF / 기타 (모바일 세로 스택), 분류별 합계
-              const catOf = (s: Stock): string =>
-                isEtfByName(s.name) ? "ETF"
-                : krMarketMap.get(s.ticker) === "KOSDAQ" ? "KOSDAQ"
-                : krMarketMap.get(s.ticker) === "KOSPI" ? "KOSPI"
-                : "기타";
-              const byCat: Record<string, Stock[]> = { KOSPI: [], KOSDAQ: [], ETF: [], 기타: [] };
-              for (const s of shown) byCat[catOf(s)].push(s);
-              const subtotal = (items: Stock[]) => {
-                let invested = 0, current = 0, yesterday = 0;
-                for (const s of items) {
-                  if (!(s.shares > 0)) continue;
-                  const p = groupPriceMap.get(s.ticker);
-                  const cur = p?.price || s.avg_price;
-                  invested += s.shares * s.avg_price; current += cur * s.shares;
-                  yesterday += holdingYesterdayBaseSum(s, p ?? { price: s.avg_price, base: 0 });
-                }
-                const pnl = current - invested;
-                const dayDiff = current - yesterday;
-                return {
-                  invested, current, pnl,
-                  pct: invested > 0 ? (pnl / invested) * 100 : 0,
-                  dayDiff, dayPct: yesterday > 0 ? (dayDiff / yesterday) * 100 : 0,
-                };
-              };
-              const SECTIONS: [string, string][] =
-                [["KOSPI", "코스피"], ["KOSDAQ", "코스닥"], ["ETF", "ETF"], ["기타", "기타"]];
-              return SECTIONS.map(([key, label]) => {
-                const items = byCat[key];
-                if (items.length === 0) return null;
-                const t = subtotal(items);
-                return (
-                  <div key={key} className="space-y-1.5">
-                    <div className="border-b border-gray-300 pb-0.5 pt-1">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-[11px] font-bold text-gray-600">{label}</span>
-                        <span className="text-[10px] text-gray-400">{items.length}종목</span>
-                      </div>
-                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5 text-[10px] tabular-nums text-gray-500">
-                        <span>원금 <b className="text-gray-700">{Math.round(t.invested).toLocaleString()}</b></span>
-                        <span>현재 <b className={signColor(t.pnl)}>{Math.round(t.current).toLocaleString()}</b></span>
-                        <span>전체 <b className={signColor(t.pnl)}>{formatSigned(Math.round(t.pnl))} ({t.pct >= 0 ? "+" : ""}{t.pct.toFixed(2)}%)</b></span>
-                        <span>오늘 <b className={signColor(t.dayDiff)}>{formatSigned(Math.round(t.dayDiff))} ({t.dayPct >= 0 ? "+" : ""}{t.dayPct.toFixed(2)}%)</b></span>
-                      </div>
-                    </div>
-                    {items.map(renderCard)}
-                  </div>
-                );
-              });
+              return <>{shown.map(renderCard)}</>;   // 모바일은 일괄 보기만 (시장분리 제거)
             })()}
           </div>
           {/* 합계 — 화면 하단 fixed.
