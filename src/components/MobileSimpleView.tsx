@@ -4,6 +4,7 @@ import {
   sortHoldings, loadSortKey, loadSortDir, saveSortKey, saveSortDir,
   type SortKey, type SortDirection,
 } from "../lib/sortHoldings";
+import { getHeldFirst, setHeldFirst } from "../lib/heldFirst";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures,
@@ -548,6 +549,8 @@ export function MobileSimpleView() {
   });
 
   // 정렬 적용 — sleeping 항상 맨 아래, 그 외엔 sortKey + sortDir 따라
+  const [heldFirst, setHeldFirstState] = useState(getHeldFirst);
+  const toggleHeldFirst = () => setHeldFirstState(v => { setHeldFirst(!v); return !v; });
   const groupHoldings = useMemo(() => {
     const sectorMap = new Map<string, string>();
     if (naverInfos.data) {
@@ -555,8 +558,10 @@ export function MobileSimpleView() {
         if (info?.sector) sectorMap.set(t, info.sector);
       }
     }
-    return sortHoldings(groupHoldingsUnsorted, groupPriceMap, sectorMap, sortKey, sortDir);
-  }, [groupHoldingsUnsorted, groupPriceMap, naverInfos.data, sortKey, sortDir]);
+    const base = sortHoldings(groupHoldingsUnsorted, groupPriceMap, sectorMap, sortKey, sortDir);
+    if (!heldFirst) return base;   // 내꺼먼저 ON → 보유(shares>0) 위로
+    return [...base.filter(s => s.shares > 0), ...base.filter(s => !(s.shares > 0))];
+  }, [groupHoldingsUnsorted, groupPriceMap, naverInfos.data, sortKey, sortDir, heldFirst]);
 
   // 같은 ticker 가 속한 그룹들 — 카드 상단 알약 표시용 (전체 holdings 기준)
   const tickerGroupsMap = useMemo(() => {
@@ -1091,6 +1096,7 @@ export function MobileSimpleView() {
                       <TotalRow holdings={groupHoldings} prices={groupPriceMap}
                                 account={activeTab}
                                 aggregated={activeTab === MY_KEY}
+                                heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
                                 onDepositChange={() => {
                                   void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
                                 }} />
@@ -1122,6 +1128,7 @@ export function MobileSimpleView() {
                     <TotalRow holdings={groupHoldings} prices={groupPriceMap}
                               account={activeTab}
                               aggregated={activeTab === MY_KEY}
+                              heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
                               onDepositChange={() => {
                                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
                               }} />

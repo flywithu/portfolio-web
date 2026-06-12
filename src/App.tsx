@@ -15,6 +15,7 @@ import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
 import { getTabVisibility, getMarketSplit, setMarketSplit } from "./lib/tabVisibility";
+import { getHeldFirst, setHeldFirst } from "./lib/heldFirst";
 import { Menu } from "lucide-react";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
@@ -394,14 +395,21 @@ function Dashboard() {
     }
     return out;
   }, [holdings]);
-  // 정렬 적용 — sleeping 은 항상 맨 아래, 그 외엔 sortKey + sortDir 따라
+  // "내꺼먼저" — 켜면 보유(shares>0) 종목을 위로
+  const [heldFirst, setHeldFirstState] = useState(getHeldFirst);
+  const toggleHeldFirst = () => setHeldFirstState(v => { setHeldFirst(!v); return !v; });
+
+  // 정렬 적용 — sleeping 은 항상 맨 아래, 그 외엔 sortKey + sortDir 따라.
+  //  내꺼먼저 ON 이면 보유(shares>0) 를 맨 위로(그 안에서는 기존 정렬 유지).
   const sortedVisible = useMemo(() => {
     const sectorMap = new Map<string, string>();
     for (const [t, info] of naverMap.entries()) {
       if (info?.sector) sectorMap.set(t, info.sector);
     }
-    return sortHoldings(visible, priceMap, sectorMap, sortKey, sortDir);
-  }, [visible, priceMap, naverMap, sortKey, sortDir]);
+    const base = sortHoldings(visible, priceMap, sectorMap, sortKey, sortDir);
+    if (!heldFirst) return base;
+    return [...base.filter(s => s.shares > 0), ...base.filter(s => !(s.shares > 0))];
+  }, [visible, priceMap, naverMap, sortKey, sortDir, heldFirst]);
 
   const chartMap = useMemo(
     () => new Map(chartQs.map((q, i) =>
@@ -796,6 +804,7 @@ function Dashboard() {
               <TotalRow holdings={visible} prices={priceMap}
                         account={activeTab}
                         aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                        heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
                         onDepositChange={() => setReloadKey(k => k + 1)} />
               <TodayPnLTable holdings={visible} prices={priceMap} />
               <div className="ml-auto">

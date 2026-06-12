@@ -12,6 +12,9 @@ interface Props {
   aggregated?: boolean;
   // 예수금 변경 후 부모 리로드 트리거
   onDepositChange?: () => void;
+  // "내꺼먼저" — 켜면 보유 종목을 위로 정렬 (책갈피 토글)
+  heldFirst?: boolean;
+  onToggleHeldFirst?: () => void;
 }
 
 // 합계는 매도 수수료 미적용 (raw 가격 × 주수). 데스크톱 v2 와 동일.
@@ -19,7 +22,7 @@ interface Props {
 // 장마감 종목도 종가 vs 어제 종가 차이로 합계에 정상 반영 (다음 장 시작 전까지 유효).
 // 예수금(현금) 은 평가손익 없음 — 총자산에만 합산, pnl/오늘 계산엔 미반영.
 
-export function TotalRow({ holdings, prices, account, aggregated, onDepositChange }: Props) {
+export function TotalRow({ holdings, prices, account, aggregated, onDepositChange, heldFirst, onToggleHeldFirst }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -68,11 +71,23 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
   };
 
   return (
-    <div className="w-fit bg-white border border-gray-300
+    <div className="relative w-fit bg-white border border-gray-300
                      rounded-lg shadow-md px-5 py-3
                      grid grid-cols-[auto_auto_auto_auto]
                      gap-x-3 gap-y-1 items-baseline
                      text-sm leading-tight whitespace-nowrap">
+      {/* 내꺼먼저 책갈피 — 켜면 보유 종목 위로 정렬 */}
+      {onToggleHeldFirst && (
+        <button onClick={onToggleHeldFirst}
+                title="보유한 종목(수량>0)을 목록 맨 위로 정렬"
+                className={`absolute -top-2.5 right-4 px-2 py-0.5 rounded-t-md text-[11px] font-bold
+                            border border-b-0 shadow-sm
+                            ${heldFirst
+                              ? "bg-emerald-500 text-white border-emerald-600"
+                              : "bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200"}`}>
+          🔖 내꺼먼저 {heldFirst ? "ON" : "OFF"}
+        </button>
+      )}
       {/* Row 1: 원금  |  전체 */}
       <div className="text-gray-500 text-xs">원금</div>
       <div className="text-right text-gray-800">
