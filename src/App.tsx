@@ -597,7 +597,8 @@ function Dashboard() {
         </div>
 
         {activeTab === US_MARKET_TAB_KEY ? (
-          <UsMarketTab onRequestSearch={(q) => {
+          <UsMarketTab navStickyTop={(headerCollapsed ? 0 : headerH) + tabsH}
+            onRequestSearch={(q) => {
             setSearchInitQuery(q);
             setSearchOpen(true);
           }} />

@@ -106,6 +106,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
   };
 
   return (
+    <>
     <nav className="flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap
                     border-b border-gray-200 mb-3 px-1 pt-1">
       {leading && <span className="shrink-0">{leading}</span>}
@@ -138,9 +139,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                           ${active
                             ? "border-blue-500 text-blue-700 bg-white"
                             : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
-              {t.icon
-                ? <span className="mr-1 inline-flex align-middle">{t.icon}</span>
-                : t.emoji && <span className="mr-1">{t.emoji}</span>}
+              {/* 일반 그룹 탭 — 모바일처럼 아이콘/이모지 없이 이름만 */}
               {t.label}
               {t.count > 0 && (
                 <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>
@@ -199,38 +198,78 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                     onClick={() => onChange(g)}
                     className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
                                 ${active ? "border-blue-500 text-blue-700 bg-white" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
-              📂 {folder.name}({g})
+              📁{folder.name}({g})
               {cnt > 0 && (
                 <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>{cnt}</span>
               )}
             </button>
           );
         }
+        // 폴더명 링크 — 클릭 시 폴더 진입(현재/첫 멤버). 멤버 전환은 아래 폴더 sub 링크바에서.
         return (
-          <div key={`__folder__${folder.name}`}
-               className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-t-md border-b-2 -mb-px
-                           ${active ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
-            {/* 폴더명은 select 에서 표시(placeholder/옵션) — 앞 문구 제거, 📂 아이콘만 (클릭=현재 멤버 이동) */}
-            <button onClick={() => onChange(current)}
-                    className={`text-sm font-medium ${active ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
-              📂
-            </button>
-            {/* 지수 묶음과 동일 — 폴더 밖일 땐 value="" 라 이미 표시된 항목 선택도 이동됨 */}
-            <select value={active ? current : ""}
-                    onChange={e => { if (e.target.value) onChange(e.target.value); }}
-                    className={`text-xs bg-transparent border rounded px-1 py-0.5 focus:outline-none
-                                ${active ? "border-blue-300 text-blue-700" : "border-gray-300 text-gray-600"}`}>
-              {!active && <option value="" disabled hidden>{folder.name}</option>}
-              {members.map(g => (
-                <option key={g} value={g}>
-                  {g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
+          <button key={`__folder__${folder.name}`}
+                  onClick={() => onChange(current)}
+                  className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
+                              ${active ? "border-blue-500 text-blue-700 bg-white"
+                                       : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+            📁{folder.name}
+          </button>
         );
       })}
-    </nav>
+      </nav>
+      {/* 폴더 sub 링크바 — 폴더 안 그룹에 있을 때, 그 폴더의 그룹들을 칩으로 펼쳐 빠르게 전환.
+          Tabs(=tabsStickyRef) 안에 두어 sticky 측정 높이에 포함 → 아래 정렬 툴바가 자동으로 밀려 내려감. */}
+      {(() => {
+        const activeFolder = folderList.find(f =>
+          f.groups.some(g => g === activeKey && presentGroups.has(g)));
+        if (!activeFolder) return null;
+        const members = activeFolder.groups.filter(g => presentGroups.has(g))
+                                    .sort((a, b) => a.localeCompare(b, "ko"));
+        if (members.length < 2) return null;
+        return (
+          <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap
+                          px-1 py-1.5 border-b border-gray-200 bg-white">
+            {members.map(g => {
+              const on = g === activeKey;
+              const cnt = countByKey.get(g) ?? 0;
+              return (
+                <div key={g} className="group relative inline-flex shrink-0">
+                  <button onClick={() => onChange(g)}
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1
+                                      ${on ? "bg-blue-600 text-white"
+                                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                    <span>{g}</span>
+                    {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
+                  </button>
+                  {/* 수정/삭제 — hover 시 노출 (일반 탭과 동일) */}
+                  {(onRename || onDelete) && (
+                    <div className="absolute -top-1.5 -right-1 flex gap-0.5
+                                    opacity-0 group-hover:opacity-90 hover:!opacity-100
+                                    bg-white rounded shadow px-0.5 transition-opacity">
+                      {onRename && (
+                        <button type="button" title="그룹명 변경"
+                                onClick={e => { e.stopPropagation(); handleRename(g, g); }}
+                                className="inline-flex items-center leading-none px-0.5 text-slate-500 hover:text-slate-800">
+                          <Settings size={11} strokeWidth={2.2} />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button type="button" title="그룹 삭제"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  if (confirm(`"${g}" 그룹의 ${cnt}건을 모두 삭제할까요?\n(되돌릴 수 없음)`)) onDelete(g);
+                                }}
+                                className="text-[10px] leading-none px-0.5 hover:text-rose-600">🗑</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+    </>
   );
 }
 

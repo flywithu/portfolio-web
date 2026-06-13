@@ -5,7 +5,8 @@ import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale } from "../lib/format";
 import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
-import { buildDashboardSections } from "../lib/dashboardGroups";
+import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
+import { GroupNavBar } from "./GroupNavBar";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
@@ -65,9 +66,11 @@ interface QuoteRow {
 interface UsMarketTabProps {
   // ETF 구성종목 모달의 "한번에 추가" → 전역 검색창으로 전달
   onRequestSearch?: (q: string) => void;
+  // 그룹 색인바 sticky 고정 위치(px) — App 의 헤더+탭바 아래. 미지정 시 0.
+  navStickyTop?: number;
 }
 
-export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
+export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabProps = {}) {
   const yahooSymbols = allYahooSymbols();
   const krEtfs = allKrEtfTickers();
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
@@ -221,12 +224,20 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   // 개인 워커 사용 중이면, investing 미허용으로 V-KOSPI 값이 빌 수 있음 → 카드 안에 업데이트 안내
   const hasPersonalProxy = !!getPersonalProxyUrl();
 
+  // 그룹 색인 칩바 — 헤더+탭바 아래(navStickyTop)에 고정. 섹션 앵커 = "usidx-" + section.id
+  const navItems = dashboardGroupNav(T0_SECTIONS);
+  const idxScrollMargin = navStickyTop + 44;
+
   return (
     <div className="space-y-3">
+      <GroupNavBar items={navItems} idPrefix="usidx-"
+                   stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin} />
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
       <div className="space-y-4">
         {T0_SECTIONS.map((section) => (
-          <div key={section.label} className="space-y-2">
+          <div key={section.label} id={`usidx-${section.id}`}
+               style={{ scrollMarginTop: idxScrollMargin }}
+               className="space-y-2">
             <div className="flex items-center gap-2 px-0.5">
               <h3 className="text-sm font-bold text-gray-700 whitespace-nowrap">{section.label}</h3>
               <div className="flex-1 h-px bg-gray-200" />

@@ -27,7 +27,8 @@ import {
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { buildDashboardSections } from "../lib/dashboardGroups";
+import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
+import { GroupNavBar } from "./GroupNavBar";
 import { normalizeAccount } from "../lib/account";
 import type { MarketIndexKey } from "../lib/api";
 import { MarketFlowModal } from "./MarketFlowModal";
@@ -129,6 +130,34 @@ export function MobileSimpleView() {
     try { localStorage.setItem("portfolio_header_collapsed", next ? "1" : "0"); } catch { /* noop */ }
     return next;
   });
+  // 메인 탭바 높이 측정 — 지수 그룹 색인바를 탭바 바로 아래에 고정시키기 위함
+  const navRef = useRef<HTMLElement>(null);
+  const [navH, setNavH] = useState(33);
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const update = () => setNavH(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // 폴더 sub바 칩 — 그룹 이름변경/삭제 (tabMenu 와 동일 로직, 인라인 아이콘용)
+  const renameGroupInline = async (g: string) => {
+    const next = window.prompt(`"${g}" → 새 이름:`, g);
+    if (next == null) return;
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === g) return;
+    await renameGroup(g, trimmed);
+    if (activeTab === g) setActiveTab(trimmed);
+    void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+  };
+  const deleteGroupInline = async (g: string) => {
+    if (!confirm(`"${g}" 그룹의 모든 항목을 삭제할까요?\n(되돌릴 수 없음)`)) return;
+    await deleteGroup(g);
+    if (activeTab === g) setActiveTab(KR_KEY);
+    void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+  };
   const [moreOpen, setMoreOpen] = useState(false);   // 상단 더보기 메뉴(사용법/질문/후원/설정)
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -757,7 +786,7 @@ export function MobileSimpleView() {
       )}
 
       {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) — 길게 누르기 = 액션 시트 ─── */}
-      <nav style={{ top: headerCollapsed ? 0 : 44 }}
+      <nav ref={navRef} style={{ top: headerCollapsed ? 0 : 44 }}
            className="sticky z-40 bg-white border-b border-gray-200
                        px-2 py-1 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
         {/* 헤더 접힘 시 펼치기(≡) 버튼 — 탭 바 맨 앞 */}
@@ -923,30 +952,62 @@ export function MobileSimpleView() {
               </button>
             );
           }
+          // 폴더명 링크 — 클릭 시 폴더로 진입(현재 멤버 또는 첫 멤버). 멤버 전환은 아래 sub 링크바에서.
           const current = members.includes(activeTab) ? activeTab : members[0];
           const folderActive = members.includes(activeTab);
           return (
-            <span key={`folder_${folder.name}`}
-                  className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-2
-                              ${folderActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
-              {/* 폴더명은 select 에서 표시 — 앞 문구 제거, 📁 아이콘만 */}
-              📁
-              {/* 지수 묶음과 동일 — 폴더 밖일 땐 value="" 라 이미 표시된 항목 선택도 이동됨 */}
-              <select value={folderActive ? current : ""}
-                      onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
-                      className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
-                                  ${folderActive ? "text-white" : "text-gray-700"}`}>
-                {!folderActive && <option value="" disabled hidden className="text-gray-800">{folder.name}</option>}
-                {members.map(g => (
-                  <option key={g} value={g} className="text-gray-800">
-                    {g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}
-                  </option>
-                ))}
-              </select>
-            </span>
+            <button key={`folder_${folder.name}`}
+                    onClick={() => setActiveTab(current)}
+                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
+                                ${folderActive ? "bg-blue-600 text-white font-bold"
+                                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              📁{folder.name}
+            </button>
           );
         })}
       </nav>
+
+      {/* ─── 폴더 sub 링크바 — 폴더 안 그룹에 있을 때, 그 폴더의 그룹들을 칩으로 펼쳐 빠르게 전환 ─── */}
+      {(() => {
+        const activeFolder = folders.find(f =>
+          f.groups.some(g => g === activeTab && presentGroups.has(g)));
+        if (!activeFolder) return null;
+        const members = activeFolder.groups.filter(g => presentGroups.has(g))
+                                    .sort((a, b) => a.localeCompare(b, "ko"));
+        if (members.length < 2) return null;   // 1개뿐이면 전환할 게 없음
+        return (
+          <div data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
+               className="sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
+                          px-2 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+            {members.map(g => {
+              const on = g === activeTab;
+              const cnt = countByKey.get(g) ?? 0;
+              return (
+                <button key={g} onClick={() => setActiveTab(g)}
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] transition inline-flex items-center gap-1
+                                    ${on ? "bg-blue-600 text-white font-bold"
+                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  <span>{g}</span>
+                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
+                  {/* 선택된 그룹 칩 — 수정/삭제 아이콘 인라인 (chip 이 button 이라 span role=button) */}
+                  {on && (
+                    <>
+                      <span role="button" tabIndex={0} title="그룹명 변경"
+                            onClick={e => { e.stopPropagation(); void renameGroupInline(g); }}
+                            className="ml-1 inline-flex items-center text-blue-100 hover:text-white">
+                        <Settings size={12} strokeWidth={2.2} />
+                      </span>
+                      <span role="button" tabIndex={0} title="그룹 삭제"
+                            onClick={e => { e.stopPropagation(); void deleteGroupInline(g); }}
+                            className="inline-flex items-center text-blue-100 hover:text-white text-[11px]">🗑</span>
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ─── 그룹 컨텐츠 (시스템 탭 외) ─── */}
       {!isSystemTab && (
@@ -1118,10 +1179,16 @@ export function MobileSimpleView() {
         }
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)
         const sections = buildDashboardSections(isKrNightSession());
+        const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래
+        const idxScrollMargin = idxStickyTop + 38;                // + 색인바 높이 만큼 더 내려 착지
         return (
           <div className="px-3 py-2 space-y-3">
+            <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact
+                         stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />
             {sections.map(section => (
-              <div key={section.label} className="space-y-1.5">
+              <div key={section.label} id={`midx-${section.id}`}
+                   style={{ scrollMarginTop: idxScrollMargin }}
+                   className="space-y-1.5">
                 <div className="flex items-center gap-1.5 px-0.5">
                   <h3 className="text-xs font-bold text-gray-700 whitespace-nowrap">{section.label}</h3>
                   <div className="flex-1 h-px bg-gray-200" />

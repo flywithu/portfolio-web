@@ -500,6 +500,15 @@ export async function deleteGroup(groupName: string): Promise<number> {
   const removed = await db.holdings.where("account").equals(groupName).delete();
   // 그룹 예수금도 함께 제거 — 안 그러면 고아 예수금이 '내주식' 합산(getTotalDeposits)에 계속 남음
   setDeposit(groupName, 0);
+  // 그룹 폴더에서도 제거 — 삭제된 그룹이 폴더 멤버로 남지 않게
+  const folders = getGroupFolders();
+  let changed = false;
+  for (const f of folders) {
+    const before = f.groups.length;
+    f.groups = f.groups.filter(g => g !== groupName);
+    if (f.groups.length !== before) changed = true;
+  }
+  if (changed) setGroupFolders(folders);
   return removed;
 }
 
@@ -565,6 +574,16 @@ export async function renameGroup(oldName: string, newName: string): Promise<num
     setDeposit(next, getDeposit(next) + dep);
     setDeposit(old, 0);
   }
+  // 그룹 폴더 멤버 이름도 갱신 — 안 하면 폴더에서 빠져 sub바가 사라지고 그룹이 폴더 밖으로 튕김
+  const folders = getGroupFolders();
+  let folderChanged = false;
+  for (const f of folders) {
+    if (f.groups.includes(old)) {
+      f.groups = Array.from(new Set(f.groups.map(g => (g === old ? next : g))));
+      folderChanged = true;
+    }
+  }
+  if (folderChanged) setGroupFolders(folders);
   return count;
 }
 
