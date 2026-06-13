@@ -68,6 +68,7 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "KBE":  "https://www.tossinvest.com/stocks/US20051115001",
   "ITA":  "https://www.tossinvest.com/stocks/US20060505010",
   "XLV":  "https://www.tossinvest.com/stocks/US19981222008",
+  "KOID": "https://www.tossinvest.com/stocks/NAS0250605002",
   "BOTZ": "https://www.tossinvest.com/stocks/US20160913001",
   // 외국인 투심 프록시 (MSCI Korea ETF)
   "EWY":  "https://www.tossinvest.com/stocks/US20000512001",

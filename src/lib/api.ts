@@ -1999,6 +1999,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "KBE":  "US20051115001",
   "ITA":  "US20060505010",
   "XLV":  "US19981222008",
+  "KOID": "NAS0250605002",   // KraneShares 휴머노이드·피지컬AI
   "BOTZ": "US20160913001",
   "EWY":  "US20000512001",   // MSCI Korea — 외국인 투심 (Blue Ocean 24h 오버나잇)
 };
