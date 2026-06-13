@@ -14,13 +14,15 @@ import { EtfReverseTab } from "./components/EtfReverseTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
-import { getTabVisibility, getMarketSplit, setMarketSplit } from "./lib/tabVisibility";
+import { getTabVisibility, getMarketSplit } from "./lib/tabVisibility";
 import { getHeldFirst, setHeldFirst } from "./lib/heldFirst";
 import { Menu } from "lucide-react";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
-import { holdingYesterdayBaseSum, isEtfByName, signColor, formatSigned } from "./lib/format";
+import { holdingYesterdayBaseSum, signColor, formatSigned } from "./lib/format";
+import { splitByMarket, splitHeldAndMarket, type MarketSection } from "./lib/marketSplit";
+import { GroupNavBar, type GroupNavItem } from "./components/GroupNavBar";
 import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FeedbackDialog } from "./components/FeedbackDialog";
@@ -460,7 +462,35 @@ function Dashboard() {
   });
 
   // 종목 목록 보기 모드 — 일괄(전체) / 시장분리(코스피·코스닥·ETF). 정렬 툴바 선택박스.
-  const [marketSplit, setMarketSplitState] = useState(getMarketSplit());
+  // 시장분리(코스피/코스닥/ETF/기타) 보기 — 설정에서 토글, reloadKey 로 재반영
+  const marketSplit = useMemo(() => getMarketSplit(), [reloadKey]);
+  // 시장분리 섹션 — 점프바·콘텐츠 공용 (가격 들어온 종목 기준)
+  const marketSplitData = useMemo(() => {
+    if (!marketSplit) return null;
+    const shown = sortedVisible.filter(s =>
+      prices === undefined || priceMap.size === 0 || priceMap.has(s.ticker));
+    return heldFirst
+      ? { mode: "held" as const, ...splitHeldAndMarket(shown, krMarketMap) }
+      : { mode: "flat" as const, sections: splitByMarket(shown, krMarketMap) };
+  }, [marketSplit, heldFirst, sortedVisible, prices, priceMap, krMarketMap]);
+  // PC 점프바 칩 — 행 단위 묶음(코스피·코스닥 / ETF·기타). heldFirst 면 그룹 라벨 칩 추가.
+  const pcRowItems = (sections: MarketSection[], idp: string) => {
+    const mk = (rowName: string, pairs: [string, string][]) => {
+      const present = pairs.filter(([k]) => sections.some(s => s.key === k));
+      return present.length ? [{ id: `${idp}-${rowName}`, emoji: "", short: present.map(([, l]) => l).join("·") }] : [];
+    };
+    return [
+      ...mk("row1", [["KOSPI", "코스피"], ["KOSDAQ", "코스닥"]]),
+      ...mk("row2", [["ETF", "ETF"], ["기타", "기타"]]),
+    ];
+  };
+  const marketNavItems: GroupNavItem[] = !marketSplitData ? []
+    : marketSplitData.mode === "flat"
+      ? pcRowItems(marketSplitData.sections, "m")
+      : [
+          ...(marketSplitData.held.length ? [{ id: "lbl-held", emoji: "", short: "내꺼", label: true }, ...pcRowItems(marketSplitData.held, "held")] : []),
+          ...(marketSplitData.notHeld.length ? [{ id: "lbl-nh", emoji: "", short: "내꺼아님", label: true }, ...pcRowItems(marketSplitData.notHeld, "nh")] : []),
+        ];
 
   // 헤더/탭 높이를 측정해 sticky top 을 동적 계산 (헤더 접힘·탭 wrap 대응).
   const headerRef = useRef<HTMLElement>(null);
@@ -657,15 +687,12 @@ function Dashboard() {
                  className="sticky z-30 bg-white/95 backdrop-blur
                             flex items-center justify-end gap-2 mb-2 py-1.5
                             -mx-3 px-3 border-b border-gray-200">
-              {/* 보기 모드 — 일괄보기 / 시장분리 (좌측) */}
-              <select value={marketSplit ? "split" : "all"}
-                      onChange={e => { const v = e.target.value === "split"; setMarketSplitState(v); setMarketSplit(v); }}
-                      title="종목 목록 보기 — 일괄 / 코스피·코스닥·ETF 분리"
-                      className="mr-auto text-xs font-medium border border-gray-300 rounded px-1.5 py-1
-                                 bg-white text-gray-700 focus:outline-none cursor-pointer">
-                <option value="all">일괄보기</option>
-                <option value="split">코스피/코스닥분리</option>
-              </select>
+              {/* 시장분리 점프바 (좌측) — 코스피/코스닥/ETF/기타 섹션으로 스크롤. 분리 OFF 면 스페이서만 */}
+              {marketSplit && marketNavItems.length > 0 ? (
+                <GroupNavBar items={marketNavItems} idPrefix="pcmsplit-" sticky={false}
+                             scrollMarginTop={(headerCollapsed ? 0 : headerH) + tabsH + 44}
+                             className="mr-auto" />
+              ) : <div className="mr-auto" />}
               <button onClick={() => setSimpleOpen(true)}
                       title="심플 보기 — 현재가만 한눈에 (팝업)"
                       className="px-2.5 py-1 rounded text-xs font-bold border transition
@@ -730,17 +757,11 @@ function Dashboard() {
                   onOpenEtfReverse={(tk, nm) => setEtfReverseDialog({ ticker: tk, name: nm })}
                 />
               );
-              if (!marketSplit) {
+              if (!marketSplit || !marketSplitData) {
                 return <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{shown.map(renderCard)}</div>;
               }
-              // 시장 분리 보기 — 코스피 | 코스닥 (2단) + ETF (전체폭). 분류별 합계 표시.
-              const catOf = (s: Stock): string =>
-                isEtfByName(s.name) ? "ETF"
-                : krMarketMap.get(s.ticker) === "KOSDAQ" ? "KOSDAQ"
-                : krMarketMap.get(s.ticker) === "KOSPI" ? "KOSPI"
-                : "기타";
-              const byCat: Record<string, Stock[]> = { KOSPI: [], KOSDAQ: [], ETF: [], 기타: [] };
-              for (const s of shown) byCat[catOf(s)].push(s);
+              // 시장 분리 보기 — heldFirst 면 내꺼/내꺼아님 2단, 아니면 시장만.
+              const splitScrollMargin = (headerCollapsed ? 0 : headerH) + tabsH + 44;
               const subtotal = (items: Stock[]) => {
                 let invested = 0, current = 0, yesterday = 0;
                 for (const s of items) {
@@ -776,28 +797,54 @@ function Dashboard() {
                   </div>
                 );
               };
-              const colSection = (key: string, label: string) => byCat[key].length > 0 ? (
-                <div key={key}>
-                  {sectionHead(label, byCat[key])}
-                  <div className="grid grid-cols-1 gap-2">{byCat[key].map(renderCard)}</div>
-                </div>
-              ) : null;
-              const wideSection = (key: string, label: string) => byCat[key].length > 0 ? (
-                <div key={key}>
-                  {sectionHead(label, byCat[key])}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{byCat[key].map(renderCard)}</div>
-                </div>
-              ) : null;
+              const block = (sections: MarketSection[], key: string, label: string) => {
+                const sec = sections.find(s => s.key === key);
+                return sec ? (
+                  <div key={key}>
+                    {sectionHead(label, sec.stocks)}
+                    <div className="grid grid-cols-1 gap-2">{sec.stocks.map(renderCard)}</div>
+                  </div>
+                ) : null;
+              };
+              // 행(2단 페어) — 앵커는 행 div 에 (PC 점프바가 행 단위). 둘 다 없으면 생략.
+              const rowDiv = (sections: MarketSection[], idp: string, rowName: string, pairs: [string, string][]) => {
+                if (!pairs.some(([k]) => sections.some(s => s.key === k))) return null;
+                return (
+                  <div id={`pcmsplit-${idp}-${rowName}`} style={{ scrollMarginTop: splitScrollMargin }}
+                       className="grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-3 items-start">
+                    {pairs.map(([k, l]) => block(sections, k, l))}
+                  </div>
+                );
+              };
+              const marketGrid = (sections: MarketSection[], idp: string) => (
+                <>
+                  {rowDiv(sections, idp, "row1", [["KOSPI", "코스피"], ["KOSDAQ", "코스닥"]])}
+                  {rowDiv(sections, idp, "row2", [["ETF", "ETF"], ["기타", "기타"]])}
+                </>
+              );
+              const groupHeader = (text: string) => (
+                <div className="text-[11px] font-bold text-gray-500 px-0.5">{text}</div>
+              );
+              if (marketSplitData.mode === "flat") {
+                // 내꺼먼저 OFF — 시장만 분리 (보유/관심 섞임)
+                return <div className="space-y-3">{marketGrid(marketSplitData.sections, "m")}</div>;
+              }
+              // 내꺼먼저 ON — 내꺼(보유) / 내꺼아님(관심) 으로 먼저, 각 안에서 시장
+              const { held, notHeld } = marketSplitData;
               return (
                 <div className="space-y-3">
-                  {/* 코스피 | 코스닥 — 2단 */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-3 items-start">
-                    {colSection("KOSPI", "코스피")}
-                    {colSection("KOSDAQ", "코스닥")}
-                  </div>
-                  {/* ETF + 기타 — 전체폭 */}
-                  {wideSection("ETF", "ETF")}
-                  {wideSection("기타", "기타")}
+                  {held.length > 0 && (
+                    <div id="pcmsplit-held" className="space-y-3" style={{ scrollMarginTop: splitScrollMargin }}>
+                      {groupHeader("📌 내꺼 (보유)")}
+                      {marketGrid(held, "held")}
+                    </div>
+                  )}
+                  {notHeld.length > 0 && (
+                    <div id="pcmsplit-nh" className="space-y-3 pt-1" style={{ scrollMarginTop: splitScrollMargin }}>
+                      {groupHeader("👀 내꺼 아님 (관심)")}
+                      {marketGrid(notHeld, "nh")}
+                    </div>
+                  )}
                 </div>
               );
             })()}

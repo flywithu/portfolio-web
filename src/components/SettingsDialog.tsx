@@ -19,7 +19,7 @@ import { resetProxyStats } from "../lib/proxyStatus";
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 const USAGE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/PROXY-USAGE.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
-import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
+import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
@@ -675,6 +675,26 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 <span className="text-[10px] text-gray-500">
                   마지막 체결로부터 시간이 지난 종목이나 정규장 외 시간에
                   카드를 60% 투명도로 표시합니다. 끄면 항상 또렷하게 보입니다.
+                </span>
+              </span>
+            </label>
+
+            {/* 코스피/코스닥 분리 보기 */}
+            <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
+              <input type="checkbox" defaultChecked={getMarketSplit()}
+                     onChange={e => {
+                       setMarketSplit(e.target.checked);
+                       setStatusMsg(`✅ 시장 분리 보기: ${e.target.checked ? "ON" : "OFF"}`);
+                       onChanged();
+                     }}
+                     className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+              <span className="flex-1">
+                <span className="text-[11px] text-gray-700 font-medium block">
+                  코스피 / 코스닥 분리 보기
+                </span>
+                <span className="text-[10px] text-gray-500">
+                  ON: 그룹 종목을 코스피·코스닥·ETF·기타(미국상장 등)로 나눠 표시하고
+                  상단 점프바로 각 섹션으로 이동합니다. 끄면 한 목록으로 봅니다.
                 </span>
               </span>
             </label>

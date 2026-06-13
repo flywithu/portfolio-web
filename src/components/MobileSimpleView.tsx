@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   sortHoldings, loadSortKey, loadSortDir, saveSortKey, saveSortDir,
@@ -28,7 +28,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
-import { GroupNavBar } from "./GroupNavBar";
+import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { normalizeAccount } from "../lib/account";
 import type { MarketIndexKey } from "../lib/api";
 import { MarketFlowModal } from "./MarketFlowModal";
@@ -90,7 +90,8 @@ import {
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
-import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
+import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
+import { splitByMarket, splitHeldAndMarket, type MarketSection } from "../lib/marketSplit";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
 
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
@@ -142,6 +143,9 @@ export function MobileSimpleView() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // 폴더 sub바 높이 — 시장분리 점프바를 폴더바 아래에 겹치지 않게 고정시키기 위함 (없으면 0)
+  const [folderBarH, setFolderBarH] = useState(0);
+  const folderBarRef = useCallback((el: HTMLDivElement | null) => setFolderBarH(el ? el.offsetHeight : 0), []);
   // 폴더 sub바 칩 — 그룹 이름변경/삭제 (tabMenu 와 동일 로직, 인라인 아이콘용)
   const renameGroupInline = async (g: string) => {
     const next = window.prompt(`"${g}" → 새 이름:`, g);
@@ -275,6 +279,8 @@ export function MobileSimpleView() {
 
   // 그룹 폴더 — 폴더에 담긴 그룹은 개별 탭 대신 📁 드롭다운으로 묶음
   const folders = useMemo(() => getGroupFolders(), [settingsOpen, holdings]);
+  // 시장분리 보기 — 설정에서 토글, 설정 모달 닫힐 때 재반영
+  const marketSplit = useMemo(() => getMarketSplit(), [settingsOpen]);
   const presentGroups = useMemo(
     () => new Set(groupTabs.map(t => t.key)), [groupTabs]);
   // 폴더에 담긴(표시 가능한) 그룹은 개별 탭에서 숨기고 폴더로 묶음.
@@ -976,7 +982,7 @@ export function MobileSimpleView() {
                                     .sort((a, b) => a.localeCompare(b, "ko"));
         if (members.length < 2) return null;   // 1개뿐이면 전환할 게 없음
         return (
-          <div data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
+          <div ref={folderBarRef} data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
                className="sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
                           px-2 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
             {members.map(g => {
@@ -1069,7 +1075,77 @@ export function MobileSimpleView() {
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
                                })} />
               );
-              return <>{shown.map(renderCard)}</>;   // 모바일은 일괄 보기만 (시장분리 제거)
+              if (!marketSplit) return <>{shown.map(renderCard)}</>;
+              // 시장분리 — heldFirst 면 내꺼/내꺼아님 2단, 아니면 시장만. 세로 스택 + 점프바.
+              const split = heldFirst
+                ? { mode: "held" as const, ...splitHeldAndMarket(shown, krMarketMap) }
+                : { mode: "flat" as const, sections: splitByMarket(shown, krMarketMap) };
+              const navItems: GroupNavItem[] = split.mode === "flat"
+                ? split.sections.map(sec => ({ id: `m-${sec.key}`, emoji: "", short: sec.label }))
+                : [
+                    ...(split.held.length ? [{ id: "lbl-held", emoji: "", short: "내꺼", label: true }, ...split.held.map(sec => ({ id: `held-${sec.key}`, emoji: "", short: sec.label }))] : []),
+                    ...(split.notHeld.length ? [{ id: "lbl-nh", emoji: "", short: "내꺼아님", label: true }, ...split.notHeld.map(sec => ({ id: `nh-${sec.key}`, emoji: "", short: sec.label }))] : []),
+                  ];
+              const stickyTop = (headerCollapsed ? 0 : 44) + navH + folderBarH;
+              const scrollMargin = stickyTop + 40;
+              const colorCls = (v: number) => v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500";
+              const sectionHead = (label: string, items: Stock[]) => {
+                let invested = 0, current = 0;
+                for (const s of items) {
+                  if (!(s.shares > 0)) continue;
+                  const cur = groupPriceMap.get(s.ticker)?.price || s.avg_price;
+                  invested += s.shares * s.avg_price;
+                  current += cur * s.shares;
+                }
+                const pnl = current - invested;
+                const pct = invested > 0 ? (pnl / invested) * 100 : 0;
+                return (
+                  <div className="flex items-baseline flex-wrap gap-x-2 gap-y-0.5 px-1 mb-1 pb-0.5 border-b border-gray-200">
+                    <span className="text-xs font-bold text-gray-700">{label}</span>
+                    <span className="text-[10px] text-gray-400">{items.length}종목</span>
+                    {invested > 0 && (
+                      <span className={`text-[11px] tabular-nums ${colorCls(pnl)}`}>
+                        {pnl >= 0 ? "+" : ""}{Math.round(pnl).toLocaleString()} ({pct >= 0 ? "+" : ""}{pct.toFixed(2)}%)
+                      </span>
+                    )}
+                  </div>
+                );
+              };
+              const renderSection = (sec: MarketSection, idp: string) => (
+                <div key={`${idp}-${sec.key}`} id={`mmsplit-${idp}-${sec.key}`} style={{ scrollMarginTop: scrollMargin }}>
+                  {sectionHead(sec.label, sec.stocks)}
+                  <div className="space-y-1.5">{sec.stocks.map(renderCard)}</div>
+                </div>
+              );
+              const groupHeader = (text: string) => (
+                <div className="text-[11px] font-bold text-gray-500 px-1">{text}</div>
+              );
+              return (
+                <>
+                  <GroupNavBar items={navItems} idPrefix="mmsplit-" compact bleedClass="-mx-2 px-2"
+                               stickyTop={stickyTop} scrollMarginTop={scrollMargin} />
+                  <div className="space-y-3 pt-1">
+                    {split.mode === "flat" ? (
+                      split.sections.map(sec => renderSection(sec, "m"))
+                    ) : (
+                      <>
+                        {split.held.length > 0 && (
+                          <div id="mmsplit-held" className="space-y-2" style={{ scrollMarginTop: scrollMargin }}>
+                            {groupHeader("📌 내꺼 (보유)")}
+                            {split.held.map(sec => renderSection(sec, "held"))}
+                          </div>
+                        )}
+                        {split.notHeld.length > 0 && (
+                          <div id="mmsplit-nh" className="space-y-2 pt-1" style={{ scrollMarginTop: scrollMargin }}>
+                            {groupHeader("👀 내꺼 아님 (관심)")}
+                            {split.notHeld.map(sec => renderSection(sec, "nh"))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              );
             })()}
           </div>
           {/* 합계 — 화면 하단 fixed.
@@ -2033,6 +2109,26 @@ function SettingsModal({
                 <span className="text-[10px] text-gray-500">
                   마지막 체결로부터 시간이 지난 종목이나 정규장 외 시간에
                   카드를 60% 투명도로 표시합니다. 끄면 항상 또렷하게 보입니다.
+                </span>
+              </span>
+            </label>
+
+            {/* 코스피/코스닥 분리 보기 */}
+            <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
+              <input type="checkbox" defaultChecked={getMarketSplit()}
+                     onChange={e => {
+                       setMarketSplit(e.target.checked);
+                       setSavedMsg(`✅ 시장 분리 보기: ${e.target.checked ? "ON" : "OFF"}`);
+                       setTimeout(() => setSavedMsg(""), 2000);
+                     }}
+                     className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+              <span className="flex-1">
+                <span className="text-[11px] text-gray-700 font-medium block">
+                  코스피 / 코스닥 분리 보기
+                </span>
+                <span className="text-[10px] text-gray-500">
+                  ON: 보유 종목을 코스피·코스닥·ETF·기타(미국상장 등)로 나눠 보여주고
+                  상단 점프바로 각 섹션으로 이동합니다. 끄면 한 목록으로 봅니다.
                 </span>
               </span>
             </label>

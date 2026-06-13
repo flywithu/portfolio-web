@@ -1,26 +1,34 @@
 import { useEffect, useRef, useState } from "react";
 import type { DashboardNavItem } from "../lib/dashboardGroups";
 
+// label:true 면 클릭 불가 그룹 라벨(작은 글씨 + 세로 구분선), 아니면 클릭 칩
+export type GroupNavItem = DashboardNavItem & { label?: boolean };
+
 interface GroupNavBarProps {
-  items: DashboardNavItem[];
+  items: GroupNavItem[];
   idPrefix: string;          // 섹션 element id = idPrefix + item.id
-  stickyTop: number;         // sticky 고정 위치(px) — 헤더·메인 탭바 아래
   scrollMarginTop: number;   // 섹션 scroll-margin-top 과 동일값 — 스크롤 착지 위치 보정용
+  stickyTop?: number;        // sticky 고정 위치(px) — 헤더·메인 탭바 아래 (sticky 시)
+  sticky?: boolean;          // 기본 true. false 면 부모가 위치 제어(예: 정렬 툴바에 인라인)
   compact?: boolean;         // 모바일: 더 작은 폰트/패딩
+  className?: string;        // 추가 클래스 (non-sticky 배치용)
+  bleedClass?: string;       // sticky 시 가로 블리드 — 부모 padding 에 맞춤 (기본 -mx-3 px-3)
 }
 
 // 지수 그룹 색인 칩바 — 상단 고정. 칩 클릭 시 해당 그룹으로 부드럽게 스크롤,
 //   스크롤 위치에 따라 현재 보는 그룹 칩 자동 하이라이트(scroll-spy) + 바 안에서 가운데로 이동.
-export function GroupNavBar({ items, idPrefix, stickyTop, scrollMarginTop, compact }: GroupNavBarProps) {
+export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, sticky = true, compact, className, bleedClass = "-mx-3 px-3" }: GroupNavBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(items[0]?.id ?? "");
+  const firstChip = items.find(i => !i.label)?.id ?? "";
+  const [active, setActive] = useState(firstChip);
 
-  // scroll-spy — sticky 바 바로 아래(probe)를 지나간 마지막 섹션을 현재 그룹으로
+  // scroll-spy — sticky 바 바로 아래(probe)를 지나간 마지막 섹션을 현재 그룹으로 (라벨은 제외)
   useEffect(() => {
     const handler = () => {
       const probe = scrollMarginTop + 4;
-      let cur = items[0]?.id ?? "";
+      let cur = items.find(i => !i.label)?.id ?? "";
       for (const it of items) {
+        if (it.label) continue;
         const el = document.getElementById(idPrefix + it.id);
         if (!el) continue;
         if (el.getBoundingClientRect().top <= probe) cur = it.id;
@@ -62,20 +70,30 @@ export function GroupNavBar({ items, idPrefix, stickyTop, scrollMarginTop, compa
 
   return (
     <div ref={barRef} data-noswipe
-         style={{ top: stickyTop }}
-         className="sticky z-30 -mx-3 px-3 py-1.5 bg-white/95 backdrop-blur
-                    border-b border-gray-200 flex items-center gap-1
-                    overflow-x-auto whitespace-nowrap">
+         style={sticky ? { top: stickyTop } : undefined}
+         className={`flex items-center gap-1 overflow-x-auto whitespace-nowrap
+                     ${sticky ? `sticky z-30 ${bleedClass} py-1.5 bg-white/95 backdrop-blur border-b border-gray-200` : ""}
+                     ${className ?? ""}`}>
       {items.map(it => {
+        // 그룹 라벨 — 클릭 불가, 작은 회색 글씨 + 왼쪽 세로 구분선(│)
+        if (it.label) {
+          return (
+            <span key={it.id}
+                  className={`shrink-0 inline-flex items-center pl-2 ml-1 border-l border-gray-300
+                              font-bold text-gray-400 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+              {it.short}
+            </span>
+          );
+        }
         const on = it.id === active;
         return (
           <button key={it.id} data-chip={it.id} onClick={() => go(it.id)}
-                  title={`${it.emoji} ${it.short} 그룹으로 이동`}
+                  title={`${it.short}${it.emoji ? ` ${it.emoji}` : ""} 로 이동`}
                   className={`shrink-0 rounded-full transition inline-flex items-center gap-1
                               ${compact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs"}
                               ${on ? "bg-blue-600 text-white font-bold"
                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-            <span>{it.emoji}</span>
+            {it.emoji && <span>{it.emoji}</span>}
             <span>{it.short}</span>
           </button>
         );
