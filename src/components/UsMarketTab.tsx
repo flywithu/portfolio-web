@@ -30,7 +30,7 @@ const BASE_REFRESH_MS = 10_000;
 
 function fmtPrice(symbol: string, price: number): string {
   if (symbol.includes("KRW")) return price.toFixed(2);
-  if (symbol === "^VIX" || symbol === "^TNX") return price.toFixed(2);
+  if (symbol === "^VIX" || symbol === "^TNX" || symbol === "^US2Y") return price.toFixed(2);
   if (price >= 1000) return Math.round(price).toLocaleString();
   return price.toFixed(2);
 }

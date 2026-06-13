@@ -102,7 +102,7 @@ export function marketOfSymbol(symbol: string): Market {
   // VIX / 미국 국채금리 — Yahoo 가 확장시간(04:00-20:00 ET)까지 갱신 → US 분류
   //   ^VIX = 변동성지수, ^TNX/^FVX/^TYX/^IRX = 미 국채 만기별 yield
   if (symbol === "^VIX" || symbol === "^TNX" || symbol === "^FVX"
-      || symbol === "^TYX" || symbol === "^IRX") return "US";
+      || symbol === "^TYX" || symbol === "^IRX" || symbol === "^US2Y") return "US";
   // 한국 야간선물 (yasun.gg) — 18:00~05:00 KST 거래 시간만 활성, 그 외 흐림.
   if (symbol === "^KS200N" || symbol === "^KQ150N") return "KR_NIGHT";
   // ^ 로 시작 = 미국 정규장 지수 (^GSPC, ^IXIC, ^DJI, ^SOX 등 — 정규장만)

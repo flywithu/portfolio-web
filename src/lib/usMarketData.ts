@@ -35,9 +35,8 @@ export const US_PAIRS: Pair[] = [
   // 행 2 — 환율 + 매크로 + 외국인 투심 + 공포
   { symbol: "KRW=X",    name: "달러환율",     desc: "USD/KRW 원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "DX-Y.NYB", name: "달러 인덱스",  desc: "DXY — 6개 통화 대비 달러 강도", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "^FVX",     name: "미국 5Y",     desc: "미 5년 국채금리 — 중기 금리 기대", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "^TNX",     name: "미국 10Y",    desc: "미 10년 국채금리 — 외국인 수급·성장주 할인율", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "^TYX",     name: "미국 30Y",    desc: "미 30년 국채금리 — 장기 성장·인플레 기대 (10Y-2Y 역전 시 침체 신호)", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "^US2Y",    name: "미국 2Y",     desc: "미 2년 국채금리 — Fed 정책금리 기대. 10Y 보다 높으면(역전) 침체 신호", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "^TNX",     name: "미국 10Y",    desc: "미 10년 국채금리 — 외국인 수급·성장주 할인율·시장 벤치마크", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "EWY",      name: "EWY",         desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^VIX",     name: "VIX",         desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "VKOSPI",   name: "V-KOSPI",     desc: "코스피200 변동성지수 — 한국 공포지수 (20↑ 경계, 30↑ 공포). investing.com", tier: "T0", sector: "dashboard", direction: "inverse" },

@@ -38,8 +38,8 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
       label: "💵 현물·매크로",                        // 가격 자체가 신호인 외부 변수
       mobilePair: true,                               // 모바일: 좌=현물(원자재·코인) / 우=지수·금리
       rows: [
-        ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],    // 원자재(금·은·구리·원유·천연가스) + 비트코인 — 모바일 왼쪽
-        ["^IXIC", "^GSPC", "^DJI", "^FVX", "^TNX", "^TYX"],     // 미국 지수 현물 + 국채금리 커브(5/10/30Y) — 모바일 오른쪽
+        ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F"],     // 원자재(금·은·구리·원유·천연가스) — 모바일 왼쪽
+        ["^IXIC", "^GSPC", "^DJI", "^US2Y", "^TNX"],   // 미국 지수 + 금리 2Y·10Y — 모바일 오른쪽 (5/5 정렬: 2Y 아래 10Y)
       ],
     },
     {

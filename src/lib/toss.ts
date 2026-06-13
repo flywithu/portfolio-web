@@ -27,6 +27,7 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "DX-Y.NYB": "https://www.tossinvest.com/indices/RGI..DXY",
   "KRW=X":    "https://www.tossinvest.com/indices/exchange-rate",
   // 미국 국채금리 커브
+  "^US2Y": "https://www.tossinvest.com/indices/ROB.US2YT-RR",
   "^FVX":  "https://www.tossinvest.com/indices/ROB.US5YT-RR",
   "^TNX":  "https://www.tossinvest.com/indices/ROB.US10YT-RR",
   "^TYX":  "https://www.tossinvest.com/indices/ROB.US30YT-RR",
