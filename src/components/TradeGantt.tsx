@@ -45,6 +45,8 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
   onOpenValuation?: (ticker: string) => void;   // 📊 기업가치 모달 열기
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastScrollLeft = useRef(0);
+  const snapTimer = useRef<number | undefined>(undefined);
   const cols = useMemo(() => {
     const byGroup = scope === "byGroup";
     const realized = computeRealizedByTrade(trades, byGroup);   // 전체 거래로 원가 계산
@@ -140,24 +142,51 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
     return <div className="text-center text-xs text-gray-400 py-10">이 기간에 매수한 종목이 없습니다.</div>;
   }
 
-  // 종목 카드 클릭 → 그 종목의 가장 최근 거래(라운드) 셀로 스크롤
-  const scrollToCell = (colKey: string, ms: number) => {
-    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-cell="${colKey}_${ms}"]`);
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  // 종목별 마지막 거래일(가장 최근 라운드 시작일)
+  const lastMsByCol: Record<string, number> = {};
+  for (const cr of colRounds) lastMsByCol[cr.col.key] = Math.max(...cr.rounds.map(r => r.startMs));
+
+  // 특정 종목의 마지막 거래 셀로 세로 스크롤(가로는 유지) — 헤더 아래에 오게
+  const scrollToLast = (colKey: string, smooth = true) => {
+    const cont = scrollRef.current;
+    const ms = lastMsByCol[colKey];
+    if (!cont || ms == null) return;
+    const cell = cont.querySelector<HTMLElement>(`[data-cell="${colKey}_${ms}"]`);
+    if (!cell) return;
+    const top = cont.scrollTop + (cell.getBoundingClientRect().top - cont.getBoundingClientRect().top) - 96;
+    cont.scrollTo({ top: Math.max(0, top), behavior: smooth ? "smooth" : "auto" });
+  };
+
+  // 가로 스크롤이 멈추면 — 맨 왼쪽에 보이는 종목의 마지막 거래로 세로 이동
+  const onScroll = () => {
+    const cont = scrollRef.current;
+    if (!cont) return;
+    const dx = Math.abs(cont.scrollLeft - lastScrollLeft.current);
+    lastScrollLeft.current = cont.scrollLeft;
+    if (dx < 2) return;   // 세로 스크롤은 무시(가로 변화만)
+    window.clearTimeout(snapTimer.current);
+    snapTimer.current = window.setTimeout(() => {
+      const axisRight = cont.getBoundingClientRect().left + 56 + 6;   // 날짜축(56px) 오른쪽
+      let leftCol: string | null = null, minLeft = Infinity;
+      cont.querySelectorAll<HTMLElement>("[data-col]").forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (r.right > axisRight && r.left < minLeft) { minLeft = r.left; leftCol = el.dataset.col ?? null; }
+      });
+      if (leftCol) scrollToLast(leftCol);
+    }, 150);
   };
 
   return (
     <div>
       {/* 종목명 헤더·날짜축 고정 — 그 아래만 스크롤. data-noswipe: 모바일 그룹 스와이프 제외 */}
-      <div ref={scrollRef} data-noswipe className="overflow-auto max-h-[72vh]">
+      <div ref={scrollRef} data-noswipe onScroll={onScroll} className="overflow-auto max-h-[72vh]">
         <div className="grid items-start min-w-min gap-x-2" style={{ gridTemplateColumns: gridCols }}>
           {/* 좌상단 코너(고정) — 날짜축 라벨 */}
           <div className="sticky top-0 left-0 z-30 bg-white flex items-end justify-end pr-1.5 pb-2">
             <span className="text-[11px] font-bold text-gray-400">매수일</span>
           </div>
           {/* 종목명 헤더(상단 고정) — 종목별 총손익(실현 익절·손절 + 보유 평가) */}
-          {colRounds.map(({ col, rounds, realizedSum, hasReal, unreal }) => {
-            const lastMs = Math.max(...rounds.map(r => r.startMs));   // 가장 최근 라운드(마지막 거래일)
+          {colRounds.map(({ col, realizedSum, hasReal, unreal }) => {
             const px = prices?.get(col.ticker);
             const cur = px?.price;
             const refPx = px ? (px.prevClose || px.base) : 0;
@@ -167,9 +196,9 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
               : hasReal ? (realizedSum >= 0 ? CARD_TONE.profit : CARD_TONE.loss)
               : CARD_TONE.neutral;
             return (
-              <div key={col.key} className="sticky top-0 z-20 bg-white px-0.5 pt-0.5 pb-2">
+              <div key={col.key} data-col={col.key} className="sticky top-0 z-20 bg-white px-0.5 pt-0.5 pb-2">
                 {/* 종목명·현재가(%)·실현/평가. 카드색+왼쪽 책갈피로 상태표시. 카드 클릭=마지막 거래일로 스크롤 */}
-                <div onClick={() => scrollToCell(col.key, lastMs)}
+                <div onClick={() => scrollToLast(col.key)}
                      title="클릭 — 이 종목 마지막 거래일로 이동"
                      className={`relative rounded-lg border shadow-sm text-center px-2 py-1.5 leading-tight cursor-pointer ${tone.box}`}>
                   {/* 왼쪽 세로 책갈피 */}

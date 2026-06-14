@@ -677,6 +677,8 @@ export function MobileSimpleView() {
     const dy = e.changedTouches[0].clientY - touchStart.current.y;
     touchStart.current = null;
     const scroller = swipeScroll.current; swipeScroll.current = null;
+    // 내거래 — 가로 갠트 스크롤 위주라 스와이프로 그룹 전환 안 함(탭바 탭으로 이동)
+    if (activeTab === MY_TRADES_KEY) return;
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
     // 차트가 실제로 가로 스크롤된 제스처면 그룹 전환 안 함
     if (scroller && scroller.el.scrollLeft !== scroller.left) return;
