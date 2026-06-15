@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueries, keepPreviousData } from "@tanstack/react-query";
 import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchInvestorHistorySafe, fetchKrPriceHistory, fetchNaverNews, fetchKrDisclosures } from "../lib/api";
 import { getTossMaintenance } from "../lib/tossMaintenance";
-import { fetchConsensusReports, fetchMajorShareholders, type Shareholder } from "../lib/fundamentals";
+import { fetchConsensusReports, fetchMajorShareholders, type Shareholder, type ConsensusReport } from "../lib/fundamentals";
 import { openTossStock } from "../lib/toss";
 import { signColor, formatSigned } from "../lib/format";
 import { Tooltip } from "./Tooltip";
@@ -53,6 +53,7 @@ export interface ConsensusItem {
   ticker: string;
   name: string;
   groups?: string[];   // 이 종목이 포함된 그룹(계좌) 이름들
+  market?: "KOSPI" | "KOSDAQ";   // 거래소 구분 (코스피/코스닥 2열 분리용)
 }
 
 interface Props {
@@ -76,6 +77,13 @@ function parseRepDate(d?: string): number {
   return new Date(2000 + +m[1], +m[2] - 1, +m[3]).getTime();
 }
 
+// 컨센서스 리포트 필터 — 사업현황/탐방/실적코멘트 등은 제외.
+// 목표가(금액)가 있고 + 매수 계열 투자의견이 달린 리포트만 "최신순서"에 반영.
+const BUY_OPINION_RE = /매수|buy|적극|비중\s*확대|overweight|outperform|시장수익률\s*상회/i;
+function isActionableReport(r: ConsensusReport): boolean {
+  return r.target != null && r.target > 0 && BUY_OPINION_RE.test(r.opinion ?? "");
+}
+
 export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: Props) {
   const [view, setView] = useState<View>("consensus");   // 책갈피 sub탭
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -91,6 +99,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   const tickers = useMemo(() => items.map(i => i.ticker), [items]);
   const nameByTicker = useMemo(() => new Map(items.map(i => [i.ticker, i.name])), [items]);
   const groupsByTicker = useMemo(() => new Map(items.map(i => [i.ticker, i.groups ?? []])), [items]);
+  const marketByTicker = useMemo(() => new Map(items.map(i => [i.ticker, i.market])), [items]);
 
   // 토스(KR) 가격조회 대상 — KR 6자리 코드만. 미국 등 비KR 티커가 섞이면(예 NVDA→ANVDA)
   // 토스 배치 호출이 통째로 실패해 전 종목 현재가가 "—" 가 되므로 App 과 동일하게 선필터.
@@ -205,7 +214,8 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     const rows = tickers.map((t, i) => {
       const con = naverQs[i]?.data?.consensus;
       const sector = naverQs[i]?.data?.sector ?? "";
-      const reps = reportQs[i]?.data ?? [];
+      // 사업현황 등 제외 — 목표가+매수의견 리포트만 (최신순서·목록에 반영)
+      const reps = (reportQs[i]?.data ?? []).filter(isActionableReport);
       const loading = (naverQs[i]?.isLoading ?? false) || (reportQs[i]?.isLoading ?? false);
       const price = priceByTicker.get(t);
       // 현재가 등락 — 직전 거래일 종가 대비 (비거래일에도 마지막 거래 변화 반영)
@@ -370,8 +380,20 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
           </>}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {displayed.map((it, i) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
+          {(["KOSPI", "KOSDAQ"] as const).map(mkt => {
+            // 거래소 미확인 종목은 코스피 쪽으로 (대부분 코스피 + 검증 지연 대비)
+            const colItems = displayed.filter(it =>
+              (marketByTicker.get(it.ticker) === "KOSDAQ" ? "KOSDAQ" : "KOSPI") === mkt);
+            const mktColor = mkt === "KOSPI" ? "#dc2626" : "#2563eb";
+            return (
+            <div key={mkt} className="space-y-2">
+              <div className="flex items-baseline gap-1.5 px-1 pb-0.5 border-b-2 text-sm font-bold"
+                   style={{ borderColor: mktColor, color: mktColor }}>
+                {mkt === "KOSPI" ? "코스피" : "코스닥"}
+                <span className="text-[11px] text-gray-400 font-normal">{colItems.length}종목</span>
+              </div>
+              {colItems.map((it, i) => {
             const up = it.upside;
             const chip = "text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 "
                        + "border border-emerald-200 hover:bg-emerald-100";
@@ -582,6 +604,9 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   );
                 })()}
               </div>
+            );
+          })}
+            </div>
             );
           })}
         </div>

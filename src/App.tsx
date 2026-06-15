@@ -401,10 +401,14 @@ function Dashboard() {
     for (const s of holdings) {
       if (!/^\d{6}$/.test(s.ticker) || seen.has(s.ticker)) continue;
       seen.add(s.ticker);
-      out.push({ ticker: s.ticker, name: s.name, groups: groupsBy.get(s.ticker) ?? [] });
+      // 거래소 — 검증맵(토스 market.code) 우선, 없으면 저장된 Stock.market 정규화
+      const market = verifiedMarketMap?.get(s.ticker)
+        ?? (/코스닥|KOSDAQ/i.test(s.market ?? "") ? "KOSDAQ"
+          : /코스피|KOSPI/i.test(s.market ?? "") ? "KOSPI" : undefined);
+      out.push({ ticker: s.ticker, name: s.name, groups: groupsBy.get(s.ticker) ?? [], market });
     }
     return out;
-  }, [holdings]);
+  }, [holdings, verifiedMarketMap]);
   // "내꺼먼저" — 켜면 보유(shares>0) 종목을 위로
   const [heldFirst, setHeldFirstState] = useState(getHeldFirst);
   const toggleHeldFirst = () => setHeldFirstState(v => { setHeldFirst(!v); return !v; });
