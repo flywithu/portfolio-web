@@ -25,6 +25,7 @@ import { splitByMarket, splitHeldAndMarket, type MarketSection } from "./lib/mar
 import { GroupNavBar, type GroupNavItem } from "./components/GroupNavBar";
 import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { peekPendingSyncAction } from "./lib/syncManager";
 import { FeedbackDialog } from "./components/FeedbackDialog";
 import { DonateDialog } from "./components/DonateDialog";
 import { EtfCompositionDialog } from "./components/EtfCompositionDialog";
@@ -108,6 +109,13 @@ function Dashboard() {
   useEffect(() => {
     if (!shouldShowHelpFirstTime()) return;
     const t = setTimeout(() => setHelpOpen(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+
+  // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
+  useEffect(() => {
+    if (!peekPendingSyncAction()) return;
+    const t = setTimeout(() => setSettingsOpen(true), 0);
     return () => clearTimeout(t);
   }, []);
 

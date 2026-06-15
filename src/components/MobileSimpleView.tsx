@@ -86,7 +86,7 @@ import { ValuationModal } from "./ValuationModal";
 import {
   getSyncState, getLastSyncedAt, enableSync, disableSync,
   uploadToDrive, downloadFromDrive,
-  tryRestoreSession,
+  tryRestoreSession, peekPendingSyncAction,
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
@@ -117,6 +117,12 @@ function fmtPrice(symbol: string, price: number): string {
 export function MobileSimpleView() {
   const queryClient = useQueryClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
+  useEffect(() => {
+    if (!peekPendingSyncAction()) return;
+    const t = setTimeout(() => setSettingsOpen(true), 0);
+    return () => clearTimeout(t);
+  }, []);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);

@@ -69,6 +69,24 @@ export async function disableSync(): Promise<void> {
 export function pauseSync(): void { setSyncMode("off"); }
 export function resumeSync(): void { setSyncMode("on"); }
 
+// ─── 로그인 redirect 후 자동 재개할 동작 ──────────────────────
+// 미로그인 상태에서 저장/불러오기 클릭 → 동작을 저장하고 signIn() redirect.
+// 돌아온 뒤 설정이 다시 열리면 이 값을 읽어 그 동작을 자동 실행한다.
+const KEY_PENDING = "gdrive_pending_action";
+export type PendingSyncAction = "upload" | "download";
+export function setPendingSyncAction(a: PendingSyncAction): void {
+  try { localStorage.setItem(KEY_PENDING, a); } catch { /* noop */ }
+}
+export function peekPendingSyncAction(): PendingSyncAction | null {
+  try {
+    const v = localStorage.getItem(KEY_PENDING);
+    return v === "upload" || v === "download" ? v : null;
+  } catch { return null; }
+}
+export function clearPendingSyncAction(): void {
+  try { localStorage.removeItem(KEY_PENDING); } catch { /* noop */ }
+}
+
 // ─── 수동 업로드 / 다운로드 ──────────────────────────────────
 
 // 다운로드 직후엔 IndexedDB === Drive 라 자동 sync 가 redundant upload 일으킴.

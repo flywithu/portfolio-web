@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -25,10 +25,12 @@ import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import {
-  getSyncState, getLastSyncedAt, enableSync, disableSync,
+  getSyncState, getLastSyncedAt, disableSync, pauseSync,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
+  setPendingSyncAction, peekPendingSyncAction, clearPendingSyncAction,
+  type PendingSyncAction,
 } from "../lib/syncManager";
-import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
+import { isSignedIn, getAccessToken, wasSignedIn, signIn } from "../lib/googleAuth";
 import { useEscClose } from "../lib/useEscClose";
 
 interface Props {
@@ -48,12 +50,14 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   // 프록시별 사용량 (워커 /usage) — url → 결과/상태
   const [usage, setUsage] = useState<Record<string, ProxyUsage | "unsupported" | "loading">>({});
   const [pollMs, setPollMs] = useState(10_000);
-  const [syncState, setSyncState] = useState(getSyncState());
+  // syncState 값은 더 이상 직접 안 읽음(저장/불러오기 항상 노출) — setter 로 만료 시 상태만 갱신
+  const [, setSyncState] = useState(getSyncState());
   const [proxyStatus, setProxyStatus] = useState<PersonalProxyStatus | "checking">("checking");
   const [investStatus, setInvestStatus] = useState<PersonalProxyStatus | "checking">("checking");
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncBusyMsg, setSyncBusyMsg] = useState("");   // 진행 중 오버레이 메시지
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
+  const [signedIn, setSignedIn] = useState(isSignedIn());  // 구글 로그인 여부 (UI 반응형)
   const [independentMode, setIndependent] = useState(getIndependentGroupsMode());
   const [conflicts, setConflicts] = useState<TickerConflict[] | null>(null);
   const [tabVis, setTabVis] = useState(getTabVisibility());
@@ -142,16 +146,16 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     setFolders(getGroupFolders());
     // 다이얼로그 열 때 — 토큰 silent refresh 시도, 실패하면 자동 logout (설정 안에서만 표시)
     // 평소 다른 곳에선 로그인 UI 가 안 보임 (업로드/다운로드 시점에만 필요)
+    setSignedIn(isSignedIn());
     void (async () => {
-      const initial = getSyncState();
-      if (initial === "unconfigured") return;
       if (isSignedIn()) {
         void tryRestoreSession();   // 백그라운드 silent refresh
         return;
       }
       if (!wasSignedIn()) return;
       const token = await getAccessToken();
-      if (!token) {
+      setSignedIn(!!token);
+      if (!token && getSyncState() !== "unconfigured") {
         await disableSync();
         setSyncState("unconfigured");
         setLastSyncedAt(null);
@@ -162,6 +166,99 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
       const data = await exportAll();
       setStatusMsg(`현재: 종목 ${data.holdings.length}건`);
     })();
+  }, [isOpen]);
+
+  // ─── Drive 저장/불러오기 — 로그인 안 돼 있으면 로그인 후 자동 재개 ───
+  // 토큰 만료/미로그인 에러 공통 처리 → 로그아웃 상태로 전환
+  const handleSyncAuthError = useCallback(async (msg: string): Promise<boolean> => {
+    if (/Not signed in|401|invalid.?token/i.test(msg)) {
+      await disableSync();
+      setSyncState("unconfigured");
+      setSignedIn(false);
+      setLastSyncedAt(null);
+      setStatusMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
+      return true;
+    }
+    return false;
+  }, []);
+
+  const doUpload = useCallback(async () => {
+    setSyncBusy(true);
+    setSyncBusyMsg("Drive 에 저장 중...");
+    try {
+      await uploadToDrive();
+      pauseSync();
+      setSyncState("off");
+      setSignedIn(true);
+      setLastSyncedAt(getLastSyncedAt());
+      setStatusMsg("✅ Drive 에 저장됨");
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (await handleSyncAuthError(msg)) return;
+      alert(`❌ Drive 저장 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
+      setStatusMsg(`⚠️ ${msg}`);
+    } finally { setSyncBusy(false); setSyncBusyMsg(""); }
+  }, [handleSyncAuthError]);
+
+  const doDownload = useCallback(async () => {
+    if (!confirm("Drive 의 데이터로 이 기기를 덮어씁니다. 계속할까요?")) return;
+    setSyncBusy(true);
+    setSyncBusyMsg("Drive 에서 불러오는 중...");
+    try {
+      const ok = await downloadFromDrive();
+      if (ok) {
+        onChanged();
+        pauseSync();
+        setSyncState("off");
+        setSignedIn(true);
+        setLastSyncedAt(getLastSyncedAt());
+        window.alert("✅ Drive 에서 불러왔습니다.");
+        onClose();   // 닫아서 메인 UI(그룹 폴더 등) 즉시 반영
+      } else {
+        alert("⚠️ Drive 에 저장된 데이터가 없습니다.\n\n먼저 [↑ 저장하기] 로 현재 기기 데이터를 Drive 에 저장하세요.");
+        setStatusMsg("⚠️ Drive 에 데이터 없음");
+      }
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (await handleSyncAuthError(msg)) return;
+      alert(`❌ Drive 불러오기 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
+      setStatusMsg(`⚠️ ${msg}`);
+    } finally { setSyncBusy(false); setSyncBusyMsg(""); }
+  }, [handleSyncAuthError, onChanged, onClose]);
+
+  // 미로그인 시 — 동작 저장 후 로그인 redirect. 돌아오면 resume 효과가 자동 실행.
+  const startLoginThen = useCallback((action: PendingSyncAction) => {
+    setPendingSyncAction(action);
+    setStatusMsg("Google 로그인 중...");
+    setSyncBusy(true);
+    setSyncBusyMsg("Google 로그인 중...");
+    signIn();   // 전체 페이지 redirect — 이후 코드는 실행 안 됨
+  }, []);
+
+  const onUploadClick = useCallback(() => {
+    if (isSignedIn()) void doUpload();
+    else startLoginThen("upload");
+  }, [doUpload, startLoginThen]);
+
+  const onDownloadClick = useCallback(() => {
+    if (isSignedIn()) void doDownload();
+    else startLoginThen("download");
+  }, [doDownload, startLoginThen]);
+
+  // 로그인 redirect 복귀 후 설정이 다시 열리면 — 저장해둔 동작 자동 재개
+  useEffect(() => {
+    if (!isOpen) return;
+    const pending = peekPendingSyncAction();
+    if (!pending) return;
+    clearPendingSyncAction();
+    if (!isSignedIn()) return;   // 로그인 취소/실패 — 조용히 폐기
+    // effect 본문에서 직접 setState 회피 — 다음 tick 에 실행
+    const t = setTimeout(() => {
+      if (pending === "upload") void doUpload();
+      else void doDownload();
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // 행 편집 헬퍼
@@ -366,123 +463,47 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
             <div className="text-[11px] text-gray-500 leading-relaxed">
               내 드라이브에 저장하고 다른 기기에서 불러와 공유합니다.
             </div>
-            {syncState === "unconfigured" && (
-              <button
-                disabled={syncBusy}
-                onClick={async () => {
-                  setSyncBusy(true);
-                  setSyncBusyMsg("Google 로그인 중...");
-                  setStatusMsg("Google 로그인 중...");
-                  try {
-                    await enableSync();
-                    setSyncState("off");
-                    // 로그인 후 — Drive 에 파일 있으면 불러오기, 없으면 첫 저장
-                    setSyncBusyMsg("Drive 데이터 확인 중...");
-                    const downloaded = await downloadFromDrive();
-                    if (downloaded) {
-                      onChanged();
-                      setStatusMsg("✅ 로그인 + Drive 에서 불러옴 (자동 sync OFF)");
-                    } else {
-                      setSyncBusyMsg("첫 저장 중...");
-                      await uploadToDrive();
-                      setStatusMsg("✅ 로그인 + 첫 저장 완료 (자동 sync OFF)");
-                    }
-                    setLastSyncedAt(getLastSyncedAt());
-                  } catch (e) {
-                    const msg = (e as Error).message;
-                    alert(`❌ Google 로그인 / 동기화 실패\n\n${msg}`);
-                    setStatusMsg(`⚠️ ${msg}`);
-                  } finally {
-                    setSyncBusy(false);
-                    setSyncBusyMsg("");
-                  }
-                }}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
-                           disabled:opacity-50 text-white text-sm rounded">
-                🔐 Google 로그인
-              </button>
-            )}
-            {(syncState === "on" || syncState === "off") && (
-              <div className="space-y-1.5">
-                {/* 수동 동기화 — 자동 동기화는 제거됨 (업/다운로드 버튼으로 직접) */}
-                {lastSyncedAt && (
-                  <div className="text-[11px] text-gray-500">
-                    마지막 동기화: {new Date(lastSyncedAt).toLocaleString("ko-KR")}
-                  </div>
-                )}
-                {/* 업로드 / 다운로드 / 로그아웃 — 항상 표시 */}
-                <div className="flex gap-2 flex-wrap">
-                  <button disabled={syncBusy}
-                    onClick={async () => {
-                      setSyncBusy(true);
-                      setSyncBusyMsg("Drive 에 저장 중...");
-                      try {
-                        await uploadToDrive();
-                        setLastSyncedAt(getLastSyncedAt());
-                        setStatusMsg("✅ Drive 에 저장됨");
-                      } catch (e) {
-                        const msg = (e as Error).message;
-                        // 토큰 만료 / 미로그인 — 자동 redirect 없이 로그아웃 상태로 전환
-                        if (/Not signed in|401|invalid.?token/i.test(msg)) {
-                          await disableSync();
-                          setSyncState("unconfigured");
-                          setLastSyncedAt(null);
-                          setStatusMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
-                          return;
-                        }
-                        alert(`❌ Drive 저장 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
-                        setStatusMsg(`⚠️ ${msg}`);
-                      } finally { setSyncBusy(false); setSyncBusyMsg(""); }
-                    }}
-                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↑ 저장하기
-                  </button>
-                  <button disabled={syncBusy}
-                    onClick={async () => {
-                      if (!confirm("Drive 의 데이터로 이 기기를 덮어씁니다. 계속할까요?")) return;
-                      setSyncBusy(true);
-                      setSyncBusyMsg("Drive 에서 불러오는 중...");
-                      try {
-                        const ok = await downloadFromDrive();
-                        if (ok) {
-                          onChanged();
-                          setLastSyncedAt(getLastSyncedAt());
-                          window.alert("✅ Drive 에서 불러왔습니다.");
-                          onClose();   // 닫아서 메인 UI(그룹 폴더 등) 즉시 반영
-                        } else {
-                          alert("⚠️ Drive 에 저장된 데이터가 없습니다.\n\n먼저 [↑ 저장하기] 로 현재 기기 데이터를 Drive 에 저장하세요.");
-                          setStatusMsg("⚠️ Drive 에 데이터 없음");
-                        }
-                      } catch (e) {
-                        const msg = (e as Error).message;
-                        // 토큰 만료 / 미로그인 — 자동 redirect 없이 로그아웃 상태로 전환
-                        if (/Not signed in|401|invalid.?token/i.test(msg)) {
-                          await disableSync();
-                          setSyncState("unconfigured");
-                          setLastSyncedAt(null);
-                          setStatusMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
-                          return;
-                        }
-                        alert(`❌ Drive 불러오기 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
-                        setStatusMsg(`⚠️ ${msg}`);
-                      } finally { setSyncBusy(false); setSyncBusyMsg(""); }
-                    }}
-                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↓ 불러오기
-                  </button>
+            {/* 로그인 안 돼 있어도 저장/불러오기 항상 노출 — 누르면 로그인 후 자동 실행 */}
+            <div className="space-y-1.5">
+              {signedIn && lastSyncedAt && (
+                <div className="text-[11px] text-gray-500">
+                  마지막 동기화: {new Date(lastSyncedAt).toLocaleString("ko-KR")}
+                </div>
+              )}
+              {!signedIn && (
+                <div className="text-[11px] text-amber-700">
+                  🔐 로그인 안 됨 — 저장/불러오기를 누르면 Google 로그인 후 그대로 실행됩니다.
+                </div>
+              )}
+              <div className="flex gap-2 flex-wrap">
+                <button disabled={syncBusy}
+                  onClick={onUploadClick}
+                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
+                  ↑ 저장하기
+                </button>
+                <button disabled={syncBusy}
+                  onClick={onDownloadClick}
+                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
+                  ↓ 불러오기
+                </button>
+                {signedIn && (
                   <button disabled={syncBusy}
                     onClick={async () => {
                       if (!confirm("로그아웃 + 동기화 설정 해제?")) return;
                       setSyncBusy(true);
-                      try { await disableSync(); setSyncState("unconfigured"); setLastSyncedAt(null); }
-                      finally { setSyncBusy(false); }
+                      try {
+                        await disableSync();
+                        setSyncState("unconfigured");
+                        setSignedIn(false);
+                        setLastSyncedAt(null);
+                      } finally { setSyncBusy(false); }
                     }}
                     className="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded ml-auto">
                     🚪 로그아웃
                   </button>
-                </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* 파일 백업 — 저장 / 불러오기 */}
