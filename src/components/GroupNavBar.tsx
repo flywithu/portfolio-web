@@ -98,8 +98,10 @@ export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, s
         if (it.label) {
           return (
             <span key={it.id}
-                  className={`shrink-0 inline-flex items-center pl-2 ml-1 border-l border-gray-300
-                              font-bold text-gray-400 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+                  className={`shrink-0 inline-flex items-center font-bold text-gray-400
+                              ${compact ? "text-[10px]" : "text-[11px]"}
+                              ${floating ? "[writing-mode:vertical-rl] [text-orientation:upright] tracking-tight pt-1.5 mt-1 border-t border-gray-300"
+                                         : "pl-2 ml-1 border-l border-gray-300"}`}>
               {it.short}
             </span>
           );
@@ -109,9 +111,12 @@ export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, s
           <button key={it.id} data-chip={it.id} onClick={() => go(it.id)}
                   title={`${it.short}${it.emoji ? ` ${it.emoji}` : ""} 로 이동`}
                   className={`shrink-0 rounded-full transition inline-flex items-center gap-1
-                              ${compact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs"}
-                              ${on ? "bg-blue-600 text-white font-bold"
-                                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                              ${floating ? `backdrop-blur-sm [writing-mode:vertical-rl] [text-orientation:upright] tracking-tight px-0.5 py-1.5 ${compact ? "text-[11px]" : "text-xs"}`
+                                         : `${compact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs"}`}
+                              ${on ? (floating ? "bg-blue-600/45 text-white font-bold"
+                                               : "bg-blue-600 text-white font-bold")
+                                   : (floating ? "bg-gray-100/20 text-gray-500/90 hover:bg-gray-100/50"
+                                               : "bg-gray-100 text-gray-600 hover:bg-gray-200")}`}>
             {it.emoji && <span>{it.emoji}</span>}
             <span>{it.short}</span>
           </button>
